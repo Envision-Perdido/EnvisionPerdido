@@ -1,5 +1,10 @@
 import time, re, csv, json
 from urllib.parse import urlparse, urljoin
+from datetime import datetime
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:
+    from backports.zoneinfo import ZoneInfo
 
 import requests
 from bs4 import BeautifulSoup
@@ -119,7 +124,7 @@ def fetch_calendar(ics_url:str) -> Calendar | None:
     return None
 
 def _dt_to_iso(v):
-    #handle date or tatetime with or without timezone return ISO format string
+    #handle date or datetime with or without timezone, convert to America/Chicago, return ISO format string
 
     if not v:
         return None
@@ -128,7 +133,13 @@ def _dt_to_iso(v):
     dt = getattr(v, 'dt', v)
     
     try:
-        #if its a date, return YYYY-MM-DD
+        #if it's a datetime with timezone info, convert to America/Chicago
+        if hasattr(dt, 'tzinfo') and dt.tzinfo is not None:
+            local_tz = ZoneInfo(os.getenv("SITE_TIMEZONE", "America/Chicago"))
+            dt = dt.astimezone(local_tz)
+            # Return naive local time (remove timezone for consistency with downstream code)
+            return dt.replace(tzinfo=None).isoformat()
+        #if its a date or naive datetime, return as-is
         if hasattr(dt, 'isoformat'):
             return dt.isoformat()
         

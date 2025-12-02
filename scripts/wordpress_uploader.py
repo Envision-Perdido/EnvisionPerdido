@@ -101,10 +101,20 @@ class WordPressEventUploader:
         """Parse event data into EventON metadata format."""
         metadata = {}
         
-        # Event start and end times (cast to strings for REST schema)
+        # Event start and end times (normalize to site timezone, store UTC epoch)
         if pd.notna(event_row.get('start')):
             start_dt = pd.to_datetime(event_row['start'])
-            metadata['evcal_srow'] = str(int(start_dt.timestamp()))
+            try:
+                from zoneinfo import ZoneInfo
+                local_tz = ZoneInfo(os.getenv("SITE_TIMEZONE", "America/Chicago"))
+                # Treat naive as local time; convert to UTC for epoch
+                if start_dt.tzinfo is None:
+                    start_dt = start_dt.replace(tzinfo=local_tz)
+                start_utc = start_dt.astimezone(ZoneInfo("UTC"))
+                metadata['evcal_srow'] = str(int(start_utc.timestamp()))
+            except Exception:
+                # Fallback: use naive timestamp (may be offset)
+                metadata['evcal_srow'] = str(int(pd.Timestamp(start_dt).timestamp()))
             metadata['evcal_start_date'] = start_dt.strftime('%Y-%m-%d')
             metadata['evcal_start_time_hour'] = start_dt.strftime('%I')
             metadata['evcal_start_time_min'] = start_dt.strftime('%M')
@@ -112,7 +122,15 @@ class WordPressEventUploader:
         
         if pd.notna(event_row.get('end')):
             end_dt = pd.to_datetime(event_row['end'])
-            metadata['evcal_erow'] = str(int(end_dt.timestamp()))
+            try:
+                from zoneinfo import ZoneInfo
+                local_tz = ZoneInfo(os.getenv("SITE_TIMEZONE", "America/Chicago"))
+                if end_dt.tzinfo is None:
+                    end_dt = end_dt.replace(tzinfo=local_tz)
+                end_utc = end_dt.astimezone(ZoneInfo("UTC"))
+                metadata['evcal_erow'] = str(int(end_utc.timestamp()))
+            except Exception:
+                metadata['evcal_erow'] = str(int(pd.Timestamp(end_dt).timestamp()))
             metadata['evcal_end_date'] = end_dt.strftime('%Y-%m-%d')
             metadata['evcal_end_time_hour'] = end_dt.strftime('%I')
             metadata['evcal_end_time_min'] = end_dt.strftime('%M')

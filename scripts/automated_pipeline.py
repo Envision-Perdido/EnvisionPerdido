@@ -460,8 +460,23 @@ def main():
         if classified_df is None:
             return
         
-        # Step 3: Filter community events
+        # Step 3: Filter community events and remove unreasonably long events
         community_events = classified_df[classified_df['is_community_event'] == 1].copy()
+        
+        # Filter out events longer than 60 days (likely recurring stubs or data errors)
+        if len(community_events) > 0 and 'start' in community_events.columns and 'end' in community_events.columns:
+            community_events['_start_dt'] = pd.to_datetime(community_events['start'], errors='coerce')
+            community_events['_end_dt'] = pd.to_datetime(community_events['end'], errors='coerce')
+            community_events['_duration_days'] = (community_events['_end_dt'] - community_events['_start_dt']).dt.days
+            
+            before_filter = len(community_events)
+            community_events = community_events[community_events['_duration_days'].fillna(0) <= 60].copy()
+            community_events.drop(columns=['_start_dt', '_end_dt', '_duration_days'], inplace=True)
+            
+            filtered_out = before_filter - len(community_events)
+            if filtered_out > 0:
+                log(f"Filtered out {filtered_out} events with duration > 60 days")
+        
         log(f"Found {len(community_events)} community events")
         
         # Step 4: Export for calendar
