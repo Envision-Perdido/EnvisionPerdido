@@ -101,22 +101,27 @@ class WordPressEventUploader:
         """Parse event data into EventON metadata format."""
         metadata = {}
         
-        # Event start and end times (normalize to site timezone, store UTC epoch)
+        # Event start and end times
+        # NOTE: EventON ignores hour/min/ampm fields and uses only evcal_srow epoch
+        # EventON interprets the epoch as local time (not UTC), so we store the "local epoch"
+        # i.e., the timestamp of the local time treating it as if it were UTC
         if pd.notna(event_row.get('start')):
             start_dt = pd.to_datetime(event_row['start'])
             start_local = start_dt  # Keep original for display
             try:
                 from zoneinfo import ZoneInfo
                 local_tz = ZoneInfo(os.getenv("SITE_TIMEZONE", "America/Chicago"))
-                # Treat naive as local time; convert to UTC for epoch
+                # Treat naive as local time
                 if start_dt.tzinfo is None:
                     start_dt = start_dt.replace(tzinfo=local_tz)
-                start_utc = start_dt.astimezone(ZoneInfo("UTC"))
-                metadata['evcal_srow'] = str(int(start_utc.timestamp()))
+                # WORKAROUND: Store "local epoch" - epoch of local time treating as UTC
+                # Remove timezone info and get timestamp (treats as UTC)
+                local_naive = start_dt.replace(tzinfo=None)
+                metadata['evcal_srow'] = str(int(local_naive.timestamp()))
             except Exception:
-                # Fallback: use naive timestamp (may be offset)
+                # Fallback: use naive timestamp
                 metadata['evcal_srow'] = str(int(pd.Timestamp(start_dt).timestamp()))
-            # Use local time for display fields
+            # Use local time for display fields (though EventON ignores these)
             metadata['evcal_start_date'] = start_local.strftime('%Y-%m-%d')
             metadata['evcal_start_time_hour'] = start_local.strftime('%I')
             metadata['evcal_start_time_min'] = start_local.strftime('%M')
@@ -130,8 +135,9 @@ class WordPressEventUploader:
                 local_tz = ZoneInfo(os.getenv("SITE_TIMEZONE", "America/Chicago"))
                 if end_dt.tzinfo is None:
                     end_dt = end_dt.replace(tzinfo=local_tz)
-                end_utc = end_dt.astimezone(ZoneInfo("UTC"))
-                metadata['evcal_erow'] = str(int(end_utc.timestamp()))
+                # WORKAROUND: Store "local epoch"
+                local_naive = end_dt.replace(tzinfo=None)
+                metadata['evcal_erow'] = str(int(local_naive.timestamp()))
             except Exception:
                 metadata['evcal_erow'] = str(int(pd.Timestamp(end_dt).timestamp()))
             # Use local time for display fields
