@@ -104,6 +104,7 @@ class WordPressEventUploader:
         # Event start and end times (normalize to site timezone, store UTC epoch)
         if pd.notna(event_row.get('start')):
             start_dt = pd.to_datetime(event_row['start'])
+            start_local = start_dt  # Keep original for display
             try:
                 from zoneinfo import ZoneInfo
                 local_tz = ZoneInfo(os.getenv("SITE_TIMEZONE", "America/Chicago"))
@@ -115,13 +116,15 @@ class WordPressEventUploader:
             except Exception:
                 # Fallback: use naive timestamp (may be offset)
                 metadata['evcal_srow'] = str(int(pd.Timestamp(start_dt).timestamp()))
-            metadata['evcal_start_date'] = start_dt.strftime('%Y-%m-%d')
-            metadata['evcal_start_time_hour'] = start_dt.strftime('%I')
-            metadata['evcal_start_time_min'] = start_dt.strftime('%M')
-            metadata['evcal_start_time_ampm'] = start_dt.strftime('%p').lower()
+            # Use local time for display fields
+            metadata['evcal_start_date'] = start_local.strftime('%Y-%m-%d')
+            metadata['evcal_start_time_hour'] = start_local.strftime('%I')
+            metadata['evcal_start_time_min'] = start_local.strftime('%M')
+            metadata['evcal_start_time_ampm'] = start_local.strftime('%p').lower()
         
         if pd.notna(event_row.get('end')):
             end_dt = pd.to_datetime(event_row['end'])
+            end_local = end_dt  # Keep original for display
             try:
                 from zoneinfo import ZoneInfo
                 local_tz = ZoneInfo(os.getenv("SITE_TIMEZONE", "America/Chicago"))
@@ -131,10 +134,11 @@ class WordPressEventUploader:
                 metadata['evcal_erow'] = str(int(end_utc.timestamp()))
             except Exception:
                 metadata['evcal_erow'] = str(int(pd.Timestamp(end_dt).timestamp()))
-            metadata['evcal_end_date'] = end_dt.strftime('%Y-%m-%d')
-            metadata['evcal_end_time_hour'] = end_dt.strftime('%I')
-            metadata['evcal_end_time_min'] = end_dt.strftime('%M')
-            metadata['evcal_end_time_ampm'] = end_dt.strftime('%p').lower()
+            # Use local time for display fields
+            metadata['evcal_end_date'] = end_local.strftime('%Y-%m-%d')
+            metadata['evcal_end_time_hour'] = end_local.strftime('%I')
+            metadata['evcal_end_time_min'] = end_local.strftime('%M')
+            metadata['evcal_end_time_ampm'] = end_local.strftime('%p').lower()
         
         # Location
         if pd.notna(event_row.get('location')):
