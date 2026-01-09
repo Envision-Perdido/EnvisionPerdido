@@ -69,6 +69,71 @@ def find_ics_links(soup: BeautifulSoup) -> str | None:
     
     return None
 
+def get_event_image_url(event_url: str) -> str | None:
+    """
+    Extract the main event image URL from the event detail page.
+    
+    Args:
+        event_url: URL of the event detail page
+        
+    Returns:
+        Full URL to the event image, or None if not found
+    """
+    try:
+        time.sleep(0.5)  # Be polite
+        response = sess.get(event_url, timeout=30)
+        response.raise_for_status()
+    except requests.RequestException as e:
+        print(f"Error fetching event page for image {event_url}: {e}")
+        return None
+    
+    soup = BeautifulSoup(response.text, 'html.parser')
+    
+    # Try to find main event image - common selectors for GrowthZone event pages
+    # 1. Look for og:image meta tag (social media preview)
+    og_image = soup.find('meta', property='og:image')
+    if og_image and og_image.get('content'):
+        return urljoin(BASE, og_image['content'])
+    
+    # 2. Look for main event image in common containers
+    image_selectors = [
+        'img.event-image',
+        'img.event-detail-image', 
+        '.event-header img',
+        '.event-content img',
+        'article img',
+        '.gz-detail-image img'
+    ]
+    
+    for selector in image_selectors:
+        img = soup.select_one(selector)
+        if img and img.get('src'):
+            img_url = img['src']
+            # Skip tiny icons/logos
+            if any(skip in img_url.lower() for skip in ['logo', 'icon', 'avatar', 'thumbnail']):
+                continue
+            return urljoin(BASE, img_url)
+    
+    # 3. Fallback: first reasonably sized image
+    for img in soup.find_all('img'):
+        src = img.get('src', '')
+        # Skip very small images and common non-event images
+        if any(skip in src.lower() for skip in ['logo', 'icon', 'avatar', '1x1', 'spacer']):
+            continue
+        # Check if image has reasonable dimensions (if available)
+        width = img.get('width')
+        height = img.get('height')
+        if width and height:
+            try:
+                if int(width) < 100 or int(height) < 100:
+                    continue
+            except (ValueError, TypeError):
+                pass
+        
+        return urljoin(BASE, src)
+    
+    return None
+
 def get_ics_url_from_event(event_url: str) -> str | None:
     """Fetches the ICS URL from the event page.
     
@@ -216,8 +281,17 @@ def scrape_month(month_url: str, pause_seconds: float = 0.4) -> list[dict]:
                 continue
             seen_ics.add(ics)
 
+            # Extract image URL from the event page
+            image_url = get_event_image_url(page_url)
+
             cal = fetch_calendar(ics)
             events = parse_calendar_to_events(cal, source_ics=ics, source_page=page_url)
+            
+            # Add image URL to each event from this page
+            if image_url:
+                for event in events:
+                    event['image_url'] = image_url
+            
             all_events.extend(events)
         except Exception as e:
             errors.append(f"Error processing event page {page_url}: {e}")
@@ -244,7 +318,7 @@ def save_events_csv(events: list[dict], path: str = "perdido_events.csv"):
 
     cols = [
         "title", "start", "end", "location", "url",
-        "description", "uid", "category",
+        "description", "uid", "category", "image_url",
     ]         
 
     #flatten categories

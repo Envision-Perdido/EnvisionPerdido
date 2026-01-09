@@ -14,6 +14,7 @@ from datetime import datetime
 from pathlib import Path
 import os
 from requests.auth import HTTPBasicAuth
+import mimetypes
 
 # WordPress Configuration
 WORDPRESS_CONFIG = {
@@ -158,7 +159,75 @@ class WordPressEventUploader:
         
         return metadata
     
-    def create_event(self, event_row):
+    def upload_image(self, image_path_or_url, title=None):
+        """
+        Upload an image to WordPress media library.
+        
+        Args:
+            image_path_or_url: Local file path or URL to image
+            title: Optional title for the image
+            
+        Returns:
+            Media ID if successful, None otherwise
+        """
+        try:
+            # Determine if it's a URL or local file
+            if image_path_or_url.startswith('http://') or image_path_or_url.startswith('https://'):
+                # Download image from URL
+                response = requests.get(image_path_or_url, timeout=30)
+                response.raise_for_status()
+                image_data = response.content
+                # Extract filename from URL
+                filename = image_path_or_url.split('/')[-1].split('?')[0]
+                if not filename or '.' not in filename:
+                    filename = 'event_image.jpg'
+            else:
+                # Read local file
+                with open(image_path_or_url, 'rb') as f:
+                    image_data = f.read()
+                filename = os.path.basename(image_path_or_url)
+            
+            # Determine MIME type
+            mime_type, _ = mimetypes.guess_type(filename)
+            if not mime_type:
+                mime_type = 'image/jpeg'  # Default fallback
+            
+            # Upload to WordPress media library
+            headers = {
+                'Content-Disposition': f'attachment; filename="{filename}"',
+                'Content-Type': mime_type
+            }
+            
+            response = self.session.post(
+                f"{self.api_base}/media",
+                auth=self.auth,
+                headers=headers,
+                data=image_data
+            )
+            
+            if response.status_code == 201:
+                media_data = response.json()
+                media_id = media_data['id']
+                
+                # Optionally update title
+                if title:
+                    self.session.post(
+                        f"{self.api_base}/media/{media_id}",
+                        auth=self.auth,
+                        json={'title': title}
+                    )
+                
+                log(f"   Uploaded image: {filename} (Media ID: {media_id})")
+                return media_id
+            else:
+                log(f"   Warning: Failed to upload image: {response.status_code}")
+                return None
+                
+        except Exception as e:
+            log(f"   Warning: Error uploading image: {e}")
+            return None
+    
+    def create_event(self, event_row, image_column='image_url'):
         """Create a single event in WordPress."""
         try:
             # Prepare event data
@@ -168,6 +237,12 @@ class WordPressEventUploader:
             # Parse metadata
             metadata = self.parse_event_metadata(event_row)
             
+            # Handle featured image if provided
+            featured_media_id = None
+            if image_column in event_row and pd.notna(event_row[image_column]):
+                image_source = event_row[image_column]
+                featured_media_id = self.upload_image(image_source, title=title)
+            
             # Create post data
             post_data = {
                 'title': title,
@@ -176,6 +251,10 @@ class WordPressEventUploader:
                 'type': 'ajde_events',  # EventON custom post type
                 'meta': metadata
             }
+            
+            # Add featured image if uploaded
+            if featured_media_id:
+                post_data['featured_media'] = featured_media_id
             
             # Send to WordPress
             response = self.session.post(
