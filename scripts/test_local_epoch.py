@@ -9,11 +9,27 @@ import requests
 import base64
 from datetime import datetime
 from zoneinfo import ZoneInfo
+import pytest
+
+# Skip live-site tests by default. Run them intentionally with:
+# RUN_LIVE_SITE_TESTS=1
+if not os.environ.get("RUN_LIVE_SITE_TESTS"):
+    pytest.skip("Skipping live-site epoch test (set RUN_LIVE_SITE_TESTS=1 to enable)", allow_module_level=True)
 
 def load_env():
     """Load environment from env.ps1"""
     env = {}
-    env_path = "scripts/windows/env.ps1"
+    # Priority: environment variables -> ~/.secrets/envision_env.ps1 -> scripts/windows/env.ps1
+    # 1) environment variables
+    if os.environ.get('WP_SITE_URL'):
+        env['WP_SITE_URL'] = os.environ.get('WP_SITE_URL')
+        env['WP_USERNAME'] = os.environ.get('WP_USERNAME')
+        env['WP_APP_PASSWORD'] = os.environ.get('WP_APP_PASSWORD')
+        return env
+
+    # 2) local secrets file
+    secrets_path = os.path.expanduser('~/.secrets/envision_env.ps1')
+    env_path = secrets_path if os.path.exists(secrets_path) else 'scripts/windows/env.ps1'
     try:
         with open(env_path, "r") as f:
             for line in f:
