@@ -1,19 +1,50 @@
-import os
-import re
 import time
-import json
+import re
 import csv
+import json
 from urllib.parse import urlparse, urljoin
 from datetime import datetime
-
 try:
     from zoneinfo import ZoneInfo
-except ImportError:
-    from backports.zoneinfo import ZoneInfo
+except Exception:
+    # Try dynamic imports to avoid static analyzer errors for optional packages
+    try:
+        import importlib
+        _bz = importlib.import_module("backports.zoneinfo")
+        ZoneInfo = getattr(_bz, "ZoneInfo")
+    except Exception:
+        try:
+            import importlib
+            _dt = importlib.import_module("dateutil.tz")
+            # dateutil.tz.gettz returns a tzinfo-like object when called with a name
+            ZoneInfo = getattr(_dt, "gettz")
+        except Exception:
+            ZoneInfo = None
+            print("Warning: no ZoneInfo implementation available; install Python 3.9+, backports.zoneinfo, or python-dateutil to enable timezone support.")
 
+import importlib
 import requests
-from bs4 import BeautifulSoup
-from icalendar import Calendar
+from typing import Optional, TYPE_CHECKING, List, Dict
+
+# Allow static type checkers to see BeautifulSoup without importing it at runtime
+if TYPE_CHECKING:
+    from bs4 import BeautifulSoup
+
+# Attempt a dynamic import to avoid static analyzer errors when the package is not installed
+try:
+    _bs = importlib.import_module("bs4")
+    BeautifulSoup = getattr(_bs, "BeautifulSoup")
+except Exception:
+    BeautifulSoup = None
+    print("Warning: 'bs4' (BeautifulSoup) package not found. Install with 'pip install beautifulsoup4' to enable HTML parsing.")
+
+try:
+    _ical = importlib.import_module("icalendar")
+    Calendar = getattr(_ical, "Calendar")
+except Exception:
+    Calendar = None
+    print("Warning: 'icalendar' package not found. Install with 'pip install icalendar' to enable ICS parsing.")
+import os
 
 
 BASE = "https://business.perdidochamber.com"
@@ -40,6 +71,8 @@ def get_event_url(month_url):
     response.raise_for_status()
 
     #parsing the HTML content of the page
+    if BeautifulSoup is None:
+        raise RuntimeError("BeautifulSoup is required to parse HTML; install beautifulsoup4")
     soup = BeautifulSoup(response.text, 'html.parser')
 
     #collecting the event detail links
@@ -55,11 +88,9 @@ def get_event_url(month_url):
         if link not in seen:
             seen.add(link)
             unique_links.append(link)
-
     return unique_links
 
-def find_ics_links(soup: BeautifulSoup) -> str | None:
-    """Extract ICS link from event page HTML"""
+def find_ics_links(soup) -> Optional[str]:
     anchor = soup.find('a', string=re.compile(r'Add to Calendar\s*-\s*iCal', re.IGNORECASE))
     if anchor and anchor.get('href'):
         return urljoin(BASE, anchor['href'])
@@ -70,142 +101,141 @@ def find_ics_links(soup: BeautifulSoup) -> str | None:
     
     return None
 
-def extract_event_image_from_soup(soup: BeautifulSoup) -> str | None:
-    """Extract main event image from already-loaded HTML"""
-    # Try Open Graph tag first (most reliable)
-    og_image = soup.find('meta', property='og:image')
-    if og_image and og_image.get('content'):
-        return urljoin(BASE, og_image['content'])
+def get_ics_url_from_event(event_url: str) -> str | None:
+    """Fetches the ICS URL from the event page.
     
-    # Try common event image CSS selectors
-    for selector in ['img.event-image', 'img.event-detail-image', '.event-header img', 
-                     '.event-content img', 'article img', '.gz-detail-image img']:
-        img = soup.select_one(selector)
-        if img and img.get('src'):
-            img_url = img['src']
-            if not any(skip in img_url.lower() for skip in ['logo', 'icon', 'avatar', 'thumbnail']):
-                return urljoin(BASE, img_url)
-    
-    # Fallback: first reasonably sized image
-    for img in soup.find_all('img'):
-        src = img.get('src', '')
-        if any(skip in src.lower() for skip in ['logo', 'icon', 'avatar', '1x1', 'spacer']):
-            continue
-        
-        # Check dimensions if available
-        width, height = img.get('width'), img.get('height')
-        if width and height:
-            try:
-                if int(width) < 100 or int(height) < 100:
-                    continue
-            except (ValueError, TypeError):
-                pass
-        
-        return urljoin(BASE, src)
-    
-    return None
+       GrowthZone event detail pages include an "Add to Calendar -> iCal" link 
+       that points to an ICS file. If that link cannot be found, this function
+       falls back to constructing the .ics URL from the event detil slug.
 
-def fetch_event_page(event_url: str) -> BeautifulSoup | None:
-    """Fetch and parse event detail page HTML"""
+       Args:
+           event_url (str): The URL of the event detail page.
+
+       Returns:
+           str | None: The URL of the ICS file, or None if it cannot be found.
+    """
     try:
-        time.sleep(1)  # Be polite
+        time.sleep(1)  # be polite and avoid overwhelming the server
         response = sess.get(event_url, timeout=30)
         response.raise_for_status()
-        return BeautifulSoup(response.text, 'html.parser')
     except requests.RequestException as e:
         print(f"Error fetching event page {event_url}: {e}")
         return None
 
-def get_ics_url_from_event(event_url: str) -> str | None:
-    """Extract ICS URL from event page, or construct from URL slug"""
-    soup = fetch_event_page(event_url)
-    if not soup:
+    if BeautifulSoup is None:
+        print("Cannot parse event page HTML because BeautifulSoup is not installed.")
         return None
+
+    soup = BeautifulSoup(response.text, 'html.parser')
     
-    # Look for explicit ICS link
+    # Look for the "Add to Calendar -> iCal" link
     ics_link = find_ics_links(soup)
     if ics_link:
         return ics_link
     
-    # Fallback: construct from event slug
+    # Fallback: Construct the ICS URL from the event detail slug
     match = re.search(r'/events/details/([^/]+)', urlparse(event_url).path)
     if match:
         event_slug = match.group(1)
         return urljoin(BASE, f"/events/ical/{event_slug}.ics")
-    
-    print(f"Warning: Could not extract ICS URL from {event_url}")
-    return None
-
-def get_event_image_url(event_url: str) -> str | None:
-    """Extract main event image URL from event page"""
-    soup = fetch_event_page(event_url)
-    return extract_event_image_from_soup(soup) if soup else None
+    else:
+        return None
 
 #ics fetching and parsing 
-def fetch_calendar(ics_url:str) -> Calendar | None:
+def fetch_calendar(ics_url: str) -> Optional[object]:
+    # If the icalendar package is not available, skip ICS fetching.
+    if Calendar is None:
+        print("Cannot fetch ICS files because the 'icalendar' package is not installed.")
+        return None
 
-    #download and parse the ics file into an icalendar object
+    # download and parse the ics file into an icalendar object
     try:
         time.sleep(1)  # be polite and avoid overwhelming the server
         response = sess.get(ics_url, timeout=30)
         response.raise_for_status()
-        return Calendar.from_ical(response.content)
+        # use Calendar.from_ical when available
+        if Calendar is not None and hasattr(Calendar, 'from_ical'):
+            return Calendar.from_ical(response.content)
+        # fallback to module-level _ical if available
+        if '_ical' in globals() and hasattr(_ical, 'Calendar'):
+            return _ical.Calendar.from_ical(response.content)
     except requests.RequestException as e:
         print(f"Error fetching ICS file {ics_url}: {e}")
     except Exception as e:
         print(f"Error parsing ICS file from {ics_url}: {e}")
-    
+
     return None
 
 def _dt_to_iso(v):
-    """Convert datetime to ISO format in America/Chicago timezone"""
+    #handle date or datetime with or without timezone, convert to America/Chicago, return ISO format string
+
     if not v:
         return None
     
+    #icalendar stores time as vDDDTypes; .dt can be date or datetime
     dt = getattr(v, 'dt', v)
     
     try:
-        # Convert timezone-aware datetimes to America/Chicago
+        #if it's a datetime with timezone info, convert to America/Chicago
         if hasattr(dt, 'tzinfo') and dt.tzinfo is not None:
             local_tz = ZoneInfo(os.getenv("SITE_TIMEZONE", "America/Chicago"))
-            dt = dt.astimezone(local_tz).replace(tzinfo=None)
+            dt = dt.astimezone(local_tz)
+            # Return naive local time (remove timezone for consistency with downstream code)
+            return dt.replace(tzinfo=None).isoformat()
+        #if its a date or naive datetime, return as-is
+        if hasattr(dt, 'isoformat'):
+            return dt.isoformat()
         
-        return dt.isoformat() if hasattr(dt, 'isoformat') else str(dt)
+        #fallback: convert to string
+        return str(dt)
     except Exception:
         return str(dt)
 
 def _text_or_none(val):
     return str(val) if val is not None else None
 
-def parse_calendar_to_events(cal: Calendar, source_ics: str, source_page: str | None = None) -> list[dict]:
-    """Extract and normalize VEVENT components from iCalendar"""
-    if cal is None:
-        return []
-    
+def parse_calendar_to_events(cal, source_ics: str, source_page: Optional[str] = None) -> List[Dict]:
+    # extract VEVENTS into a list of normalized dicts
     events = []
-    for component in cal.walk('VEVENT'):
-        category = component.get('CATEGORIES')
-        if category:
+    if cal is None:
+        return events
+    
+    for component in cal.walk():
+        # Some icalendar implementations require checking .name
+        if getattr(component, 'name', '').upper() != 'VEVENT':
+            continue
+        summary = _text_or_none(component.get('SUMMARY'))
+        description = _text_or_none(component.get('DESCRIPTION'))
+        location = _text_or_none(component.get('LOCATION'))
+        url = _text_or_none(component.get('URL'))
+        uid = _text_or_none(component.get('UID'))
+        category = _text_or_none(component.get('CATEGORIES'))
+        if category is not None:
+            #categories can be a vText or list-like; normalize
             try:
                 category = list(category.cats)
             except Exception:
                 category = [_text_or_none(category)]
-        
-        events.append({
-            "title": _text_or_none(component.get('SUMMARY')),
-            "description": _text_or_none(component.get('DESCRIPTION')),
-            "location": _text_or_none(component.get('LOCATION')),
+
+        event = {
+            "title": summary,
+            "description": description,
+            "location": location,
             "start": _dt_to_iso(component.get('DTSTART')),
             "end": _dt_to_iso(component.get('DTEND')),
-            "url": _text_or_none(component.get('URL')),
-            "uid": _text_or_none(component.get('UID')),
+            "url": url,
+            "uid": uid,
             "category": category,
             "last_modified": _dt_to_iso(component.get('LAST-MODIFIED')),
             "created": _dt_to_iso(component.get('CREATED')),
+
+            #provencence
             "source_ics": source_ics,
             "source_page": source_page
-        })
-    
+        }
+
+        events.append(event)
+        
     return events
 
 def scrape_month(month_url: str, pause_seconds: float = 0.4) -> list[dict]:
@@ -232,17 +262,8 @@ def scrape_month(month_url: str, pause_seconds: float = 0.4) -> list[dict]:
                 continue
             seen_ics.add(ics)
 
-            # Extract image URL from the event page
-            image_url = get_event_image_url(page_url)
-
             cal = fetch_calendar(ics)
             events = parse_calendar_to_events(cal, source_ics=ics, source_page=page_url)
-            
-            # Add image URL to each event from this page
-            if image_url:
-                for event in events:
-                    event['image_url'] = image_url
-            
             all_events.extend(events)
         except Exception as e:
             errors.append(f"Error processing event page {page_url}: {e}")
@@ -258,22 +279,32 @@ def scrape_month(month_url: str, pause_seconds: float = 0.4) -> list[dict]:
     return all_events
 
 #save to JSON/csv
-def save_events_csv(events: list[dict], path: str = "perdido_events.csv"):
-    """Save events to CSV with flattened categories"""
+def save_events_json(events: list[dict], path: str = "perdido_events.json"):
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(events, f, ensure_ascii=False, indent=2)
+
+def save_events_csv(events: list[dict], path: str = "perdido_events.csv"):   
     if not events:
         print("No events to save.")
         return
+
+    cols = [
+        "title", "start", "end", "location", "url",
+        "description", "uid", "category",
+    ]         
+
+    #flatten categories
+    def rowify(e):
+        r = {k: e.get(k) for k in cols}
+        if isinstance(r.get("category"), list):
+            r["category"] = ";".join(filter(None, map(str, r["category"])))
+        return r
     
-    cols = ["title", "start", "end", "location", "url", "description", "uid", "category", "image_url"]
-    
-    with open(path, "w", newline="", encoding="utf-8") as f:
+    with open(path, "w", newline = "", encoding = "utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=cols)
         writer.writeheader()
         for event in events:
-            row = {k: event.get(k) for k in cols}
-            if isinstance(row.get("category"), list):
-                row["category"] = ";".join(filter(None, map(str, row["category"])))
-            writer.writerow(row)
+            writer.writerow(rowify(event))
 
 if __name__ == "__main__":
     print("[runner] starting scrape for all months in 2025...", flush=True)

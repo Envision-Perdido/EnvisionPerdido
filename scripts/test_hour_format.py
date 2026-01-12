@@ -3,19 +3,59 @@
 Test if changing evcal_start_time_hour changes the display
 This will help us determine if EventON is using these fields at all
 """
+import os
 import requests
 import base64
 import json
+import pytest
 
+# By default skip tests that interact with a live WordPress site. To run them set:
+#   RUN_LIVE_SITE_TESTS=1
+# This avoids accidental network calls or destructive updates during CI or local runs.
+if not os.environ.get("RUN_LIVE_SITE_TESTS"):
+    pytest.skip("Skipping live-site tests (set RUN_LIVE_SITE_TESTS=1 to enable)", allow_module_level=True)
+
+
+# Load credentials for live site tests. Priority order:
+# 1) Environment variables: WP_SITE_URL, WP_USERNAME, WP_APP_PASSWORD
+# 2) A local secrets file: ~/.secrets/envision_env.ps1 (PowerShell-style lines)
+# 3) Fallback to scripts/windows/env.ps1 if it exists (not recommended for secrets)
 env = {}
-with open('scripts/windows/env.ps1', 'r') as f:
-    for line in f:
-        line = line.strip()
-        if line and not line.startswith('#') and '=' in line:
-            key, val = line.split('=', 1)
-            key = key.replace('$env:', '').strip()
-            val = val.strip().strip('"').strip("'")
-            env[key] = val
+def _load_from_ps1(path):
+    out = {}
+    try:
+        with open(path, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#') and '=' in line:
+                    key, val = line.split('=', 1)
+                    key = key.replace('$env:', '').strip()
+                    val = val.strip().strip('"').strip("'")
+                    out[key] = val
+    except FileNotFoundError:
+        return {}
+    return out
+
+# 1) from env vars
+env['WP_SITE_URL'] = os.environ.get('WP_SITE_URL')
+env['WP_USERNAME'] = os.environ.get('WP_USERNAME')
+env['WP_APP_PASSWORD'] = os.environ.get('WP_APP_PASSWORD')
+
+# 2) from ~/.secrets/envision_env.ps1
+if not all([env.get('WP_SITE_URL'), env.get('WP_USERNAME'), env.get('WP_APP_PASSWORD')]):
+    secrets_file = os.path.expanduser('~/.secrets/envision_env.ps1')
+    env_secrets = _load_from_ps1(secrets_file)
+    for k, v in env_secrets.items():
+        env.setdefault(k, v)
+
+# 3) fallback to scripts/windows/env.ps1 (only if present locally)
+if not all([env.get('WP_SITE_URL'), env.get('WP_USERNAME'), env.get('WP_APP_PASSWORD')]):
+    env_local = _load_from_ps1('scripts/windows/env.ps1')
+    for k, v in env_local.items():
+        env.setdefault(k, v)
+
+if not all([env.get('WP_SITE_URL'), env.get('WP_USERNAME'), env.get('WP_APP_PASSWORD')]):
+    raise RuntimeError('Live-site test enabled but WP credentials not found in env vars or ~/.secrets/envision_env.ps1')
 
 WP_URL = env.get('WP_SITE_URL').rstrip('/')
 creds = base64.b64encode(f"{env.get('WP_USERNAME')}:{env.get('WP_APP_PASSWORD')}".encode()).decode()
