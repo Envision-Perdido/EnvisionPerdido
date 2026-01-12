@@ -14,6 +14,26 @@ Focus on the following surfaces to be immediately productive: code entry points,
 - Email: `SENDER_EMAIL`, `EMAIL_PASSWORD` (Gmail App Passwords), `RECIPIENT_EMAIL`, `SMTP_SERVER`, `SMTP_PORT`
 - Behavior flags: `AUTO_UPLOAD` (default true when unset), `SITE_TIMEZONE` (default `America/Chicago`)
 
+macOS (zsh) quick env var snippet (copy/paste into your `~/.zshrc` or run in shell to set for session):
+
+```zsh
+# WordPress
+export WP_SITE_URL="https://sandbox.example.org"
+export WP_USERNAME="your_wp_username"
+export WP_APP_PASSWORD="xxxx xxxx xxxx xxxx xxxx xxxx"
+
+# Email / SMTP
+export SMTP_SERVER="smtp.gmail.com"
+export SMTP_PORT="587"
+export SENDER_EMAIL="your_email@gmail.com"
+export EMAIL_PASSWORD="your_16_char_app_password"
+export RECIPIENT_EMAIL="your_email@gmail.com"
+
+# Behavior
+export AUTO_UPLOAD="false"        # safe default when testing
+export SITE_TIMEZONE="America/Chicago"
+```
+
 Examples: the pipeline checks for model files at `data/artifacts/*` and will exit early if missing. The uploader conducts a DRY RUN by default and creates events as `status: draft` (safe-by-default).
 
 ### Important project-specific conventions
@@ -40,6 +60,31 @@ Examples: the pipeline checks for model files at `data/artifacts/*` and will exi
 - `Envision_Perdido_DataCollection.py` — scraping, ICS discovery fallback, parsing helpers (`_dt_to_iso`)
 - `scripts/wordpress_uploader.py` — metadata mapping (`parse_event_metadata`), image upload flow, REST endpoints
 - `docs/QUICKSTART.md` and `docs/PROJECT_STRUCTURE.md` — human-run workflows and assumptions (Windows-focused examples)
+
+### Safe WordPress testing checklist
+Follow this checklist whenever you modify upload logic or run the uploader against a site.
+1. Create a sandbox WordPress site (do not use production).
+2. Install EventON and the `plugins/eventon-rest-api-meta.php` helper plugin if not present.
+3. Create a test WordPress user and generate an Application Password for that user.
+4. Set the macOS zsh env vars (see snippet above) and keep `AUTO_UPLOAD=false` while testing.
+5. Run the pipeline to produce `output/pipeline/calendar_upload_<timestamp>.csv` (no auto-upload):
+
+```zsh
+python scripts/automated_pipeline.py
+```
+
+6. Open `output/pipeline/` and verify the generated CSV contents (titles, dates, `evcal_srow` values).
+7. Run the uploader in dry-run mode (it runs dry-run first by default):
+
+```zsh
+python scripts/wordpress_uploader.py
+```
+
+8. Confirm the dry-run output lists events correctly. Only proceed if rows, times, and locations look right.
+9. If you decide to upload, allow the uploader to create events as DRAFTS first. Inspect drafts in WP admin.
+10. Publish one or two events manually in WP admin to verify appearance, timezones, and metadata are correct before publishing the rest.
+11. If anything is wrong (dates, timezone offsets, or missing metadata), stop and fix `parse_event_metadata` or `_dt_to_iso` code; do not mass-publish.
+
 
 ### Safety & non-goals
 - The pipeline auto-uploads by default (controlled by `AUTO_UPLOAD`); do not enable auto-upload in CI or in an LLM-driven change without explicit human approval and a sandbox site.
