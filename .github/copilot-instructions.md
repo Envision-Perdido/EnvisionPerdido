@@ -55,6 +55,25 @@ Examples: the pipeline checks for model files at `data/artifacts/*` and will exi
 - To reproduce full run: set env vars, then `python scripts/automated_pipeline.py`. Check `output/pipeline/` for artifacts and `output/logs/` for logs.
 - For WordPress integration changes, test against a sandbox WP site and use the uploader's dry-run first — it prints action summaries and requires interactive confirmation before making changes.
 
+### Wrapper & smoke-test
+- `scripts/run_pipeline_with_smoketest.sh` — safe wrapper that enforces `AUTO_UPLOAD=false` by default, runs `scripts/automated_pipeline.py`, then runs `scripts/check_evcal_srow.py` to validate `evcal_srow` values. It prefers `scripts/run_with_venv.sh` if available.
+
+One-line run (macOS zsh):
+```zsh
+# ensure safe defaults
+export AUTO_UPLOAD=false
+export SITE_TIMEZONE="America/Chicago"
+./scripts/run_pipeline_with_smoketest.sh
+```
+
+### CI smoke-test (GitHub Actions)
+We include a lightweight CI workflow at `.github/workflows/smoketest.yml` that does NOT hit the network. Instead it:
+- installs dependencies
+- copies a committed sample CSV (`tests/fixtures/calendar_upload_sample.csv`) into `output/pipeline/`
+- runs `scripts/check_evcal_srow.py` with `SITE_TIMEZONE=America/Chicago`
+
+This lets CI validate the evcal epoch computation and detect regressions to `parse_event_metadata`/`_dt_to_iso` without scraping or calling external services.
+
 ### Files to inspect for context when making changes
 - `scripts/automated_pipeline.py` — classification thresholds, email formatting, export paths
 - `Envision_Perdido_DataCollection.py` — scraping, ICS discovery fallback, parsing helpers (`_dt_to_iso`)

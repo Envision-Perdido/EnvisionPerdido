@@ -1,0 +1,40 @@
+name: Smoke Test (evcal_srow)
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  smoke:
+    name: smoke-test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Prepare sample CSV
+        run: |
+          mkdir -p output/pipeline
+          cp tests/fixtures/calendar_upload_sample.csv output/pipeline/calendar_upload_20250101_000000.csv
+
+      - name: Run evcal_srow smoke-test
+        env:
+          SITE_TIMEZONE: America/Chicago
+        run: python scripts/check_evcal_srow.py
+
+      - name: CI notes
+        run: |
+          echo "This job runs the evcal_srow smoke-test against a committed sample CSV." \
+               "The full pipeline scrapes the network and is not executed in CI by default."
