@@ -16,6 +16,10 @@ import os
 from requests.auth import HTTPBasicAuth
 import mimetypes
 
+# Load environment variables
+from scripts.env_loader import load_env
+load_env()
+
 # WordPress Configuration
 WORDPRESS_CONFIG = {
     "site_url": os.getenv("WP_SITE_URL", "https://sandbox.envisionperdido.org"),

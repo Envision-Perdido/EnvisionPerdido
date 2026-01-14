@@ -80,7 +80,7 @@ $schtasksArgs = @(
     "/F"
 )
 
-$result = & schtasks.exe $schtasksArgs 2>&1
+& schtasks.exe $schtasksArgs 2>&1 | Out-Null
 
 if ($LASTEXITCODE -eq 0) {
     # Now modify settings for wake and battery options using PowerShell

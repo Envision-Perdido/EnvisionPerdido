@@ -25,9 +25,13 @@ from email.mime.base import MIMEBase
 from email import encoders
 import json
 
-# Add parent directory to path for imports
+# Add scripts directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent))
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+# Load environment variables
+from env_loader import load_env
+load_env()
 # Import scraper from scripts directory
 from scripts.Envision_Perdido_DataCollection import scrape_month, save_events_csv, save_events_json
 
