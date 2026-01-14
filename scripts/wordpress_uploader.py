@@ -165,6 +165,13 @@ class WordPressEventUploader:
         if pd.notna(event_row.get('url')):
             metadata['evcal_lmlink'] = str(event_row['url'])
         
+        # EventON specific settings for better display
+        metadata['_evcal_exlink_option'] = '1'  # Open link in new window
+        metadata['_evcal_exlink_target'] = 'yes'  # Enable external link
+        metadata['evo_hide_endtime'] = 'no'  # Show end time
+        metadata['evo_year_long'] = 'no'  # Not a year-long event
+        metadata['_evo_featured_img'] = 'no'  # Don't show featured image in event details popup
+        
         return metadata
     
     def upload_image(self, image_path_or_url, title=None):
@@ -245,24 +252,24 @@ class WordPressEventUploader:
             # Parse metadata
             metadata = self.parse_event_metadata(event_row)
             
-            # Handle featured image if provided
-            featured_media_id = None
+            # Handle featured image for calendar thumbnail display ONLY
             if image_column in event_row and pd.notna(event_row[image_column]):
                 image_source = event_row[image_column]
                 featured_media_id = self.upload_image(image_source, title=title)
+                
+                if featured_media_id:
+                    # Store ONLY in _thumbnail_id for EventON calendar tiles
+                    # Do NOT set featured_media to avoid showing in popup
+                    metadata['_thumbnail_id'] = str(featured_media_id)
             
-            # Create post data
+            # Create post data - description only, no featured_media
             post_data = {
                 'title': title,
                 'content': description if pd.notna(description) else '',
-                'status': 'draft',  # Start as draft for review
-                'type': 'ajde_events',  # EventON custom post type
+                'status': 'draft',
+                'type': 'ajde_events',
                 'meta': metadata
             }
-            
-            # Add featured image if uploaded
-            if featured_media_id:
-                post_data['featured_media'] = featured_media_id
             
             # Send to WordPress
             response = self.session.post(

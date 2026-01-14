@@ -32,6 +32,7 @@ python scripts\health_check.py
 
 All detailed documentation is in the `docs/` folder:
 
+- **[Contributing & Branching](CONTRIBUTING.md)** - Development workflow, branching strategy, and contribution guidelines
 - **[Project Structure](docs/PROJECT_STRUCTURE.md)** - Complete folder organization and file locations
 - **[Quick Start Guide](docs/QUICKSTART.md)** - Getting started with the system
 - **[Setup Guide](docs/SETUP_GUIDE.md)** - Initial setup and configuration
