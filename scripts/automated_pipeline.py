@@ -39,6 +39,8 @@ from scripts.Envision_Perdido_DataCollection import scrape_month, save_events_cs
 BASE_DIR = Path(__file__).parent.parent
 MODEL_PATH = BASE_DIR / "data" / "artifacts" / "event_classifier_model.pkl"
 VECTORIZER_PATH = BASE_DIR / "data" / "artifacts" / "event_vectorizer.pkl"
+IMAGE_CONFIG_PATH = BASE_DIR / "data" / "image_keyword_config.json"
+IMAGES_DIR = BASE_DIR / "data" / "event_images"
 # Organized output path
 OUTPUT_DIR = BASE_DIR / "output" / "pipeline"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -101,6 +103,86 @@ def scrape_events(year=None, month=None):
     log(f"Total events scraped: {len(all_events)}")
     return all_events
 
+def assign_event_images(events_df):
+    """
+    Assign images to events based on weighted keyword scoring.
+    
+    Scores each image against event text (title, description, location)
+    using keyword weights from configuration file. Assigns the highest-
+    scoring image to each event.
+    
+    Returns:
+        DataFrame with 'image_url' column added (absolute path or None)
+    """
+    if not IMAGE_CONFIG_PATH.exists():
+        log("Warning: Image config not found, skipping image assignment")
+        events_df['image_url'] = None
+        return events_df
+    
+    log("Assigning images based on keyword scoring...")
+    
+    # Load image keyword configuration
+    with open(IMAGE_CONFIG_PATH, 'r') as f:
+        config = json.load(f)
+    
+    images_config = config.get('images', {})
+    min_threshold = config.get('config', {}).get('min_score_threshold', 0)
+    
+    if not images_config:
+        log("Warning: No images configured, skipping image assignment")
+        events_df['image_url'] = None
+        return events_df
+    
+    # Process each event
+    assigned_images = []
+    for _, event in events_df.iterrows():
+        # Build event text from all relevant fields
+        event_text_parts = []
+        if pd.notna(event.get('title')):
+            event_text_parts.append(str(event['title']).lower())
+        if pd.notna(event.get('description')):
+            event_text_parts.append(str(event['description']).lower())
+        if pd.notna(event.get('location')):
+            event_text_parts.append(str(event['location']).lower())
+        if pd.notna(event.get('category')):
+            event_text_parts.append(str(event['category']).lower())
+        
+        event_text = ' '.join(event_text_parts)
+        
+        # Score each image
+        image_scores = {}
+        for image_file, image_data in images_config.items():
+            score = 0
+            keywords = image_data.get('keywords', {})
+            
+            for keyword, weight in keywords.items():
+                if keyword.lower() in event_text:
+                    score += weight
+            
+            image_scores[image_file] = score
+        
+        # Find best match
+        if image_scores:
+            best_image = max(image_scores, key=image_scores.get)
+            best_score = image_scores[best_image]
+            
+            # Apply threshold
+            if best_score >= min_threshold and best_score > 0:
+                image_path = os.path.abspath(os.path.join(IMAGES_DIR, best_image))
+                assigned_images.append(image_path)
+            else:
+                assigned_images.append(None)
+        else:
+            assigned_images.append(None)
+    
+    events_df['image_url'] = assigned_images
+    
+    # Report statistics
+    assigned_count = sum(1 for img in assigned_images if img is not None)
+    log(f"Image assignment complete: {assigned_count}/{len(events_df)} events assigned images")
+    
+    return events_df
+
 def classify_events(events_df):
     """Classify events using trained SVM model."""
     log("Loading trained model...")
@@ -130,6 +212,9 @@ def classify_events(events_df):
     
     community_count = predictions.sum()
     log(f"Classification complete: {community_count} community events, {len(events_df) - community_count} non-community events")
+    
+    # Assign images based on keyword scoring
+    events_df = assign_event_images(events_df)
     
     return events_df
 
