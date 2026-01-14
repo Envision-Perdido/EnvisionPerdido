@@ -2,50 +2,94 @@
 
 ## Overview
 
-The pipeline now automatically extracts and uploads event images from the Perdido Chamber website to your WordPress calendar.
+The pipeline supports TWO ways to add images to events:
 
-## How It Works
+1. **Automatic Scraping** — Download images from chamber website (optional)
+2. **Manual Mapping** — Use supervisor-provided images (NEW!)
 
-### 1. Image Extraction (Scraper)
+## Method 1: Automatic Image Scraping (From Website)
 
-When scraping events, the system now:
+When scraping events, the system can extract images from the chamber website.
+
+### How It Works
+
+The scraper:
 - Visits each event detail page
-- Extracts the main event image using multiple methods:
-  - Open Graph image meta tag (social media preview)
-  - Common event image CSS selectors
-  - First reasonably-sized image on the page
-- Adds the `image_url` column to the CSV export
+- Extracts the main event image using:
+  - Open Graph meta tags (social media preview)
+  - CSS image selectors
+  - First reasonably-sized image on page
+- Adds `image_url` column to CSV export
 
-### 2. Image Upload (WordPress Uploader)
-
-When uploading events to WordPress:
-- Checks if the event has an `image_url` field
-- Downloads the image from the chamber website
-- Uploads it to WordPress media library
-- Sets it as the event's featured image
-
-## Using Images
-
-### Automatic (Default)
+### Usage
 
 Just run the pipeline as normal:
 ```powershell
-.\scripts\windows\run_pipeline.ps1
+python scripts/run_pipeline_with_smoketest.py
 ```
 
-Images will be automatically:
-1. Scraped from event pages
-2. Included in the CSV export
-3. Uploaded to WordPress
-4. Set as featured images
+Images will be:
+1. Automatically extracted during scraping
+2. Included in CSV export
+3. Uploaded to WordPress during uploader phase
+4. Set as event featured images
 
-### Manual Image URLs
+---
 
-You can also manually specify image URLs in your CSV:
+## Method 2: Manual Image Mapping (NEW!)
+
+Use your supervisor's approved images instead of scraped images.
+
+### Setup (One Time)
+
+```powershell
+# Initialize image directories
+python scripts/setup_image_mapper.py init
+
+# Create mapping template from latest events
+python scripts/setup_image_mapper.py create-template
+```
+
+### Steps
+
+**1. Place Images**
+- Copy your supervisor's images to: `data/event_images/`
+- Supported formats: JPG, PNG, GIF, WebP
+
+**2. Edit Mapping**
+- Open: `data/event_image_mapping.csv`
+- Fill in `image_filename` column:
 
 ```csv
-title,start,end,location,url,description,image_url
-"Concert",2025-12-15T19:00:00,2025-12-15T21:00:00,"Music Hall","https://example.com/event","Live music","https://example.com/concert.jpg"
+event_title,image_filename,notes
+Brandon Styles VARIETY SHOW,brandon_styles.jpg,Provided by supervisor
+Buzz Runners,buzz_runners.png,Artist headshot
+Concert 2026,concert_2026.jpg,Event promotion image
+```
+
+**3. Run Pipeline**
+```powershell
+python scripts/run_pipeline_with_smoketest.py
+```
+
+The pipeline automatically:
+- Detects image mappings
+- Applies them to events
+- Includes in CSV export
+
+**4. Upload to WordPress**
+```powershell
+python scripts/wordpress_uploader.py output/pipeline/calendar_upload_*.csv
+```
+
+### Check Status
+
+```powershell
+# See image statistics
+python scripts/setup_image_mapper.py stats
+
+# Verify all images exist
+python scripts/setup_image_mapper.py verify
 ```
 
 The uploader supports:

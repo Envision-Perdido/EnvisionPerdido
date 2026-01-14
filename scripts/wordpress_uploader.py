@@ -13,11 +13,15 @@ import json
 from datetime import datetime
 from pathlib import Path
 import os
+import sys
 from requests.auth import HTTPBasicAuth
 import mimetypes
 
+# Add scripts directory to path
+sys.path.insert(0, str(Path(__file__).parent))
+
 # Load environment variables
-from scripts.env_loader import load_env
+from env_loader import load_env
 load_env()
 
 # WordPress Configuration
