@@ -11,11 +11,18 @@ Requires env vars: WP_SITE_URL, WP_USERNAME, WP_APP_PASSWORD
 """
 
 import os
+import sys
+from pathlib import Path
 from datetime import datetime
 import argparse
 import base64
 import requests
 from requests.auth import HTTPBasicAuth
+
+# Add scripts directory to path and load environment
+sys.path.insert(0, str(Path(__file__).parent))
+from env_loader import load_env
+load_env()
 
 SITE = os.getenv("WP_SITE_URL", "https://sandbox.envisionperdido.org").rstrip("/")
 AUTH = HTTPBasicAuth(os.getenv("WP_USERNAME", ""), os.getenv("WP_APP_PASSWORD", ""))
