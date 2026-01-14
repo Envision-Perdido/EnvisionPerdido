@@ -28,6 +28,11 @@ coverage/
 plugins/builds/
 *.zip
 output/logs/
+
+# Credentials (NEVER commit these!)
+scripts/windows/env.ps1
+scripts/macos/env.sh
+~/.secrets/envision_env.*
 output/pipeline/*.csv
 output/pipeline/*.json
 
