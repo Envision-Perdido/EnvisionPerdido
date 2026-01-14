@@ -2,119 +2,171 @@
   "images": {
     "beach_sunset.jpg": {
       "keywords": {
-        "beach": 3,
-        "sunset": 2,
-        "coastal": 2,
-        "shoreline": 2,
-        "ocean": 2,
-        "sand": 1,
-        "wave": 1
+        "beach": 4,
+        "sunset": 3,
+        "coastal": 3,
+        "shoreline": 3,
+        "ocean": 3,
+        "sand": 2,
+        "wave": 2,
+        "surf": 2,
+        "seaside": 3
       }
     },
     "music_festival.jpg": {
       "keywords": {
-        "festival": 5,
-        "music": 3,
-        "concert": 3,
-        "band": 2,
-        "live music": 3,
-        "performance": 2,
-        "stage": 1
+        "music": 5,
+        "concert": 5,
+        "band": 4,
+        "singer": 4,
+        "live music": 5,
+        "musician": 4,
+        "blues": 4,
+        "rock": 4,
+        "tribute": 4,
+        "pianist": 4,
+        "dueling pianos": 5,
+        "theater": 3,
+        "owa theater": 5,
+        "troubadours": 5,
+        "ensemble": 4
       }
     },
     "food_market.jpg": {
       "keywords": {
-        "food": 3,
-        "market": 3,
-        "farmer": 2,
-        "vendors": 2,
-        "taste": 2,
-        "culinary": 2,
-        "restaurant": 1
+        "food": 4,
+        "chili": 5,
+        "cook-off": 5,
+        "cooking": 4,
+        "taste": 3,
+        "culinary": 4,
+        "restaurant": 2,
+        "dining": 3,
+        "hootenanny": 4,
+        "brunch": 3
       }
     },
     "art_gallery.jpg": {
       "keywords": {
-        "art": 3,
-        "gallery": 3,
-        "exhibit": 3,
-        "painting": 2,
-        "artist": 2,
-        "museum": 2,
-        "craft": 2
+        "art": 4,
+        "arts": 4,
+        "crafts": 5,
+        "arts & crafts": 6,
+        "arts and crafts": 6,
+        "craft fair": 5,
+        "craft festival": 5,
+        "gallery": 4,
+        "exhibit": 4,
+        "painting": 5,
+        "artist": 3,
+        "museum": 3,
+        "dragonfly painting": 6,
+        "forever flowers": 5,
+        "creative": 3,
+        "handmade": 4
       }
     },
     "family_fun.jpg": {
       "keywords": {
-        "family": 5,
-        "kids": 3,
-        "children": 3,
-        "youth": 2,
+        "family": 6,
+        "kids": 4,
+        "children": 4,
+        "youth": 3,
         "fun": 2,
-        "playground": 2,
-        "activities": 1
+        "playground": 3,
+        "activities": 2,
+        "zoo": 4,
+        "aquarium": 4,
+        "child-friendly": 4
       }
     },
     "community_gathering.jpg": {
       "keywords": {
-        "community": 5,
-        "neighborhood": 3,
-        "gathering": 3,
-        "meeting": 2,
-        "social": 2,
+        "community": 6,
+        "neighborhood": 4,
+        "gathering": 4,
+        "meeting": 4,
+        "social": 3,
         "local": 2,
-        "residents": 2
+        "residents": 3,
+        "town hall": 4,
+        "civic": 4
       }
     },
     "party_celebration.jpg": {
       "keywords": {
-        "party": 5,
-        "celebration": 4,
-        "celebrate": 3,
-        "anniversary": 2,
-        "birthday": 2,
-        "gala": 3,
-        "reception": 2
+        "party": 6,
+        "celebration": 5,
+        "celebrate": 4,
+        "mardi gras": 6,
+        "flotilla": 6,
+        "masquerade": 6,
+        "ball": 5,
+        "gala": 5,
+        "pirates": 5,
+        "anniversary": 3,
+        "birthday": 3,
+        "reception": 3,
+        "comedy": 4,
+        "magic": 4,
+        "variety show": 5,
+        "impressions": 4,
+        "comedian": 4,
+        "entertainment": 3
       }
     },
     "sports_recreation.jpg": {
       "keywords": {
-        "sports": 3,
-        "recreation": 3,
-        "athletic": 2,
-        "tournament": 3,
-        "game": 2,
-        "fitness": 2,
-        "run": 2,
-        "golf": 2
+        "sports": 5,
+        "run": 5,
+        "runners": 6,
+        "running": 5,
+        "5k": 5,
+        "walk": 4,
+        "jog": 5,
+        "recreation": 4,
+        "athletic": 4,
+        "tournament": 4,
+        "game": 3,
+        "fitness": 4,
+        "golf": 4,
+        "tennis": 4,
+        "workout": 4,
+        "buzz runners": 6
       }
     },
     "holiday_seasonal.jpg": {
       "keywords": {
-        "christmas": 3,
-        "halloween": 3,
-        "holiday": 3,
-        "seasonal": 2,
-        "easter": 3,
-        "thanksgiving": 3,
-        "fourth of july": 3,
-        "independence day": 3
+        "christmas": 5,
+        "halloween": 5,
+        "holiday": 5,
+        "seasonal": 3,
+        "easter": 5,
+        "thanksgiving": 5,
+        "fourth of july": 5,
+        "independence day": 5,
+        "valentine": 5,
+        "new year": 5
       }
     },
     "education_workshop.jpg": {
       "keywords": {
-        "workshop": 3,
-        "class": 2,
-        "training": 2,
-        "learn": 2,
-        "education": 3,
-        "seminar": 2,
-        "lecture": 2
+        "workshop": 5,
+        "class": 4,
+        "painting class": 6,
+        "art class": 5,
+        "training": 4,
+        "learn": 3,
+        "education": 4,
+        "seminar": 4,
+        "lecture": 4,
+        "tutorial": 4,
+        "instruction": 4
       }
     }
   },
   "config": {
-    "min_score_threshold": 0,
-    "description": "Set min_score_threshold to minimum score required to assign an image. 0 means no threshold (assign best match even if low score). Leave null to skip image assignment when no matches found."
+    "min_score_threshold": 3,
+    "description": "Set min_score_threshold to minimum score required to assign an image. Events scoring below 3 will not receive an image assignment."
   }
 }

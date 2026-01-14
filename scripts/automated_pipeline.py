@@ -373,34 +373,16 @@ def send_email_notification(community_events_df, all_events_df, csv_path):
 def export_for_calendar(community_events_df, format='csv'):
     """Export community events in format ready for calendar upload.
     
-    If image mappings exist, automatically applies them to add featured images.
+    Uses automated keyword-based image assignment from classification.
     """
     log(f"Exporting events for calendar upload (format: {format})...")
     
-    # Apply image mappings if they exist
+    # Use automated image assignments from classification
     df = community_events_df.copy()
-    image_mapping_file = BASE_DIR / "data" / "event_image_mapping.csv"
-    if image_mapping_file.exists():
-        try:
-            mapping_df = pd.read_csv(image_mapping_file)
-            image_map = {}
-            images_dir = BASE_DIR / "data" / "event_images"
-            
-            for _, row in mapping_df.iterrows():
-                if pd.notna(row.get('image_filename')) and str(row['image_filename']).strip():
-                    title = row.get('event_title')
-                    filename = str(row['image_filename']).strip()
-                    image_path = str(images_dir / filename)
-                    # Add to map regardless of file existence
-                    # (existence is validated during upload)
-                    image_map[title] = image_path
-            
-            if image_map:
-                df['image_url'] = df['title'].map(image_map)
-                events_with_images = len([x for x in df['image_url'] if pd.notna(x)])
-                log(f"Applied image mappings: {events_with_images} events with images")
-        except Exception as e:
-            log(f"Warning: Could not apply image mappings: {e}")
+    
+    # Log image assignment statistics
+    events_with_images = len([x for x in df.get('image_url', [None] * len(df)) if pd.notna(x)])
+    log(f"Automated keyword-based image assignments: {events_with_images} events with images")
     
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     
