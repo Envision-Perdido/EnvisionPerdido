@@ -18,6 +18,7 @@ import argparse
 import base64
 import requests
 from requests.auth import HTTPBasicAuth
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Add scripts directory to path and load environment
 sys.path.insert(0, str(Path(__file__).parent))
@@ -34,6 +35,7 @@ API = f"{SITE}/wp-json/wp/v2"
 # via the requests lib. Default is False; enable with the CLI flag
 # --explicit-auth or the env var DELETE_USE_EXPLICIT_AUTH=1
 USE_EXPLICIT_AUTH = False
+MAX_WORKERS = 10  # Number of parallel deletion threads
 
 
 def _explicit_auth_header():
@@ -220,12 +222,43 @@ def delete_event(event_id: int, force: bool = True) -> bool:
         return False
 
 
+def delete_events_parallel(events, max_workers=MAX_WORKERS):
+    """Delete events in parallel using thread pool.
+    
+    Returns the number of successfully deleted events.
+    """
+    deleted_count = 0
+    total = len(events)
+    
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        # Submit all delete tasks
+        future_to_event = {
+            executor.submit(delete_event, event.get("id")): event 
+            for event in events
+        }
+        
+        # Process completed deletions as they finish
+        for i, future in enumerate(as_completed(future_to_event), 1):
+            try:
+                if future.result():
+                    deleted_count += 1
+                
+                # Progress update every 10 events or on final completion
+                if i % 10 == 0 or i == total:
+                    log(f"Progress: {i}/{total} completed")
+            except Exception as e:
+                log(f"Unexpected error in deletion task: {e}")
+    
+    return deleted_count
+
+
 def main():
     parser = argparse.ArgumentParser(description="Delete all events from WordPress EventON calendar")
     parser.add_argument('--dry-run', action='store_true', help='List events that would be deleted and exit')
     parser.add_argument('--yes', action='store_true', help="Skip interactive confirmation (USE WITH CAUTION)")
     parser.add_argument('--debug', action='store_true', help='Print debug HTTP responses and shapes')
     parser.add_argument('--explicit-auth', action='store_true', help='Use explicit Authorization header (temporary workaround)')
+    parser.add_argument('--workers', type=int, default=MAX_WORKERS, help=f'Number of parallel delete threads (default: {MAX_WORKERS})')
     args = parser.parse_args()
 
     log("Starting WordPress event deletion...")
@@ -239,6 +272,9 @@ def main():
     USE_EXPLICIT_AUTH = args.explicit_auth or env_flag
     if USE_EXPLICIT_AUTH:
         log("NOTICE: Using explicit Authorization header for DELETE requests (temporary workaround).")
+    
+    # Set worker count
+    workers = args.workers
     
     # Fetch all events
     log("Fetching all events...")
@@ -272,16 +308,7 @@ def main():
     
     # Delete all events
     log("\nDeleting events...")
-    deleted = 0
-    
-    for event in events:
-        event_id = event.get("id")
-        event_title = event.get("title", {}).get("rendered", "Unknown")
-        
-        if delete_event(event_id):
-            deleted += 1
-            if deleted % 10 == 0:
-                log(f"Progress: {deleted}/{len(events)} deleted")
+    deleted = delete_events_parallel(events, max_workers=workers)
     
     log(f"\nDone! Deleted {deleted}/{len(events)} events.")
 
