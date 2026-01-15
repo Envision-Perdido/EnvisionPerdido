@@ -34,6 +34,9 @@ if (-not $Type) {
             "5" { $Type = "exp"; break }
             default { Write-Host "Invalid choice. Please try again." -ForegroundColor Red }
         }
+        
+        # Break out of the while loop if a valid choice was made
+        if ($Type) { break }
     }
 }
 
