@@ -278,11 +278,6 @@ def main():
         event_id = event.get("id")
         event_title = event.get("title", {}).get("rendered", "Unknown")
         
-        if delete_event(event_id):
-            deleted += 1
-            if deleted % 10 == 0:
-                log(f"Progress: {deleted}/{len(events)} deleted")
-    
     log(f"\nDone! Deleted {deleted}/{len(events)} events.")
 
 
