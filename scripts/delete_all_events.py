@@ -23,7 +23,11 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 # Add scripts directory to path and load environment
 sys.path.insert(0, str(Path(__file__).parent))
 from env_loader import load_env
+from logger import get_logger
+
 load_env()
+
+logger = get_logger()
 
 SITE = os.getenv("WP_SITE_URL", "https://sandbox.envisionperdido.org").rstrip("/")
 AUTH = HTTPBasicAuth(os.getenv("WP_USERNAME", ""), os.getenv("WP_APP_PASSWORD", ""))
@@ -47,7 +51,8 @@ def _explicit_auth_header():
 
 
 def log(msg: str) -> None:
-    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}")
+    """Log message to both logger and console."""
+    logger.info(msg)
 
 
 def fetch_all_events(debug: bool = False):
