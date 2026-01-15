@@ -1,0 +1,55 @@
+{
+  "endpoint": "https://panorama.wixapps.net/api/v1/bulklog",
+  "method": "POST",
+  "headers": {
+    "content-type": "text/plain;charset=UTF-8",
+    "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/143.0.7499.4 Safari/537.36"
+  },
+  "cookies": [
+    {
+      "name": "server-session-bind",
+      "value": "091605c7-4c08-48cd-87b5-73ecb9580c4a",
+      "domain": "www.wrenhavenhomestead.com"
+    },
+    {
+      "name": "ssr-caching",
+      "value": "cache#desc=miss#varnish=miss_miss#dc#desc=fastly_virginia-pub_g",
+      "domain": "www.wrenhavenhomestead.com"
+    },
+    {
+      "name": "XSRF-TOKEN",
+      "value": "1768443592|nwXp_B7_sff7",
+      "domain": ".www.wrenhavenhomestead.com"
+    },
+    {
+      "name": "hs",
+      "value": "742870804",
+      "domain": ".www.wrenhavenhomestead.com"
+    },
+    {
+      "name": "svSession",
+      "value": "f6a80e5586b81ab32e08ebaebcb0b3d92ccccdc6979cb12596d7267dac2ead5fe73618b915512bdc4927d9dba05c2e0b1e60994d53964e647acf431e4f798bcd8f8d852e93d21acabf8cef55c2e1b4801ece1c4af30642ecfac07bf9c6cd4c73f86451559499c0eccf45ba2c2a3fa4d151a561c3adf65b055443f6c3c7889723b485149f36c9509793c4ba85507da3fd",
+      "domain": ".www.wrenhavenhomestead.com"
+    },
+    {
+      "name": "bSession",
+      "value": "5a8ab4e1-0273-418b-8f2e-45ce7b064d38|1",
+      "domain": ".www.wrenhavenhomestead.com"
+    },
+    {
+      "name": "bSession",
+      "value": "5a8ab4e1-0273-418b-8f2e-45ce7b064d38|1",
+      "domain": ".engage.wixapps.net"
+    },
+    {
+      "name": "XSRF-TOKEN",
+      "value": "1768443595|k9PHwtlOp7hf",
+      "domain": ".engage.wixapps.net"
+    }
+  ],
+  "query_params": {},
+  "body": "{\"messages\":[{\"fullArtifactId\":\"com.wixpress.html-client.wix-thunderbolt\",\"componentId\":\"thunderbolt\",\"platform\":\"viewer\",\"msid\":\"b0238acb-1709-44f1-bed2-7465d1cafab0\",\"sessionId\":\"8f17034d-0cc3-4e83-b26e-b86dd429b1c1\",\"sessionTime\":109,\"logLevel\":\"INFO\",\"message\":\"PANORAMA_COMPONENT_LOAD START\",\"transactionName\":\"PANORAMA_COMPONENT_LOAD\",\"transactionAction\":\"START\",\"isSsr\":false,\"dataCenter\":\"virginia-pub\",\"isCached\":false,\"isRollout\":true,\"isHeadless\":true,\"isDacRollout\":false,\"isSavRollout\":false,\"isCompanyNetwork\":false}]}",
+  "requests_captured": 15,
+  "discovered_at": "2026-01-14T20:19:44.191466",
+  "created_at": "2026-01-14T20:19:59.882065"
+}

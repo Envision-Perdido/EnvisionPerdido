@@ -2,10 +2,7 @@
 requests
 beautifulsoup4
 lxml
-
-# Data handling / dates
-pandas
-python-dateutil
+playwright>=1.45.0  # For bootstrapping JSON APIs that require auth headers
 tqdm
 
 # Machine learning pipeline

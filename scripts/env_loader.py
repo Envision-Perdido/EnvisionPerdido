@@ -131,6 +131,75 @@ def load_env(verbose=False):
         return False
 
 
+def validate_env_config():
+    """
+    Validate all required environment variables at startup.
+    
+    Checks both email and WordPress config, failing fast if any are missing.
+    For AUTO_UPLOAD=false, WordPress vars are optional.
+    
+    Raises SystemExit(1) if validation fails.
+    """
+    required_vars = {
+        'SMTP_SERVER': 'Email SMTP server (e.g., smtp.gmail.com)',
+        'SMTP_PORT': 'Email SMTP port (e.g., 587)',
+        'SENDER_EMAIL': 'Email sender address (your email)',
+        'EMAIL_PASSWORD': 'Email password (Gmail App Password)',
+        'RECIPIENT_EMAIL': 'Email recipient address (where to send notifications)',
+    }
+    
+    # Check if AUTO_UPLOAD is enabled (default: true)
+    auto_upload = os.getenv("AUTO_UPLOAD", "true").lower() in {"true", "1", "yes"}
+    
+    if auto_upload:
+        required_vars.update({
+            'WP_SITE_URL': 'WordPress site URL (e.g., https://your-site.org)',
+            'WP_USERNAME': 'WordPress username (admin user)',
+            'WP_APP_PASSWORD': 'WordPress Application Password (not plain password)',
+        })
+    
+    # Check for missing variables
+    missing = []
+    for key, description in required_vars.items():
+        value = os.getenv(key, "").strip()
+        if not value:
+            missing.append(f"  • {key}: {description}")
+    
+    if missing:
+        print("\n" + "="*80)
+        print("ERROR: Missing required environment variables")
+        print("="*80)
+        print("\nPlease set the following in your environment:\n")
+        print("\n".join(missing))
+        print("\n" + "="*80)
+        
+        # Platform-specific guidance
+        if sys.platform == 'win32':
+            print("\nOn Windows, set these in scripts/windows/env.ps1:")
+            print("  Example:")
+            print('    $env:SMTP_SERVER = "smtp.gmail.com"')
+            print('    $env:SENDER_EMAIL = "your_email@gmail.com"')
+            print("    # ... etc")
+        else:
+            print("\nOn macOS/Linux, set these in scripts/macos/env.sh:")
+            print("  Example:")
+            print('    export SMTP_SERVER="smtp.gmail.com"')
+            print('    export SENDER_EMAIL="your_email@gmail.com"')
+            print("    # ... etc")
+        
+        print("\nOr set them in your shell session:")
+        if sys.platform == 'win32':
+            print('  $env:SENDER_EMAIL = "your_email@gmail.com"')
+        else:
+            print('  export SENDER_EMAIL="your_email@gmail.com"')
+        
+        print("="*80 + "\n")
+        sys.exit(1)
+    
+    # All required variables are set
+    print("✓ Environment validation passed")
+
+
 # Auto-load on import (silent mode)
 if __name__ != "__main__":
     load_env(verbose=False)
