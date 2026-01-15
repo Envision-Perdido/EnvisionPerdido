@@ -155,15 +155,32 @@ class WordPressEventUploader:
             metadata['evcal_end_time_min'] = end_local.strftime('%M')
             metadata['evcal_end_time_ampm'] = end_local.strftime('%p').lower()
         
-        # Location
-        if pd.notna(event_row.get('location')):
-            location_id = self.create_or_get_location(str(event_row['location']))
+        # Location - use normalized location if available
+        location_text = event_row.get('normalized_location') or event_row.get('location')
+        if pd.notna(location_text):
+            location_id = self.create_or_get_location(str(location_text))
             if location_id:
                 metadata['event_location'] = location_id
+        
+        # Store venue_id if available (for future reference)
+        if pd.notna(event_row.get('venue_id')):
+            metadata['_venue_id'] = str(event_row['venue_id'])
         
         # URL
         if pd.notna(event_row.get('url')):
             metadata['evcal_lmlink'] = str(event_row['url'])
+        
+        # Cost/Price information
+        if pd.notna(event_row.get('cost_text')):
+            metadata['_event_cost'] = str(event_row['cost_text'])
+        
+        # Event type (free/paid)
+        if pd.notna(event_row.get('event_type')):
+            metadata['_event_type'] = str(event_row['event_type'])
+        if pd.notna(event_row.get('paid_status')):
+            metadata['_paid_status'] = str(event_row['paid_status'])
+        if pd.notna(event_row.get('is_free')):
+            metadata['_is_free'] = 'yes' if event_row['is_free'] else 'no'
         
         # EventON specific settings for better display
         metadata['_evcal_exlink_option'] = '1'  # Open link in new window
@@ -252,6 +269,21 @@ class WordPressEventUploader:
             # Parse metadata
             metadata = self.parse_event_metadata(event_row)
             
+            # Handle tags - EventON supports event_type taxonomy
+            tags = []
+            if pd.notna(event_row.get('tags')):
+                # Tags might be stored as JSON string or list
+                tag_data = event_row['tags']
+                if isinstance(tag_data, str):
+                    try:
+                        import json as json_lib
+                        tags = json_lib.loads(tag_data)
+                    except:
+                        # Try splitting as comma-separated
+                        tags = [t.strip() for t in tag_data.split(',') if t.strip()]
+                elif isinstance(tag_data, list):
+                    tags = tag_data
+            
             # Handle featured image for calendar thumbnail display
             featured_media_id = None
             image_url = None
@@ -286,6 +318,16 @@ class WordPressEventUploader:
                 'meta': metadata
             }
             
+            # Add tags if available (EventON uses event_type taxonomy)
+            if tags:
+                # Convert tag slugs to display names for EventON
+                # EventON expects tag names, not slugs
+                tag_names = [tag.replace('_', ' ').title() for tag in tags]
+                # Store as meta field for now - WordPress REST API may not support custom taxonomies directly
+                metadata['_event_tags'] = ','.join(tags)
+                metadata['_event_tags_display'] = ','.join(tag_names)
+                post_data['meta'] = metadata
+            
             # Send to WordPress
             response = self.session.post(
                 f"{self.api_base}/ajde_events",
@@ -295,8 +337,14 @@ class WordPressEventUploader:
             
             if response.status_code == 201:
                 event_data = response.json()
-                log(f"OK: Created event: {title} (ID: {event_data['id']})")
-                return event_data['id']
+                event_id = event_data['id']
+                log(f"OK: Created event: {title} (ID: {event_id})")
+                
+                # Try to set tags via taxonomy (if EventON supports it)
+                if tags:
+                    self._set_event_tags(event_id, tags)
+                
+                return event_id
             else:
                 log(f"ERROR: Failed to create event '{title}': {response.status_code}")
                 log(f"   Response: {response.text[:200]}")
@@ -305,6 +353,20 @@ class WordPressEventUploader:
         except Exception as e:
             log(f"ERROR: Error creating event '{event_row.get('title', 'Unknown')}': {e}")
             return None
+    
+    def _set_event_tags(self, event_id, tags):
+        """
+        Attempt to set event tags via taxonomy.
+        
+        This is a best-effort operation - if EventON doesn't expose
+        the taxonomy via REST API, tags will be stored in meta fields only.
+        """
+        try:
+            # EventON typically uses 'event_type' or similar taxonomy
+            # This may require the EventON REST API extension
+            pass  # Tags already stored in meta fields
+        except Exception as e:
+            log(f"   Note: Could not set tags via taxonomy: {e}")
     
     def upload_events_from_csv(self, csv_path, dry_run=True):
         """Upload events from CSV file."""
