@@ -1,301 +1,284 @@
 """
-Tests for Wren Haven Homestead scraper.
+Unit tests for Wren Haven Homestead scraper (HTML parsing approach).
 
-Uses fixtures and mocking to avoid live network requests.
+All network calls and Playwright interactions are mocked.
 """
 
 import pytest
-import json
+from unittest.mock import patch, MagicMock, AsyncMock
+from datetime import datetime, timedelta
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
 import sys
 
-# Import the scraper module
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from scripts.wren_haven_scraper import (
     normalize_event,
+    _load_cached_html,
+    _save_cached_html,
+    _parse_events_from_html,
     scrape_wren_haven,
-    _prepare_request_headers,
-    WrenHavenScraperError
+    get_events,
+    WrenHavenScraperError,
+    CACHE_DIR,
 )
 
 
-# ============================================================================
-# FIXTURES
-# ============================================================================
-
-@pytest.fixture
-def sample_wren_haven_api_response():
-    """Sample JSON response from Wren Haven API."""
-    return [
-        {
-            "id": "wh-001",
-            "title": "Spring Garden Workshop",
-            "startDate": "2025-03-15T10:00:00",
-            "endDate": "2025-03-15T12:00:00",
-            "location": "Wren Haven Farm, Alabama",
-            "link": "https://www.wrenhavenhomestead.com/events/spring-garden",
-            "summary": "Learn about spring gardening techniques",
-            "type": "Workshop"
-        },
-        {
-            "id": "wh-002",
-            "title": "Homesteading Basics Class",
-            "startDate": "2025-04-05T14:00:00",
-            "endDate": "2025-04-05T16:00:00",
-            "location": "Wren Haven Facility",
-            "link": "https://www.wrenhavenhomestead.com/events/homesteading-basics",
-            "description": "Everything you need to know to get started with homesteading",
-            "type": "Class"
+class TestNormalizeEvent:
+    """Test event normalization."""
+    
+    def test_normalize_event_with_all_fields(self):
+        """Normalize event with all fields present."""
+        raw = {
+            'title': 'Beach Cleanup',
+            'start': '2026-02-15T09:00:00Z',
+            'end': '2026-02-15T11:00:00Z',
+            'location': 'Pensacola Beach',
+            'url': 'https://example.com/event',
+            'description': 'Community cleanup',
+            'id': 'event123',
+            'category': 'Volunteer'
         }
-    ]
-
-
-@pytest.fixture
-def bootstrap_artifacts():
-    """Sample bootstrap artifacts from Playwright discovery."""
-    return {
-        'endpoint': 'https://api.wrenhavenhomestead.com/v1/events',
-        'method': 'GET',
-        'headers': {
-            'Authorization': 'Bearer test_token_12345',
-            'Content-Type': 'application/json'
-        },
-        'cookies': [
-            {'name': 'session_id', 'value': 'abc123def456', 'domain': '.wrenhavenhomestead.com'}
-        ],
-        'query_params': {},
-        'discovered_at': '2025-01-14T12:00:00'
-    }
-
-
-# ============================================================================
-# NORMALIZATION TESTS
-# ============================================================================
-
-def test_normalize_event_with_all_fields():
-    """Test normalizing an event with all expected fields."""
-    raw = {
-        "id": "wh-001",
-        "title": "Spring Garden Workshop",
-        "startDate": "2025-03-15T10:00:00",
-        "endDate": "2025-03-15T12:00:00",
-        "location": "Wren Haven Farm",
-        "link": "https://example.com/event",
-        "summary": "A fun workshop",
-        "type": "Workshop"
-    }
+        
+        result = normalize_event(raw)
+        
+        assert result is not None
+        assert result['title'] == 'Beach Cleanup'
+        assert result['location'] == 'Pensacola Beach'
+        assert result['url'] == 'https://example.com/event'
+        assert result['description'] == 'Community cleanup'
+        assert result['source'] == 'wren_haven_homestead'
     
-    event = normalize_event(raw)
+    def test_normalize_event_with_alternate_field_names(self):
+        """Normalize event with alternative field names."""
+        raw = {
+            'name': 'Concert',
+            'startDate': '2026-03-20T18:00:00Z',
+            'endDate': '2026-03-20T20:00:00Z',
+            'venue': 'The Wharf',
+            'link': 'https://example.com/concert',
+            'summary': 'Live music event',
+        }
+        
+        result = normalize_event(raw)
+        
+        assert result is not None
+        assert result['title'] == 'Concert'
+        assert result['location'] == 'The Wharf'
     
-    assert event['title'] == "Spring Garden Workshop"
-    assert event['start'] == "2025-03-15T10:00:00"
-    assert event['end'] == "2025-03-15T12:00:00"
-    assert event['location'] == "Wren Haven Farm"
-    assert event['url'] == "https://example.com/event"
-    assert event['description'] == "A fun workshop"
-    assert event['category'] == "Workshop"
-    assert event['uid'] == "wh-001"
-    assert event['_raw_source'] == 'wren_haven_homestead'
-
-
-def test_normalize_event_with_alternate_field_names():
-    """Test normalizing when API uses alternate field names."""
-    raw = {
-        "id": "event-123",
-        "name": "Homesteading Basics",
-        "begin": "2025-04-05T14:00:00",
-        "finish": "2025-04-05T16:00:00",
-        "venue": "Wren Haven Facility",
-        "description": "Learn homesteading"
-    }
+    def test_normalize_event_minimal(self):
+        """Normalize event with only required field."""
+        raw = {'title': 'Simple Event'}
+        
+        result = normalize_event(raw)
+        
+        assert result is not None
+        assert result['title'] == 'Simple Event'
+        assert result['start'] is None
+        assert result['location'] is None
     
-    event = normalize_event(raw)
+    def test_normalize_event_no_title_filtered(self):
+        """Event without title is filtered out."""
+        raw = {'location': 'Some Place', 'start': '2026-02-15T09:00:00Z'}
+        
+        result = normalize_event(raw)
+        
+        assert result is None
     
-    assert event['title'] == "Homesteading Basics"
-    assert event['start'] == "2025-04-05T14:00:00"
-    assert event['end'] == "2025-04-05T16:00:00"
-    assert event['location'] == "Wren Haven Facility"
+    def test_normalize_event_whitespace_trimmed(self):
+        """Whitespace is trimmed from title."""
+        raw = {'title': '  Event Name  '}
+        
+        result = normalize_event(raw)
+        
+        assert result is not None
+        assert result['title'] == 'Event Name'
 
 
-def test_normalize_event_minimal():
-    """Test normalizing an event with only required fields."""
-    raw = {
-        "id": "min-001",
-        "title": "Minimal Event"
-    }
+class TestCaching:
+    """Test caching mechanism."""
     
-    event = normalize_event(raw)
+    def test_cache_save_and_load(self):
+        """HTML cache is saved and loaded."""
+        test_html = "<html><body>Test</body></html>"
+        
+        _save_cached_html(test_html)
+        loaded = _load_cached_html(force_refresh=False)
+        
+        assert loaded == test_html
+        
+        # Clean up
+        cache_file = CACHE_DIR / "events.html"
+        if cache_file.exists():
+            cache_file.unlink()
     
-    assert event['title'] == "Minimal Event"
-    assert event['uid'] == "min-001"
-    assert event['start'] is None
-    assert event['location'] is None
-
-
-def test_normalize_event_no_title_filtered():
-    """Scraper should skip events without titles."""
-    raw = {
-        "id": "no-title",
-        "start": "2025-05-01",
-    }
+    def test_cache_ttl_respected(self):
+        """Cache is not used if older than TTL."""
+        test_html = "<html>Old Cache</html>"
+        
+        _save_cached_html(test_html)
+        cache_file = CACHE_DIR / "events.html"
+        
+        # Set old modification time
+        import os
+        import time
+        old_time = time.time() - (25 * 3600)
+        os.utime(cache_file, (old_time, old_time))
+        
+        loaded = _load_cached_html(force_refresh=False)
+        
+        assert loaded is None
+        
+        cache_file.unlink()
     
-    # This would be filtered by scrape_wren_haven, but normalize itself doesn't
-    event = normalize_event(raw)
-    assert event['title'] == ''
+    def test_force_refresh_ignores_cache(self):
+        """force_refresh=True bypasses cache."""
+        test_html = "<html>Cached</html>"
+        
+        _save_cached_html(test_html)
+        loaded = _load_cached_html(force_refresh=True)
+        
+        assert loaded is None
+        
+        cache_file = CACHE_DIR / "events.html"
+        cache_file.unlink()
 
 
-# ============================================================================
-# REQUEST HEADER TESTS
-# ============================================================================
-
-def test_prepare_request_headers_merges_auth(bootstrap_artifacts):
-    """Test that prepared headers include auth from bootstrap artifacts."""
-    headers = _prepare_request_headers(bootstrap_artifacts)
+class TestHtmlParsing:
+    """Test HTML parsing."""
     
-    assert 'Authorization' in headers
-    assert headers['Authorization'] == 'Bearer test_token_12345'
-    assert 'Content-Type' in headers
-    assert headers['Content-Type'] == 'application/json'
-
-
-def test_prepare_request_headers_keeps_user_agent(bootstrap_artifacts):
-    """Test that User-Agent is preserved."""
-    headers = _prepare_request_headers(bootstrap_artifacts)
+    def test_parse_empty_html(self):
+        """Parse empty HTML returns no events."""
+        html = "<html></html>"
+        
+        result = _parse_events_from_html(html)
+        
+        assert result == []
     
-    assert 'User-Agent' in headers
-    assert 'Mozilla' in headers['User-Agent']
+    def test_parse_html_without_widget(self):
+        """Parse HTML without events widget returns no events."""
+        html = "<html><body><div>No events here</div></body></html>"
+        
+        result = _parse_events_from_html(html)
+        
+        assert result == []
 
 
-def test_prepare_request_headers_empty_artifacts():
-    """Test with minimal/empty bootstrap artifacts."""
-    artifacts = {'headers': {}}
-    headers = _prepare_request_headers(artifacts)
+class TestScrapeWrenHaven:
+    """Test main scrape function."""
     
-    assert 'User-Agent' in headers  # Default should be present
-    assert headers is not None
-
-
-# ============================================================================
-# SCRAPER INTEGRATION TESTS (MOCKED)
-# ============================================================================
-
-@patch('scripts.wren_haven_scraper._fetch_events_from_api')
-@patch('scripts.wren_haven_scraper._bootstrap_or_use_cached')
-def test_scrape_wren_haven_success(mock_bootstrap, mock_fetch, sample_wren_haven_api_response, bootstrap_artifacts):
-    """Test successful scraping with mocked network calls."""
-    mock_bootstrap.return_value = bootstrap_artifacts
-    mock_fetch.return_value = sample_wren_haven_api_response
+    @patch('scripts.wren_haven_scraper._fetch_events_html')
+    def test_scrape_wren_haven_success(self, mock_fetch):
+        """Successful scrape returns normalized events."""
+        mock_fetch.return_value = "<html></html>"
+        
+        with patch('scripts.wren_haven_scraper._parse_events_from_html') as mock_parse:
+            mock_parse.return_value = [
+                {
+                    'title': 'Event 1',
+                    'start': '2026-02-15T09:00:00Z',
+                    'location': 'Place A'
+                }
+            ]
+            
+            result = scrape_wren_haven()
+            
+            assert len(result) == 1
+            assert result[0]['title'] == 'Event 1'
     
-    events = scrape_wren_haven()
+    @patch('scripts.wren_haven_scraper._fetch_events_html')
+    def test_scrape_wren_haven_with_date_filters(self, mock_fetch):
+        """Scrape respects date filters."""
+        mock_fetch.return_value = "<html></html>"
+        
+        with patch('scripts.wren_haven_scraper._parse_events_from_html') as mock_parse:
+            mock_parse.return_value = [
+                {
+                    'title': 'Before',
+                    'start': '2026-01-15T09:00:00Z'
+                },
+                {
+                    'title': 'During',
+                    'start': '2026-02-15T09:00:00Z'
+                },
+                {
+                    'title': 'After',
+                    'start': '2026-03-15T09:00:00Z'
+                }
+            ]
+            
+            start = datetime(2026, 2, 1)
+            end = datetime(2026, 2, 28)
+            
+            result = scrape_wren_haven(start_date=start, end_date=end)
+            
+            assert len(result) == 1
+            assert result[0]['title'] == 'During'
     
-    assert len(events) == 2
-    assert events[0]['title'] == "Spring Garden Workshop"
-    assert events[1]['title'] == "Homesteading Basics Class"
-    assert all(e['_raw_source'] == 'wren_haven_homestead' for e in events)
-
-
-@patch('scripts.wren_haven_scraper._fetch_events_from_api')
-@patch('scripts.wren_haven_scraper._bootstrap_or_use_cached')
-def test_scrape_wren_haven_with_date_filters(mock_bootstrap, mock_fetch, sample_wren_haven_api_response, bootstrap_artifacts):
-    """Test scraping with date filters."""
-    mock_bootstrap.return_value = bootstrap_artifacts
-    mock_fetch.return_value = sample_wren_haven_api_response
+    @patch('scripts.wren_haven_scraper._fetch_events_html')
+    def test_scrape_wren_haven_empty_response(self, mock_fetch):
+        """Handle empty response gracefully."""
+        mock_fetch.return_value = "<html></html>"
+        
+        with patch('scripts.wren_haven_scraper._parse_events_from_html') as mock_parse:
+            mock_parse.return_value = []
+            
+            result = scrape_wren_haven()
+            
+            assert result == []
     
-    events = scrape_wren_haven(
-        start_date='2025-03-01',
-        end_date='2025-04-30'
-    )
+    @patch('scripts.wren_haven_scraper._fetch_events_html')
+    def test_scrape_wren_haven_fetch_error(self, mock_fetch):
+        """Handle fetch error gracefully."""
+        mock_fetch.side_effect = Exception("Network error")
+        
+        with pytest.raises(WrenHavenScraperError):
+            scrape_wren_haven()
     
-    mock_fetch.assert_called_once()
-    call_args = mock_fetch.call_args
-    assert call_args.kwargs['start_date'] == '2025-03-01'
-    assert call_args.kwargs['end_date'] == '2025-04-30'
-    assert len(events) == 2
+    @patch('scripts.wren_haven_scraper._fetch_events_html')
+    def test_scrape_wren_haven_malformed_event(self, mock_fetch):
+        """Skip malformed events."""
+        mock_fetch.return_value = "<html></html>"
+        
+        with patch('scripts.wren_haven_scraper._parse_events_from_html') as mock_parse:
+            mock_parse.return_value = [
+                {'title': 'Good Event', 'start': '2026-02-15T09:00:00Z'},
+                {'bad': 'event'},
+                {'title': 'Another Good Event'}
+            ]
+            
+            result = scrape_wren_haven()
+            
+            assert len(result) == 2
+            assert result[0]['title'] == 'Good Event'
+            assert result[1]['title'] == 'Another Good Event'
 
 
-@patch('scripts.wren_haven_scraper._fetch_events_from_api')
-@patch('scripts.wren_haven_scraper._bootstrap_or_use_cached')
-def test_scrape_wren_haven_empty_response(mock_bootstrap, mock_fetch, bootstrap_artifacts):
-    """Test scraping when API returns no events."""
-    mock_bootstrap.return_value = bootstrap_artifacts
-    mock_fetch.return_value = []
+class TestGetEvents:
+    """Test pipeline-compatible interface."""
     
-    events = scrape_wren_haven()
+    @patch('scripts.wren_haven_scraper.scrape_wren_haven')
+    def test_get_events_default_month(self, mock_scrape):
+        """get_events uses current month by default."""
+        mock_scrape.return_value = [
+            {'title': 'Event', 'start': datetime.now()}
+        ]
+        
+        result = get_events()
+        
+        assert len(result) == 1
+        mock_scrape.assert_called_once()
     
-    assert len(events) == 0
-
-
-@patch('scripts.wren_haven_scraper._fetch_events_from_api')
-@patch('scripts.wren_haven_scraper._bootstrap_or_use_cached')
-def test_scrape_wren_haven_bootstrap_error(mock_bootstrap, mock_fetch):
-    """Test graceful handling of bootstrap failure."""
-    mock_bootstrap.side_effect = WrenHavenScraperError("Bootstrap failed")
-    
-    events = scrape_wren_haven()
-    
-    # Should return empty list, not raise
-    assert events == []
-
-
-@patch('scripts.wren_haven_scraper._fetch_events_from_api')
-@patch('scripts.wren_haven_scraper._bootstrap_or_use_cached')
-def test_scrape_wren_haven_malformed_event(mock_bootstrap, mock_fetch, bootstrap_artifacts):
-    """Test handling of malformed events in API response."""
-    mock_bootstrap.return_value = bootstrap_artifacts
-    
-    # Mix of good and bad events
-    mixed_response = [
-        {"id": "good-1", "title": "Good Event"},
-        {"id": "bad-1"},  # Missing title - should be filtered
-        {"id": "good-2", "title": "Another Event"}
-    ]
-    mock_fetch.return_value = mixed_response
-    
-    events = scrape_wren_haven()
-    
-    # Should only get events with titles
-    assert len(events) == 2
-    assert all(e['title'] for e in events)
-
-
-# ============================================================================
-# CACHING TESTS
-# ============================================================================
-
-@patch('scripts.wren_haven_scraper._load_cached_artifacts')
-@patch('scripts.wren_haven_scraper.bootstrap_json_api')
-@patch('scripts.wren_haven_scraper._fetch_events_from_api')
-def test_scrape_uses_cache_on_first_call(mock_fetch, mock_bootstrap_fn, mock_load_cache, sample_wren_haven_api_response):
-    """Test that second call reuses cached artifacts."""
-    mock_artifacts = {'endpoint': 'https://api.example.com/events', 'method': 'GET', 'headers': {}}
-    mock_load_cache.return_value = mock_artifacts
-    mock_fetch.return_value = sample_wren_haven_api_response
-    
-    # First call should use cache
-    scrape_wren_haven()
-    
-    # Playwright bootstrap function should not be called
-    mock_bootstrap_fn.assert_not_called()
-    mock_load_cache.assert_called_once()
-
-
-# ============================================================================
-# ERROR HANDLING TESTS
-# ============================================================================
-
-@patch('scripts.wren_haven_scraper._fetch_events_from_api')
-@patch('scripts.wren_haven_scraper._bootstrap_or_use_cached')
-def test_scrape_wren_haven_network_error(mock_bootstrap, mock_fetch):
-    """Test handling of network errors during fetch."""
-    mock_bootstrap.return_value = {'endpoint': 'https://api.example.com/events', 'method': 'GET', 'headers': {}}
-    mock_fetch.side_effect = WrenHavenScraperError("Connection timeout")
-    
-    events = scrape_wren_haven()
-    
-    assert events == []
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    @patch('scripts.wren_haven_scraper.scrape_wren_haven')
+    def test_get_events_specific_month(self, mock_scrape):
+        """get_events filters by specified month."""
+        mock_scrape.return_value = []
+        
+        result = get_events(year=2026, month=3)
+        
+        call_args = mock_scrape.call_args
+        start_date = call_args.kwargs['start_date']
+        end_date = call_args.kwargs['end_date']
+        
+        assert start_date.year == 2026
+        assert start_date.month == 3

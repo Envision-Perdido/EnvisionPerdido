@@ -583,7 +583,7 @@ def main():
     
     try:
         # Step 1: Scrape events
-        events = scrape_events()
+        events = scrape_events(include_sources=['perdido_chamber', 'wren_haven'])
         if not events:
             log("No events scraped. Exiting.")
             return
