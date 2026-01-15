@@ -252,17 +252,32 @@ class WordPressEventUploader:
             # Parse metadata
             metadata = self.parse_event_metadata(event_row)
             
-            # Handle featured image for calendar thumbnail display ONLY
+            # Handle featured image for calendar thumbnail display
+            featured_media_id = None
+            image_url = None
             if image_column in event_row and pd.notna(event_row[image_column]):
                 image_source = event_row[image_column]
                 featured_media_id = self.upload_image(image_source, title=title)
                 
                 if featured_media_id:
-                    # Store ONLY in _thumbnail_id for EventON calendar tiles
-                    # Do NOT set featured_media to avoid showing in popup
-                    metadata['_thumbnail_id'] = str(featured_media_id)
+                    # Store image ID in custom meta field instead of featured_media
+                    # This prevents EventON from showing it in the popup
+                    metadata['_event_image_id'] = str(featured_media_id)
+                    
+                    # Try to get the image URL for calendar display
+                    try:
+                        response = self.session.get(
+                            f"{self.api_base}/media/{featured_media_id}",
+                            auth=self.auth
+                        )
+                        if response.status_code == 200:
+                            image_url = response.json().get('source_url', '')
+                            metadata['_event_image_url'] = image_url
+                    except:
+                        pass
             
-            # Create post data - description only, no featured_media
+            # Create post data - description only, NO featured_media field
+            # EventON will pull the image from the calendar data, not from featured_media
             post_data = {
                 'title': title,
                 'content': description if pd.notna(description) else '',
