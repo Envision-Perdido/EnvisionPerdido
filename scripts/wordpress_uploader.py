@@ -8,6 +8,8 @@ EventON uses a custom post type called 'ajde_events'.
 """
 
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 import pandas as pd
 import json
 from datetime import datetime
@@ -32,6 +34,36 @@ WORDPRESS_CONFIG = {
     "app_password": os.getenv("WP_APP_PASSWORD", ""),  # WordPress Application Password
 }
 
+def _create_session_with_retries(
+    retries: int = 5,
+    backoff_factor: float = 0.5,
+    status_forcelist: tuple = (429, 503),
+) -> requests.Session:
+    """Create a requests session with exponential backoff retry strategy.
+    
+    Args:
+        retries: Maximum number of retries (default: 5)
+        backoff_factor: Exponential backoff factor (default: 0.5)
+        status_forcelist: HTTP status codes to retry on (default: 429, 503)
+    
+    Returns:
+        Configured requests.Session with retry strategy mounted.
+    """
+    session = requests.Session()
+    
+    retry_strategy = Retry(
+        total=retries,
+        backoff_factor=backoff_factor,
+        status_forcelist=status_forcelist,
+        allowed_methods=["GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS"]
+    )
+    
+    adapter = HTTPAdapter(max_retries=retry_strategy)
+    session.mount('http://', adapter)
+    session.mount('https://', adapter)
+    
+    return session
+
 def log(message):
     """Print timestamped log message."""
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -44,7 +76,8 @@ class WordPressEventUploader:
         self.site_url = site_url.rstrip('/')
         self.api_base = f"{self.site_url}/wp-json/wp/v2"
         self.auth = HTTPBasicAuth(username, app_password)
-        self.session = requests.Session()
+        self.session = _create_session_with_retries()
+        self.session.auth = self.auth
         self.max_workers = max_workers
     
     def test_connection(self) -> bool:

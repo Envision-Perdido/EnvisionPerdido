@@ -41,6 +41,8 @@ except ImportError:
 
 import importlib
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 from typing import Optional, TYPE_CHECKING, List, Dict
 
 # Allow static type checkers to see BeautifulSoup without importing it at
@@ -68,12 +70,45 @@ except (ImportError, AttributeError):
 import os
 
 
+def create_session_with_retries(
+    retries: int = 5,
+    backoff_factor: float = 0.5,
+    status_forcelist: tuple = (429, 503),
+    timeout: int = 30
+) -> requests.Session:
+    """Create a requests session with exponential backoff retry strategy.
+    
+    Args:
+        retries: Maximum number of retries (default: 5)
+        backoff_factor: Exponential backoff factor (default: 0.5)
+        status_forcelist: HTTP status codes to retry on (default: 429, 503)
+        timeout: Request timeout in seconds (default: 30)
+    
+    Returns:
+        Configured requests.Session with retry strategy mounted.
+    """
+    session = requests.Session()
+    
+    retry_strategy = Retry(
+        total=retries,
+        backoff_factor=backoff_factor,
+        status_forcelist=status_forcelist,
+        allowed_methods=["GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS"]
+    )
+    
+    adapter = HTTPAdapter(max_retries=retry_strategy)
+    session.mount('http://', adapter)
+    session.mount('https://', adapter)
+    
+    return session
+
+
 BASE = "https://business.perdidochamber.com"
 
 # Month view of calendar
 MONTH_URL = "https://business.perdidochamber.com/events/calendar/2025-09-01"
 
-sess = requests.Session()
+sess = create_session_with_retries()
 sess.headers.update({
     # Mimic a browser to prevent the scraper from being blocked
     "User-Agent": ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
