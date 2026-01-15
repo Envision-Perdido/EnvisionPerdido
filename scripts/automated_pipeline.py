@@ -130,12 +130,6 @@ def scrape_events(year=None, month=None, include_sources=None):
     
     log(f"Total events scraped from all sources: {len(all_events)}")
     return all_events
-            all_events.extend(events)
-        except Exception as e:
-            log(f"Error scraping {month_url}: {e}")
-    
-    log(f"Total events scraped: {len(all_events)}")
-    return all_events
 
 def assign_event_images(events_df):
     """
