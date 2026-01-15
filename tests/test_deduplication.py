@@ -42,8 +42,11 @@ class DummySession:
             if params.get('meta_key') == '_event_uid':
                 uid = params.get('meta_value')
                 if uid in self.events_by_uid:
-                    # Return existing event
-                    return DummyResponse(200, [{'id': self.events_by_uid[uid]}])
+                    # Return existing event with meta field included
+                    return DummyResponse(200, [{
+                        'id': self.events_by_uid[uid],
+                        'meta': {'_event_uid': uid}
+                    }])
         
         return DummyResponse(200, [])
 

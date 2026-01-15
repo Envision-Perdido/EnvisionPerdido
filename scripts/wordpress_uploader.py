@@ -155,7 +155,16 @@ class WordPressEventUploader:
             if response.status_code == 200:
                 events = response.json()
                 if events and len(events) > 0:
-                    return events[0]['id']
+                    # Verify the event actually has the UID we're looking for
+                    # (meta_key queries might not be supported and could return any event)
+                    first_event = events[0]
+                    event_uid = first_event.get('meta', {}).get('_event_uid', '')
+                    if event_uid == uid:
+                        return first_event['id']
+                    else:
+                        # Meta query didn't work correctly; log and return None
+                        log(f"DEBUG: get_event_by_uid({uid}) returned wrong event (got UID {event_uid}), meta queries not supported")
+                        return None
             
             return None
         except requests.RequestException as e:
