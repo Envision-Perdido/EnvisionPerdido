@@ -370,7 +370,8 @@ class WordPressEventUploader:
             pass  # Tags already stored in meta fields
         except Exception as e:
             log(f"   Note: Could not set tags via taxonomy: {e}")
-        def _create_events_parallel(self, events_list, max_workers):
+    
+    def _create_events_parallel(self, events_list, max_workers):
         """Create multiple events in parallel using thread pool."""
         created_ids = []
         total = len(events_list)
