@@ -16,6 +16,7 @@ import os
 import sys
 from requests.auth import HTTPBasicAuth
 import mimetypes
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Add scripts directory to path
 sys.path.insert(0, str(Path(__file__).parent))
@@ -39,11 +40,12 @@ def log(message):
 class WordPressEventUploader:
     """Handle uploading events to WordPress EventON calendar."""
     
-    def __init__(self, site_url, username, app_password):
+    def __init__(self, site_url, username, app_password, max_workers=5):
         self.site_url = site_url.rstrip('/')
         self.api_base = f"{self.site_url}/wp-json/wp/v2"
         self.auth = HTTPBasicAuth(username, app_password)
         self.session = requests.Session()
+        self.max_workers = max_workers
         
     def test_connection(self):
         """Test WordPress API connection and authentication."""
@@ -291,8 +293,8 @@ class WordPressEventUploader:
             log(f"ERROR: Error creating event '{event_row.get('title', 'Unknown')}': {e}")
             return None
     
-    def upload_events_from_csv(self, csv_path, dry_run=True):
-        """Upload events from CSV file."""
+    def upload_events_from_csv(self, csv_path, dry_run=True, max_workers=None):
+        """Upload events from CSV file in parallel."""
         log(f"Loading events from {csv_path}...")
         
         df = pd.read_csv(csv_path)
@@ -306,35 +308,91 @@ class WordPressEventUploader:
             log(f"\nTo actually upload, run with dry_run=False")
             return []
         
-        # Upload each event
-        created_ids = []
-        for idx, row in df.iterrows():
-            event_id = self.create_event(row)
-            if event_id:
-                created_ids.append(event_id)
+        # Convert DataFrame rows to list for parallel processing
+        events_list = [row for idx, row in df.iterrows()]
+        workers = max_workers or self.max_workers
+        
+        # Upload events in parallel
+        created_ids = self._create_events_parallel(events_list, workers)
         
         log(f"Upload complete: {len(created_ids)}/{len(df)} events created")
         return created_ids
     
-    def publish_events(self, event_ids):
-        """Publish events that were created as drafts."""
+    def _create_events_parallel(self, events_list, max_workers):
+        """Create multiple events in parallel using thread pool."""
+        created_ids = []
+        total = len(events_list)
+        
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Submit all event creation tasks
+            future_to_event = {
+                executor.submit(self.create_event, event): event
+                for event in events_list
+            }
+            
+            # Process completed creations as they finish
+            for i, future in enumerate(as_completed(future_to_event), 1):
+                try:
+                    event_id = future.result()
+                    if event_id:
+                        created_ids.append(event_id)
+                    
+                    # Progress update every 5 events or on final completion
+                    if i % 5 == 0 or i == total:
+                        log(f"Progress: {i}/{total} events created")
+                except Exception as e:
+                    log(f"Error in event creation task: {e}")
+        
+        return created_ids
+    
+    def publish_events(self, event_ids, max_workers=None):
+        """Publish events that were created as drafts in parallel."""
         log(f"Publishing {len(event_ids)} events...")
         
-        published = 0
-        for event_id in event_ids:
-            try:
-                response = self.session.post(
-                    f"{self.api_base}/ajde_events/{event_id}",
-                    auth=self.auth,
-                    json={'status': 'publish'}
-                )
-                if response.status_code == 200:
-                    published += 1
-            except Exception as e:
-                log(f"Error publishing event {event_id}: {e}")
+        workers = max_workers or self.max_workers
+        published = self._publish_events_parallel(event_ids, workers)
         
         log(f"Published {published}/{len(event_ids)} events")
         return published
+    
+    def _publish_events_parallel(self, event_ids, max_workers):
+        """Publish multiple events in parallel using thread pool."""
+        published_count = 0
+        total = len(event_ids)
+        
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Submit all publish tasks
+            future_to_event_id = {
+                executor.submit(self._publish_single_event, event_id): event_id
+                for event_id in event_ids
+            }
+            
+            # Process completed publishes as they finish
+            for i, future in enumerate(as_completed(future_to_event_id), 1):
+                try:
+                    if future.result():
+                        published_count += 1
+                    
+                    # Progress update every 5 events or on final completion
+                    if i % 5 == 0 or i == total:
+                        log(f"Progress: {i}/{total} events published")
+                except Exception as e:
+                    log(f"Error in publish task: {e}")
+        
+        return published_count
+    
+    def _publish_single_event(self, event_id):
+        """Publish a single event (helper for parallel publishing)."""
+        try:
+            response = self.session.post(
+                f"{self.api_base}/ajde_events/{event_id}",
+                auth=self.auth,
+                json={'status': 'publish'}
+            )
+            return response.status_code == 200
+        except Exception as e:
+            log(f"Error publishing event {event_id}: {e}")
+            return False
 
 def setup_wordpress_credentials():
     """Interactive setup for WordPress credentials."""
