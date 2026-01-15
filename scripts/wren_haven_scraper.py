@@ -19,6 +19,8 @@ Reuses:
 import json
 import asyncio
 import re
+import time
+import requests
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -156,44 +158,6 @@ def _parse_events_from_html(html: str) -> List[Dict[str, Any]]:
     # and extract event details from the rendered HTML
     
     return events
-    """
-    Get bootstrap artifacts (endpoint, auth headers) from cache or discover via Playwright.
-    
-    Args:
-        force_refresh: If True, ignore cache and re-bootstrap
-        
-    Returns:
-        Dictionary with 'endpoint', 'method', 'headers', 'cookies'
-    """
-    from urllib.parse import urlparse
-    domain = urlparse(SOURCE_URL).netloc
-    
-    # Try cache first (unless force_refresh)
-    if not force_refresh:
-        cached = _load_cached_artifacts(SOURCE_NAME, domain)
-        if cached:
-            return cached
-    
-    # Bootstrap via Playwright
-    print(f"Bootstrapping JSON API endpoint for {SOURCE_NAME}...")
-    try:
-        artifacts = bootstrap_json_api(
-            url=SOURCE_URL,
-            previous_month_selector=PREVIOUS_MONTH_SELECTOR,
-            source_name=SOURCE_NAME,
-            headless=True,
-            timeout_seconds=30
-        )
-        
-        if not artifacts or not artifacts.get('endpoint'):
-            raise WrenHavenScraperError("Could not discover API endpoint via Playwright")
-        
-        return artifacts
-    except ImportError:
-        raise WrenHavenScraperError(
-            "Playwright is required for Wren Haven bootstrapping. "
-            "Install with: pip install playwright && playwright install"
-        )
 
 
 def _prepare_request_headers(artifacts: Dict[str, Any]) -> Dict[str, str]:
@@ -202,7 +166,9 @@ def _prepare_request_headers(artifacts: Dict[str, Any]) -> Dict[str, str]:
     
     Reuses existing pattern: merge default headers with discovered headers.
     """
-    headers = DEFAULT_HEADERS.copy()
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+    }
     
     # Add discovered headers (Authorization, Content-Type, etc.)
     if artifacts.get('headers'):
@@ -233,16 +199,22 @@ def _fetch_events_from_api(
     """
     
     if bootstrap_artifacts is None:
-        bootstrap_artifacts = _bootstrap_or_use_cached()
+        # Use simple default artifacts for HTML-based scraping
+        bootstrap_artifacts = {
+            'endpoint': SOURCE_URL,
+            'method': 'GET',
+            'headers': {},
+            'cookies': []
+        }
     
-    endpoint = bootstrap_artifacts.get('endpoint')
+    endpoint = bootstrap_artifacts.get('endpoint', SOURCE_URL)
     method = bootstrap_artifacts.get('method', 'GET')
     headers = _prepare_request_headers(bootstrap_artifacts)
     cookies = bootstrap_artifacts.get('cookies', [])
     body = bootstrap_artifacts.get('body')
     
     if not endpoint:
-        raise WrenHavenScraperError("No API endpoint available")
+        raise WrenHavenScraperError("No endpoint available")
     
     # Build request parameters/body
     params = {}
@@ -264,11 +236,15 @@ def _fetch_events_from_api(
         except:
             request_body = body
     
+    # Create session for requests
+    session = requests.Session()
+    
     # Reuse existing retry pattern (simple exponential backoff)
     last_error = None
     for attempt in range(max_retries):
         try:
-            time.sleep(0.5 * attempt)  # Backoff
+            if attempt > 0:
+                time.sleep(0.5 * attempt)  # Backoff
             
             kwargs = {
                 'headers': headers,

@@ -272,44 +272,45 @@ def classify_events(events_df):
 def generate_review_html(community_events_df, stats):
     """Generate HTML email for event review (optimized with list join)."""
     
-    html_parts = ["""
+    html_parts = [
+        f"""
     <html>
     <head>
         <style>
-            body { font-family: Arial, sans-serif; max-width: 900px; margin: 20px auto; }
-            h1 { color: #2c3e50; }
-            h2 { color: #34495e; margin-top: 30px; }
-            .stats { background: #ecf0f1; padding: 15px; border-radius: 5px; margin: 20px 0; }
-            .stat-item { display: inline-block; margin-right: 30px; }
-            .stat-number { font-size: 24px; font-weight: bold; color: #3498db; }
-            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-            th { background: #3498db; color: white; padding: 10px; text-align: left; }
-            td { padding: 10px; border-bottom: 1px solid #ddd; }
-            tr:hover { background: #f5f5f5; }
-            .high-confidence { color: #27ae60; font-weight: bold; }
-            .low-confidence { color: #e74c3c; font-weight: bold; }
-            .review-needed { background: #fff3cd; }
+            body {{ font-family: Arial, sans-serif; max-width: 900px; margin: 20px auto; }}
+            h1 {{ color: #2c3e50; }}
+            h2 {{ color: #34495e; margin-top: 30px; }}
+            .stats {{ background: #ecf0f1; padding: 15px; border-radius: 5px; margin: 20px 0; }}
+            .stat-item {{ display: inline-block; margin-right: 30px; }}
+            .stat-number {{ font-size: 24px; font-weight: bold; color: #3498db; }}
+            table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }}
+            th {{ background: #3498db; color: white; padding: 10px; text-align: left; }}
+            td {{ padding: 10px; border-bottom: 1px solid #ddd; }}
+            tr:hover {{ background: #f5f5f5; }}
+            .high-confidence {{ color: #27ae60; font-weight: bold; }}
+            .low-confidence {{ color: #e74c3c; font-weight: bold; }}
+            .review-needed {{ background: #fff3cd; }}
         </style>
     </head>
     <body>
         <h1>Community Event Classification Review</h1>
-        <p>Run Date: {}</p>
+        <p>Run Date: {datetime.now().strftime("%B %d, %Y at %I:%M %p")}</p>
         
         <div class="stats">
             <div class="stat-item">
-                <div class="stat-number">{}</div>
+                <div class="stat-number">{stats['total_events']}</div>
                 <div>Total Events Scraped</div>
             </div>
             <div class="stat-item">
-                <div class="stat-number">{}</div>
+                <div class="stat-number">{stats['community_events']}</div>
                 <div>Community Events</div>
             </div>
             <div class="stat-item">
-                <div class="stat-number">{}</div>
+                <div class="stat-number">{stats['non_community_events']}</div>
                 <div>Non-Community Events</div>
             </div>
             <div class="stat-item">
-                <div class="stat-number">{}</div>
+                <div class="stat-number">{stats['needs_review']}</div>
                 <div>Need Review</div>
             </div>
         </div>
@@ -328,13 +329,8 @@ def generate_review_html(community_events_df, stats):
                 </tr>
             </thead>
             <tbody>
-    """.format(
-        datetime.now().strftime("%B %d, %Y at %I:%M %p"),
-        stats['total_events'],
-        stats['community_events'],
-        stats['non_community_events'],
-        stats['needs_review']
-    )]
+    """
+    ]
     
     # Build rows more efficiently
     for _, event in community_events_df.iterrows():
@@ -499,20 +495,21 @@ def send_upload_confirmation_email(community_events_df, created_ids, published_c
     log("Sending upload confirmation email...")
     
     # Generate HTML for confirmation using list join for efficiency
-    html_parts = ["""
+    html_parts = [
+        f"""
     <!DOCTYPE html>
     <html>
     <head>
         <style>
-            body { font-family: Arial, sans-serif; margin: 20px; }
-            h1 { color: #2c3e50; }
-            h2 { color: #34495e; margin-top: 30px; }
-            .summary { background-color: #ecf0f1; padding: 15px; border-radius: 5px; margin: 20px 0; }
-            table { border-collapse: collapse; width: 100%; margin-top: 20px; }
-            th { background-color: #3498db; color: white; padding: 12px; text-align: left; }
-            td { padding: 10px; border-bottom: 1px solid #ddd; }
-            tr:hover { background-color: #f5f5f5; }
-            .success { color: #27ae60; font-weight: bold; }
+            body {{ font-family: Arial, sans-serif; margin: 20px; }}
+            h1 {{ color: #2c3e50; }}
+            h2 {{ color: #34495e; margin-top: 30px; }}
+            .summary {{ background-color: #ecf0f1; padding: 15px; border-radius: 5px; margin: 20px 0; }}
+            table {{ border-collapse: collapse; width: 100%; margin-top: 20px; }}
+            th {{ background-color: #3498db; color: white; padding: 12px; text-align: left; }}
+            td {{ padding: 10px; border-bottom: 1px solid #ddd; }}
+            tr:hover {{ background-color: #f5f5f5; }}
+            .success {{ color: #27ae60; font-weight: bold; }}
         </style>
     </head>
     <body>
@@ -520,9 +517,9 @@ def send_upload_confirmation_email(community_events_df, created_ids, published_c
         
         <div class="summary">
             <h2>Upload Summary</h2>
-            <p><strong>Total Events Uploaded:</strong> {}</p>
-            <p><strong>Successfully Published:</strong> <span class="success">{}</span></p>
-            <p><strong>Upload Date:</strong> {}</p>
+            <p><strong>Total Events Uploaded:</strong> {len(created_ids)}</p>
+            <p><strong>Successfully Published:</strong> <span class="success">{published_count}</span></p>
+            <p><strong>Upload Date:</strong> {datetime.now().strftime("%B %d, %Y at %I:%M %p")}</p>
         </div>
         
         <h2>Published Events</h2>
@@ -536,11 +533,8 @@ def send_upload_confirmation_email(community_events_df, created_ids, published_c
                 </tr>
             </thead>
             <tbody>
-    """.format(
-        len(created_ids),
-        published_count,
-        datetime.now().strftime("%B %d, %Y at %I:%M %p")
-    )]
+    """
+    ]
     
     # Add event rows
     for _, event in community_events_df.iterrows():
