@@ -311,8 +311,7 @@ class WordPressEventUploader:
                     except:
                         pass
             
-            # Create post data - description only, NO featured_media field
-            # EventON will pull the image from the calendar data, not from featured_media
+            # Create post data with featured image if available
             post_data = {
                 'title': title,
                 'content': description if pd.notna(description) else '',
@@ -321,15 +320,25 @@ class WordPressEventUploader:
                 'meta': metadata
             }
             
+            # Set featured image for EventON to display
+            if featured_media_id:
+                post_data['featured_media'] = featured_media_id
+            
+            # Add location and tags to post data
+            if 'event_location' in metadata:
+                post_data['event_location'] = metadata.pop('event_location')
+            
             # Add tags if available (EventON uses event_type taxonomy)
             if tags:
                 # Convert tag slugs to display names for EventON
-                # EventON expects tag names, not slugs
                 tag_names = [tag.replace('_', ' ').title() for tag in tags]
-                # Store as meta field for now - WordPress REST API may not support custom taxonomies directly
+                # Store tag IDs if available, or create them
+                tag_ids = self._get_or_create_event_tags(tags)
+                if tag_ids:
+                    post_data['event_type'] = tag_ids
+                # Also store in meta for reference
                 metadata['_event_tags'] = ','.join(tags)
                 metadata['_event_tags_display'] = ','.join(tag_names)
-                post_data['meta'] = metadata
             
             # Send to WordPress
             response = self.session.post(
@@ -357,17 +366,62 @@ class WordPressEventUploader:
             log(f"ERROR: Error creating event '{event_row.get('title', 'Unknown')}': {e}")
             return None
     
+    def _get_or_create_event_tags(self, tag_slugs):
+        """
+        Get or create event tags and return their IDs.
+        
+        Returns list of tag IDs that can be assigned to event_type taxonomy.
+        """
+        tag_ids = []
+        try:
+            for tag_slug in tag_slugs:
+                # Convert slug to proper name
+                tag_name = tag_slug.replace('_', ' ').title()
+                
+                # Try to fetch existing tag
+                response = self.session.get(
+                    f"{self.api_base}/event_type",
+                    params={'search': tag_name},
+                    auth=self.auth
+                )
+                
+                tag_id = None
+                if response.status_code == 200:
+                    terms = response.json()
+                    if terms:
+                        tag_id = terms[0]['id']
+                
+                # Create tag if not found
+                if not tag_id:
+                    create_response = self.session.post(
+                        f"{self.api_base}/event_type",
+                        auth=self.auth,
+                        json={'name': tag_name, 'slug': tag_slug}
+                    )
+                    if create_response.status_code == 201:
+                        tag_id = create_response.json()['id']
+                
+                if tag_id:
+                    tag_ids.append(tag_id)
+        except Exception as e:
+            log(f"   Warning: Could not fetch/create tags: {e}")
+        
+        return tag_ids
+    
     def _set_event_tags(self, event_id, tags):
         """
-        Attempt to set event tags via taxonomy.
+        Attempt to set event tags via taxonomy after event creation.
         
-        This is a best-effort operation - if EventON doesn't expose
-        the taxonomy via REST API, tags will be stored in meta fields only.
+        This is a fallback if tags weren't set during creation.
         """
         try:
-            # EventON typically uses 'event_type' or similar taxonomy
-            # This may require the EventON REST API extension
-            pass  # Tags already stored in meta fields
+            tag_ids = self._get_or_create_event_tags(tags)
+            if tag_ids:
+                self.session.post(
+                    f"{self.api_base}/ajde_events/{event_id}",
+                    auth=self.auth,
+                    json={'event_type': tag_ids}
+                )
         except Exception as e:
             log(f"   Note: Could not set tags via taxonomy: {e}")
     
