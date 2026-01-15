@@ -34,6 +34,8 @@ from env_loader import load_env
 load_env()
 # Import scraper from scripts directory
 from scripts.Envision_Perdido_DataCollection import scrape_month, save_events_csv, save_events_json
+# Import enrichment modules
+from scripts.event_normalizer import enrich_events_dataframe, filter_events_dataframe
 
 # Configuration
 BASE_DIR = Path(__file__).parent.parent
@@ -212,6 +214,21 @@ def classify_events(events_df):
     
     community_count = predictions.sum()
     log(f"Classification complete: {community_count} community events, {len(events_df) - community_count} non-community events")
+    
+    # Enrich events with tags, paid/free status, venue resolution
+    log("Enriching events with tags, paid/free status, and venue information...")
+    events_df = enrich_events_dataframe(events_df)
+    log(f"Enrichment complete. Added tags, event types, and venue data.")
+    
+    # Apply filters (Brandon Styles @ OWA, etc.)
+    kept_df, filtered_df = filter_events_dataframe(events_df)
+    if len(filtered_df) > 0:
+        log(f"Filtered out {len(filtered_df)} events:")
+        for _, event in filtered_df.iterrows():
+            log(f"  - FILTERED: {event.get('title', 'Unknown')} at {event.get('location', 'Unknown')} - Reason: {event.get('filter_reason', 'Unknown')}")
+    
+    # Continue with kept events only
+    events_df = kept_df
     
     # Assign images based on keyword scoring
     events_df = assign_event_images(events_df)
