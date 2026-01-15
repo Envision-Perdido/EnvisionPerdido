@@ -37,8 +37,11 @@ class DummySession:
             return DummyResponse(200, {})
         return DummyResponse(500, {}, text='not found')
 
-    def get(self, url, timeout=30):
+    def get(self, url, timeout=30, auth=None, params=None):
         self.get_calls.append(url)
+        # For UID queries, return empty (no duplicates found)
+        if params and params.get('meta_key') == '_event_uid':
+            return DummyResponse(200, [])
         return DummyResponse(200, {'name': 'Test Location'})
 
 
@@ -123,17 +126,20 @@ def test_upload_image_and_create_event(monkeypatch, tmp_path):
     assert media_id == 42
 
     # Test create_event uses metadata and returns id
-    event_row = {
+    event_row = pd.Series({
         'title': 'Test Event',
         'description': 'desc',
         'start': '2025-09-20 08:00:00',
         'end': '2025-09-20 12:00:00',
         'location': 'Main St',
-        'image_url': 'https://example.org/image.jpg'
-    }
+        'image_url': 'https://example.org/image.jpg',
+        'uid': 'test-event-123',  # Add UID so it's not skipped as duplicate
+        'url': 'http://example.org/event',  # URL field needed for metadata
+    })
 
-    # Monkeypatch upload_image to return media id without network
+    # Monkeypatch upload_image and create_or_get_location to avoid network calls
     uploader.upload_image = lambda src, title=None: 42
+    uploader.create_or_get_location = lambda name: 7  # Return mock location ID
 
     created_id = uploader.create_event(event_row, image_column='image_url')
     assert created_id == 999

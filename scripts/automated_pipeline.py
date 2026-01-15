@@ -30,8 +30,10 @@ sys.path.insert(0, str(Path(__file__).parent))
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Load environment variables
-from env_loader import load_env
+from env_loader import load_env, validate_env_config
 load_env()
+# Import logger and metrics
+from logger import get_logger, PipelineMetrics
 # Import scraper and normalizer modules
 from scripts import Envision_Perdido_DataCollection
 from scripts import event_normalizer
@@ -78,9 +80,21 @@ EMAIL_CONFIG = {
 }
 
 def log(message):
-    """Print timestamped log message."""
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(f"[{timestamp}] {message}")
+    """Print timestamped log message (DEPRECATED - use logger instead).
+    
+    This function is deprecated. New code should use the global logger object instead.
+    It's kept for backward compatibility with existing log() calls in the pipeline.
+    """
+    # For now, we'll still support the old log() calls by delegating to the logger
+    # This allows gradual migration to the new logging system
+    logger = get_logger()
+    # Determine log level based on message content
+    if "ERROR" in message or "CRITICAL" in message:
+        logger.error(message)
+    elif "Warning" in message or "WARN" in message:
+        logger.warning(message)
+    else:
+        logger.info(message)
 
 def build_features(df: pd.DataFrame) -> list[str]:
     """Build text features from event data using vectorized operations.
@@ -109,7 +123,7 @@ def scrape_events(
     year: int | None = None,
     month: int | None = None,
     include_sources: list[str] | None = None
-) -> list[dict]:
+) -> tuple[list[dict], list]:
     """Scrape events from all configured sources.
     
     Args:
@@ -120,7 +134,9 @@ def scrape_events(
             ['perdido_chamber'] (for backward compatibility).
     
     Returns:
-        List of event dictionaries from all sources.
+        Tuple of (events_list, errors_list):
+            - events_list: List of event dictionaries from all sources
+            - errors_list: List of errors encountered during scraping
     """
     log("Starting event scraping...")
     
@@ -133,6 +149,7 @@ def scrape_events(
         month = datetime.now().month
     
     all_events = []
+    errors = []
     
     # Scrape Perdido Chamber (original source)
     if 'perdido_chamber' in include_sources:
@@ -150,7 +167,9 @@ def scrape_events(
                 log(f"Scraped {len(events)} events from {month_url}")
                 all_events.extend(events)
             except Exception as e:  # pylint: disable=broad-except
-                log(f"Error scraping {month_url}: {e}")
+                error_msg = f"Error scraping Perdido Chamber {month_url}: {e}"
+                log(f"ERROR: {error_msg}")
+                errors.append(error_msg)
     
     # Scrape Wren Haven (if enabled)
     if 'wren_haven' in include_sources:
@@ -160,14 +179,20 @@ def scrape_events(
             events = wren_haven_scraper.scrape_wren_haven()
             log(f"Scraped {len(events)} events from Wren Haven")
             all_events.extend(events)
-        except ImportError:
-            log("Warning: wren_haven_scraper not available "
-                "(Playwright not installed?)")
+        except ImportError as e:
+            error_msg = f"Warning: wren_haven_scraper not available (Playwright not installed?): {e}"
+            log(error_msg)
+            errors.append(error_msg)
         except Exception as e:  # pylint: disable=broad-except
-            log(f"Error scraping Wren Haven: {e}")
+            error_msg = f"Error scraping Wren Haven: {e}"
+            log(f"ERROR: {error_msg}")
+            errors.append(error_msg)
     
     log(f"Total events scraped from all sources: {len(all_events)}")
-    return all_events
+    if errors:
+        log(f"Encountered {len(errors)} scraper error(s)")
+    
+    return all_events, errors
 
 def assign_event_images(events_df: pd.DataFrame) -> pd.DataFrame:
     """Assign images to events based on weighted keyword scoring.
@@ -705,16 +730,33 @@ def send_upload_confirmation_email(
 
 def main():
     """Run the complete automated pipeline."""
+    # Initialize logger and metrics
+    logger = get_logger(log_dir=str(BASE_DIR / "output" / "logs"))
+    metrics = PipelineMetrics()
+    
+    # Validate environment configuration first (fail fast)
+    validate_env_config()
+    
     log("=" * 80)
     log("AUTOMATED COMMUNITY EVENT CLASSIFICATION PIPELINE")
     log("=" * 80)
     
     try:
         # Step 1: Scrape events
-        events = scrape_events(include_sources=['perdido_chamber', 'wren_haven'])
+        events, scrape_errors = scrape_events(include_sources=['perdido_chamber', 'wren_haven'])
+        
+        # Log scraper errors and add to metrics
+        for error in scrape_errors:
+            logger.warning(error)
+            metrics.add_error(error)
+        
         if not events:
             log("No events scraped. Exiting.")
+            metrics.add_error("Scraper returned zero events")
+            logger.info(metrics.get_summary())
             return
+        
+        metrics.add_scraped(len(events))
         
         # Convert to DataFrame
         events_df = pd.DataFrame(events)
@@ -728,10 +770,19 @@ def main():
         # Step 2: Classify events
         classified_df = classify_events(events_df)
         if classified_df is None:
+            metrics.add_error("Classification step failed")
+            logger.info(metrics.get_summary())
             return
+        
+        metrics.add_classified(len(classified_df))
         
         # Step 3: Filter community events and remove unreasonably long events
         community_events = classified_df[classified_df['is_community_event'] == 1].copy()
+        
+        # Track events needing review (confidence < 0.75)
+        if 'confidence' in classified_df.columns:
+            needs_review = len(classified_df[classified_df['confidence'] < 0.75])
+            metrics.add_needs_review(needs_review)
         
         # Filter out events longer than 60 days (likely recurring stubs or data errors)
         if len(community_events) > 0 and 'start' in community_events.columns and 'end' in community_events.columns:
@@ -771,11 +822,14 @@ def main():
             
             if created_ids and published_count:
                 log(f"Successfully published {published_count} events to calendar")
+                metrics.add_uploaded(published_count)
                 send_upload_confirmation_email(community_events, created_ids, published_count)
             elif created_ids is not None:
                 log("Upload completed but some events may not have published")
+                metrics.add_uploaded(len(created_ids))
             else:
                 log("Upload failed - check WordPress credentials and connection")
+                metrics.add_error("WordPress upload failed")
         else:
             log("\n" + "=" * 80)
             log("AUTO_UPLOAD disabled - manual upload required")
@@ -786,8 +840,14 @@ def main():
         log("PIPELINE COMPLETE!")
         log("=" * 80)
         
+        # Log final metrics summary
+        logger.info(metrics.get_summary())
+        
     except Exception as e:
         log(f"CRITICAL ERROR: {e}")
+        metrics.add_error(str(e))
+        logger.error(f"Pipeline failed with exception: {e}")
+        logger.info(metrics.get_summary())
         import traceback
         traceback.print_exc()
 

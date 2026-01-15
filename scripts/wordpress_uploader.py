@@ -96,6 +96,39 @@ class WordPressEventUploader:
             log(f"Warning: Could not fetch locations: {e}")
             return {}
     
+    def get_event_by_uid(self, uid: str) -> int | None:
+        """Find an existing event by its UID meta field.
+        
+        Args:
+            uid: The event UID to search for (from ICS file).
+        
+        Returns:
+            Event ID if found, None otherwise.
+        """
+        if not uid:
+            return None
+        
+        try:
+            response = self.session.get(
+                f"{self.api_base}/ajde_events",
+                auth=self.auth,
+                params={
+                    'meta_key': '_event_uid',
+                    'meta_value': uid,
+                    'per_page': 1,
+                }
+            )
+            
+            if response.status_code == 200:
+                events = response.json()
+                if events and len(events) > 0:
+                    return events[0]['id']
+            
+            return None
+        except requests.RequestException as e:
+            log(f"Warning: Could not query for existing event UID {uid}: {e}")
+            return None
+    
     def create_or_get_location(self, location_name: str) -> int | None:
         """Create a new location or get existing location ID.
         
@@ -328,6 +361,15 @@ class WordPressEventUploader:
             Event ID if created successfully, None otherwise.
         """
         try:
+            # Check for duplicate by UID first (idempotency check)
+            uid = event_row.get('uid')
+            if uid:
+                existing_id = self.get_event_by_uid(uid)
+                if existing_id:
+                    log(f"SKIPPED: Event {event_row.get('title', 'Unknown')} "
+                        f"already exists in WordPress (UID: {uid}, ID: {existing_id})")
+                    return None  # Don't create; already exists
+            
             # Prepare event data
             title = event_row.get('title', 'Untitled Event')
             description = event_row.get('description', '')
@@ -335,6 +377,9 @@ class WordPressEventUploader:
             # Parse metadata
             metadata = self.parse_event_metadata(event_row)
             
+            # Always store UID in metadata for future dedup checks
+            if uid:
+                metadata['_event_uid'] = str(uid)
             # Handle tags - EventON supports event_type taxonomy
             tags = []
             if pd.notna(event_row.get('tags')):
