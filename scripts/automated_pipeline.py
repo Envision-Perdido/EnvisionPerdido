@@ -47,6 +47,23 @@ IMAGES_DIR = BASE_DIR / "data" / "event_images"
 OUTPUT_DIR = BASE_DIR / "output" / "pipeline"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
+# Model caching for performance
+_MODEL_CACHE = {'model': None, 'vectorizer': None}
+
+def load_model_and_vectorizer():
+    """Load model and vectorizer with caching."""
+    global _MODEL_CACHE
+    
+    if _MODEL_CACHE['model'] is None or _MODEL_CACHE['vectorizer'] is None:
+        if not MODEL_PATH.exists() or not VECTORIZER_PATH.exists():
+            log("ERROR: Model files not found! Please train the model first.")
+            return None, None
+        
+        _MODEL_CACHE['model'] = joblib.load(MODEL_PATH)
+        _MODEL_CACHE['vectorizer'] = joblib.load(VECTORIZER_PATH)
+    
+    return _MODEL_CACHE['model'], _MODEL_CACHE['vectorizer']
+
 # Email configuration (set these as environment variables for security)
 EMAIL_CONFIG = {
     "smtp_server": os.getenv("SMTP_SERVER", "smtp.gmail.com"),
@@ -62,20 +79,16 @@ def log(message):
     print(f"[{timestamp}] {message}")
 
 def build_features(df):
-    """Build text features from event data."""
-    features = []
-    for _, row in df.iterrows():
-        parts = []
-        if pd.notna(row.get('title')):
-            parts.append(str(row['title']))
-        if pd.notna(row.get('description')):
-            parts.append(str(row['description']))
-        if pd.notna(row.get('location')):
-            parts.append(str(row['location']))
-        if pd.notna(row.get('category')):
-            parts.append(str(row['category']))
-        features.append(' '.join(parts))
-    return features
+    """Build text features from event data using vectorized operations."""
+    # Create feature columns, fill NA with empty string
+    title = df.get('title', pd.Series()).fillna('').astype(str)
+    description = df.get('description', pd.Series()).fillna('').astype(str)
+    location = df.get('location', pd.Series()).fillna('').astype(str)
+    category = df.get('category', pd.Series()).fillna('').astype(str)
+    
+    # Concatenate with space separator using vectorized string operations
+    features = (title + ' ' + description + ' ' + location + ' ' + category).str.split().str.join(' ')
+    return features.tolist()
 
 def scrape_events(year=None, month=None, include_sources=None):
     """Scrape events from all configured sources (chamber + additional sources).
@@ -133,11 +146,10 @@ def scrape_events(year=None, month=None, include_sources=None):
 
 def assign_event_images(events_df):
     """
-    Assign images to events based on weighted keyword scoring.
+    Assign images to events based on weighted keyword scoring (optimized).
     
-    Scores each image against event text (title, description, location)
-    using keyword weights from configuration file. Assigns the highest-
-    scoring image to each event.
+    Uses vectorized text operations and pre-processed keyword data for
+    efficient scoring. Assigns the highest-scoring image to each event.
     
     Returns:
         DataFrame with 'image_url' column added (absolute path or None)
@@ -161,45 +173,44 @@ def assign_event_images(events_df):
         events_df['image_url'] = None
         return events_df
     
-    # Process each event
+    # Pre-process image configurations: create list of (image_file, keywords_list, weights_list)
+    image_specs = []
+    for image_file, image_data in images_config.items():
+        keywords = image_data.get('keywords', {})
+        if keywords:
+            image_specs.append((
+                image_file,
+                list(keywords.keys()),
+                list(keywords.values())
+            ))
+    
+    # Build event text once for all comparisons using vectorized operations
+    event_text = (
+        events_df.get('title', pd.Series()).fillna('').astype(str).str.lower() + ' ' +
+        events_df.get('description', pd.Series()).fillna('').astype(str).str.lower() + ' ' +
+        events_df.get('location', pd.Series()).fillna('').astype(str).str.lower() + ' ' +
+        events_df.get('category', pd.Series()).fillna('').astype(str).str.lower()
+    )
+    
+    # Score all images for all events at once
     assigned_images = []
-    for _, event in events_df.iterrows():
-        # Build event text from all relevant fields
-        event_text_parts = []
-        if pd.notna(event.get('title')):
-            event_text_parts.append(str(event['title']).lower())
-        if pd.notna(event.get('description')):
-            event_text_parts.append(str(event['description']).lower())
-        if pd.notna(event.get('location')):
-            event_text_parts.append(str(event['location']).lower())
-        if pd.notna(event.get('category')):
-            event_text_parts.append(str(event['category']).lower())
-        
-        event_text = ' '.join(event_text_parts)
+    for idx, text in enumerate(event_text):
+        best_image = None
+        best_score = -1
         
         # Score each image
-        image_scores = {}
-        for image_file, image_data in images_config.items():
-            score = 0
-            keywords = image_data.get('keywords', {})
+        for image_file, keywords, weights in image_specs:
+            score = sum(weight for keyword, weight in zip(keywords, weights)
+                       if keyword.lower() in text)
             
-            for keyword, weight in keywords.items():
-                if keyword.lower() in event_text:
-                    score += weight
-            
-            image_scores[image_file] = score
+            if score > best_score:
+                best_score = score
+                best_image = image_file
         
-        # Find best match
-        if image_scores:
-            best_image = max(image_scores, key=image_scores.get)
-            best_score = image_scores[best_image]
-            
-            # Apply threshold
-            if best_score >= min_threshold and best_score > 0:
-                image_path = os.path.abspath(os.path.join(IMAGES_DIR, best_image))
-                assigned_images.append(image_path)
-            else:
-                assigned_images.append(None)
+        # Apply threshold
+        if best_score >= min_threshold and best_score > 0:
+            image_path = os.path.abspath(os.path.join(IMAGES_DIR, best_image))
+            assigned_images.append(image_path)
         else:
             assigned_images.append(None)
     
@@ -212,15 +223,12 @@ def assign_event_images(events_df):
     return events_df
 
 def classify_events(events_df):
-    """Classify events using trained SVM model."""
+    """Classify events using trained SVM model (with cached loading)."""
     log("Loading trained model...")
     
-    if not MODEL_PATH.exists() or not VECTORIZER_PATH.exists():
-        log("ERROR: Model files not found! Please train the model first.")
+    model, vectorizer = load_model_and_vectorizer()
+    if model is None or vectorizer is None:
         return None
-    
-    model = joblib.load(MODEL_PATH)
-    vectorizer = joblib.load(VECTORIZER_PATH)
     
     log(f"Classifying {len(events_df)} events...")
     
@@ -262,49 +270,46 @@ def classify_events(events_df):
     return events_df
 
 def generate_review_html(community_events_df, stats):
-    """Generate HTML email for event review."""
+    """Generate HTML email for event review (optimized with list join)."""
     
-    html = f"""
+    html_parts = ["""
     <html>
     <head>
         <style>
-            body {{ font-family: Arial, sans-serif; max-width: 900px; margin: 20px auto; }}
-            h1 {{ color: #2c3e50; }}
-            h2 {{ color: #34495e; margin-top: 30px; }}
-            .stats {{ background: #ecf0f1; padding: 15px; border-radius: 5px; margin: 20px 0; }}
-            .stat-item {{ display: inline-block; margin-right: 30px; }}
-            .stat-number {{ font-size: 24px; font-weight: bold; color: #3498db; }}
-            table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }}
-            th {{ background: #3498db; color: white; padding: 10px; text-align: left; }}
-            td {{ padding: 10px; border-bottom: 1px solid #ddd; }}
-            tr:hover {{ background: #f5f5f5; }}
-            .high-confidence {{ color: #27ae60; font-weight: bold; }}
-            .low-confidence {{ color: #e74c3c; font-weight: bold; }}
-            .review-needed {{ background: #fff3cd; }}
-            .button {{ display: inline-block; padding: 10px 20px; background: #3498db; color: white; text-decoration: none; border-radius: 5px; margin: 10px 5px; }}
-            .approve {{ background: #27ae60; }}
-            .reject {{ background: #e74c3c; }}
+            body { font-family: Arial, sans-serif; max-width: 900px; margin: 20px auto; }
+            h1 { color: #2c3e50; }
+            h2 { color: #34495e; margin-top: 30px; }
+            .stats { background: #ecf0f1; padding: 15px; border-radius: 5px; margin: 20px 0; }
+            .stat-item { display: inline-block; margin-right: 30px; }
+            .stat-number { font-size: 24px; font-weight: bold; color: #3498db; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th { background: #3498db; color: white; padding: 10px; text-align: left; }
+            td { padding: 10px; border-bottom: 1px solid #ddd; }
+            tr:hover { background: #f5f5f5; }
+            .high-confidence { color: #27ae60; font-weight: bold; }
+            .low-confidence { color: #e74c3c; font-weight: bold; }
+            .review-needed { background: #fff3cd; }
         </style>
     </head>
     <body>
         <h1>Community Event Classification Review</h1>
-        <p>Run Date: {datetime.now().strftime("%B %d, %Y at %I:%M %p")}</p>
+        <p>Run Date: {}</p>
         
         <div class="stats">
             <div class="stat-item">
-                <div class="stat-number">{stats['total_events']}</div>
+                <div class="stat-number">{}</div>
                 <div>Total Events Scraped</div>
             </div>
             <div class="stat-item">
-                <div class="stat-number">{stats['community_events']}</div>
+                <div class="stat-number">{}</div>
                 <div>Community Events</div>
             </div>
             <div class="stat-item">
-                <div class="stat-number">{stats['non_community_events']}</div>
+                <div class="stat-number">{}</div>
                 <div>Non-Community Events</div>
             </div>
             <div class="stat-item">
-                <div class="stat-number">{stats['needs_review']}</div>
+                <div class="stat-number">{}</div>
                 <div>Need Review</div>
             </div>
         </div>
@@ -323,8 +328,15 @@ def generate_review_html(community_events_df, stats):
                 </tr>
             </thead>
             <tbody>
-    """
+    """.format(
+        datetime.now().strftime("%B %d, %Y at %I:%M %p"),
+        stats['total_events'],
+        stats['community_events'],
+        stats['non_community_events'],
+        stats['needs_review']
+    )]
     
+    # Build rows more efficiently
     for _, event in community_events_df.iterrows():
         confidence = event['confidence']
         confidence_class = 'high-confidence' if confidence >= 0.75 else 'low-confidence'
@@ -336,17 +348,19 @@ def generate_review_html(community_events_df, stats):
         if pd.isna(location):
             location = 'N/A'
         
-        html += f"""
-                <tr class="{row_class}">
-                    <td><strong>{event['title']}</strong></td>
-                    <td>{start_date}</td>
-                    <td>{location}</td>
-                    <td class="{confidence_class}">{confidence:.1%}</td>
-                    <td>{status}</td>
-                </tr>
-        """
+        html_parts.append(
+            "                <tr class=\"{}\">\n"
+            "                    <td><strong>{}</strong></td>\n"
+            "                    <td>{}</td>\n"
+            "                    <td>{}</td>\n"
+            "                    <td class=\"{}\">{:.1%}</td>\n"
+            "                    <td>{}</td>\n"
+            "                </tr>".format(
+                row_class, event['title'], start_date, location, confidence_class, confidence, status
+            )
+        )
     
-    html += """
+    html_parts.append("""
             </tbody>
         </table>
         
@@ -360,9 +374,9 @@ def generate_review_html(community_events_df, stats):
         </p>
     </body>
     </html>
-    """
+    """)
     
-    return html
+    return '\n'.join(html_parts)
 
 def send_email_notification(community_events_df, all_events_df, csv_path):
     """Send email notification with classified events."""
@@ -484,21 +498,21 @@ def send_upload_confirmation_email(community_events_df, created_ids, published_c
     """Send confirmation email with upload results."""
     log("Sending upload confirmation email...")
     
-    # Generate HTML for confirmation
-    html = f"""
+    # Generate HTML for confirmation using list join for efficiency
+    html_parts = ["""
     <!DOCTYPE html>
     <html>
     <head>
         <style>
-            body {{ font-family: Arial, sans-serif; margin: 20px; }}
-            h1 {{ color: #2c3e50; }}
-            h2 {{ color: #34495e; margin-top: 30px; }}
-            .summary {{ background-color: #ecf0f1; padding: 15px; border-radius: 5px; margin: 20px 0; }}
-            table {{ border-collapse: collapse; width: 100%; margin-top: 20px; }}
-            th {{ background-color: #3498db; color: white; padding: 12px; text-align: left; }}
-            td {{ padding: 10px; border-bottom: 1px solid #ddd; }}
-            tr:hover {{ background-color: #f5f5f5; }}
-            .success {{ color: #27ae60; font-weight: bold; }}
+            body { font-family: Arial, sans-serif; margin: 20px; }
+            h1 { color: #2c3e50; }
+            h2 { color: #34495e; margin-top: 30px; }
+            .summary { background-color: #ecf0f1; padding: 15px; border-radius: 5px; margin: 20px 0; }
+            table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+            th { background-color: #3498db; color: white; padding: 12px; text-align: left; }
+            td { padding: 10px; border-bottom: 1px solid #ddd; }
+            tr:hover { background-color: #f5f5f5; }
+            .success { color: #27ae60; font-weight: bold; }
         </style>
     </head>
     <body>
@@ -506,9 +520,9 @@ def send_upload_confirmation_email(community_events_df, created_ids, published_c
         
         <div class="summary">
             <h2>Upload Summary</h2>
-            <p><strong>Total Events Uploaded:</strong> {len(created_ids)}</p>
-            <p><strong>Successfully Published:</strong> <span class="success">{published_count}</span></p>
-            <p><strong>Upload Date:</strong> {datetime.now().strftime("%B %d, %Y at %I:%M %p")}</p>
+            <p><strong>Total Events Uploaded:</strong> {}</p>
+            <p><strong>Successfully Published:</strong> <span class="success">{}</span></p>
+            <p><strong>Upload Date:</strong> {}</p>
         </div>
         
         <h2>Published Events</h2>
@@ -522,7 +536,11 @@ def send_upload_confirmation_email(community_events_df, created_ids, published_c
                 </tr>
             </thead>
             <tbody>
-    """
+    """.format(
+        len(created_ids),
+        published_count,
+        datetime.now().strftime("%B %d, %Y at %I:%M %p")
+    )]
     
     # Add event rows
     for _, event in community_events_df.iterrows():
@@ -532,16 +550,18 @@ def send_upload_confirmation_email(community_events_df, created_ids, published_c
             location = 'N/A'
         confidence = event.get('confidence', 0)
         
-        html += f"""
-                <tr>
-                    <td><strong>{event['title']}</strong></td>
-                    <td>{start_date}</td>
-                    <td>{location}</td>
-                    <td>{confidence:.1%}</td>
-                </tr>
-        """
+        html_parts.append(
+            "                <tr>\n"
+            "                    <td><strong>{}</strong></td>\n"
+            "                    <td>{}</td>\n"
+            "                    <td>{}</td>\n"
+            "                    <td>{:.1%}</td>\n"
+            "                </tr>".format(
+                event['title'], start_date, location, confidence
+            )
+        )
     
-    html += """
+    html_parts.append("""
             </tbody>
         </table>
         
@@ -554,7 +574,9 @@ def send_upload_confirmation_email(community_events_df, created_ids, published_c
         </p>
     </body>
     </html>
-    """
+    """)
+    
+    html = '\n'.join(html_parts)
     
     # Create email message
     msg = MIMEMultipart('alternative')
