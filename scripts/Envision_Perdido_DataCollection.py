@@ -1,3 +1,16 @@
+"""Data collection and parsing for Perdido Chamber events.
+
+This module provides scrapers and parsers for event data from:
+- Perdido Chamber website (using BeautifulSoup HTML parsing)
+- ICS (iCalendar) files for event details
+- Optional timezone support via zoneinfo, backports.zoneinfo, or dateutil
+
+The module gracefully handles missing optional dependencies:
+- BeautifulSoup4 (bs4) for HTML parsing
+- iCalendar for ICS parsing
+- zoneinfo/backports.zoneinfo/dateutil for timezone handling
+"""
+
 import time
 import re
 import csv
@@ -6,83 +19,106 @@ from urllib.parse import urlparse, urljoin
 from datetime import datetime
 try:
     from zoneinfo import ZoneInfo
-except Exception:
-    # Try dynamic imports to avoid static analyzer errors for optional packages
+except ImportError:
+    # Try dynamic imports to avoid static analyzer errors for optional
+    # packages
     try:
         import importlib
         _bz = importlib.import_module("backports.zoneinfo")
         ZoneInfo = getattr(_bz, "ZoneInfo")
-    except Exception:
+    except (ImportError, AttributeError):
         try:
             import importlib
             _dt = importlib.import_module("dateutil.tz")
-            # dateutil.tz.gettz returns a tzinfo-like object when called with a name
+            # dateutil.tz.gettz returns a tzinfo-like object when called
+            # with a name
             ZoneInfo = getattr(_dt, "gettz")
-        except Exception:
+        except (ImportError, AttributeError):
             ZoneInfo = None
-            print("Warning: no ZoneInfo implementation available; install Python 3.9+, backports.zoneinfo, or python-dateutil to enable timezone support.")
+            print("Warning: no ZoneInfo implementation available; install "
+                  "Python 3.9+, backports.zoneinfo, or python-dateutil to "
+                  "enable timezone support.")
 
 import importlib
 import requests
 from typing import Optional, TYPE_CHECKING, List, Dict
 
-# Allow static type checkers to see BeautifulSoup without importing it at runtime
+# Allow static type checkers to see BeautifulSoup without importing it at
+# runtime
 if TYPE_CHECKING:
     from bs4 import BeautifulSoup
 
-# Attempt a dynamic import to avoid static analyzer errors when the package is not installed
+# Attempt a dynamic import to avoid static analyzer errors when the package
+# is not installed
 try:
     _bs = importlib.import_module("bs4")
     BeautifulSoup = getattr(_bs, "BeautifulSoup")
-except Exception:
+except (ImportError, AttributeError):
     BeautifulSoup = None
-    print("Warning: 'bs4' (BeautifulSoup) package not found. Install with 'pip install beautifulsoup4' to enable HTML parsing.")
+    print("Warning: 'bs4' (BeautifulSoup) package not found. Install with "
+          "'pip install beautifulsoup4' to enable HTML parsing.")
 
 try:
     _ical = importlib.import_module("icalendar")
     Calendar = getattr(_ical, "Calendar")
-except Exception:
+except (ImportError, AttributeError):
     Calendar = None
-    print("Warning: 'icalendar' package not found. Install with 'pip install icalendar' to enable ICS parsing.")
+    print("Warning: 'icalendar' package not found. Install with "
+          "'pip install icalendar' to enable ICS parsing.")
 import os
 
 
 BASE = "https://business.perdidochamber.com"
 
-#Month view of calendar
-# MONTH_URL = "https://business.perdidochamber.com/events/calendar"
+# Month view of calendar
 MONTH_URL = "https://business.perdidochamber.com/events/calendar/2025-09-01"
 
 sess = requests.Session()
 sess.headers.update({
-    # mimics a browser to prevent the scraper from being blocked
-    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36"
+    # Mimic a browser to prevent the scraper from being blocked
+    "User-Agent": ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                   "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472"
+                   ".114 Safari/537.36")
 })
 
 ## SiteMap URL: https://business.perdidochamber.com/SiteMap.xml
 ## List of all URL's we can scrape according to their robots.txt
 ## https://business.perdidochamber.com/robots.txt
 
-#helper function to get full URL
-def get_event_url(month_url):
 
-    #sending the HTTP request to the calendar page
+def get_event_url(month_url: str) -> list[str]:
+    """Get event detail URLs from a chamber calendar month view.
+    
+    Args:
+        month_url: URL to the chamber calendar month view.
+    
+    Returns:
+        List of unique event detail URLs.
+    
+    Raises:
+        RuntimeError: If BeautifulSoup is not available.
+        requests.RequestException: If HTTP request fails.
+    """
+    # Send the HTTP request to the calendar page
     response = sess.get(month_url, timeout=30)
     response.raise_for_status()
 
-    #parsing the HTML content of the page
+    # Parse the HTML content of the page
     if BeautifulSoup is None:
-        raise RuntimeError("BeautifulSoup is required to parse HTML; install beautifulsoup4")
+        raise RuntimeError(
+            "BeautifulSoup is required to parse HTML; install "
+            "beautifulsoup4"
+        )
     soup = BeautifulSoup(response.text, 'html.parser')
 
-    #collecting the event detail links
+    # Collect the event detail links
     event_links = []
     for anchor in soup.select('a[href*="/events/details"]'):
-            href = anchor.get('href')
-            if href:
-                event_links.append(urljoin(BASE, href))
+        href = anchor.get('href')
+        if href:
+            event_links.append(urljoin(BASE, href))
 
-    #delete the redundant copies while preserving the order
+    # Delete redundant copies while preserving order
     seen, unique_links = set(), []
     for link in event_links:
         if link not in seen:
@@ -90,8 +126,22 @@ def get_event_url(month_url):
             unique_links.append(link)
     return unique_links
 
-def find_ics_links(soup) -> Optional[str]:
-    anchor = soup.find('a', string=re.compile(r'Add to Calendar\s*-\s*iCal', re.IGNORECASE))
+def find_ics_links(soup) -> str | None:
+    """Find iCalendar download link on an event detail page.
+    
+    Args:
+        soup: BeautifulSoup parsed HTML object.
+    
+    Returns:
+        URL to ICS file, or None if not found.
+    """
+    anchor = soup.find(
+        'a',
+        string=re.compile(
+            r'Add to Calendar\s*-\s*iCal',
+            re.IGNORECASE
+        )
+    )
     if anchor and anchor.get('href'):
         return urljoin(BASE, anchor['href'])
     

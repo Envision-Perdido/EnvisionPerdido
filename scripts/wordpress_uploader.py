@@ -17,7 +17,6 @@ import sys
 from requests.auth import HTTPBasicAuth
 import mimetypes
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Add scripts directory to path
 sys.path.insert(0, str(Path(__file__).parent))
@@ -47,46 +46,65 @@ class WordPressEventUploader:
         self.auth = HTTPBasicAuth(username, app_password)
         self.session = requests.Session()
         self.max_workers = max_workers
+    
+    def test_connection(self) -> bool:
+        """Test WordPress API connection and authentication.
         
-    def test_connection(self):
-        """Test WordPress API connection and authentication."""
+        Returns:
+            True if connection successful, False otherwise.
+        """
         log("Testing WordPress API connection...")
         
         try:
-            # Test basic API access
-            response = self.session.get(f"{self.api_base}/users/me", auth=self.auth)
+            response = self.session.get(
+                f"{self.api_base}/users/me",
+                auth=self.auth
+            )
             
             if response.status_code == 200:
                 user_data = response.json()
                 log(f"OK: Connected as: {user_data.get('name', 'Unknown')}")
                 return True
             elif response.status_code == 401:
-                log("ERROR: Authentication failed! Check username and app password.")
+                log("ERROR: Authentication failed! Check username and app "
+                    "password.")
                 return False
             else:
                 log(f"ERROR: API error: {response.status_code}")
                 return False
                 
-        except Exception as e:
+        except requests.RequestException as e:
             log(f"ERROR: Connection error: {e}")
             return False
     
-    def get_event_locations(self):
-        """Get existing event locations from WordPress."""
+    def get_event_locations(self) -> dict:
+        """Get existing event locations from WordPress.
+        
+        Returns:
+            Dictionary mapping location names to location IDs.
+        """
         try:
             response = self.session.get(
                 f"{self.api_base}/event_location",
                 auth=self.auth
             )
             if response.status_code == 200:
-                return {loc['name']: loc['id'] for loc in response.json()}
+                locations = response.json()
+                return {loc['name']: loc['id'] for loc in locations}
             return {}
-        except Exception as e:
+        except requests.RequestException as e:
             log(f"Warning: Could not fetch locations: {e}")
             return {}
     
-    def create_or_get_location(self, location_name):
-        """Create a new location or get existing location ID."""
+    def create_or_get_location(self, location_name: str) -> int | None:
+        """Create a new location or get existing location ID.
+        
+        Args:
+            location_name: Name of the location.
+        
+        Returns:
+            Location ID, or None if not found/created.
+        """
         if not location_name or pd.isna(location_name):
             return None
         
@@ -104,13 +122,20 @@ class WordPressEventUploader:
             )
             if response.status_code == 201:
                 return response.json()['id']
-        except Exception as e:
+        except requests.RequestException as e:
             log(f"Warning: Could not create location '{location_name}': {e}")
         
         return None
     
-    def parse_event_metadata(self, event_row):
-        """Parse event data into EventON metadata format."""
+    def parse_event_metadata(self, event_row: pd.Series) -> dict:
+        """Parse event data into EventON metadata format.
+        
+        Args:
+            event_row: Pandas Series with event data.
+        
+        Returns:
+            Dictionary of EventON metadata fields.
+        """
         metadata = {}
         
         # Event start and end times
@@ -119,47 +144,62 @@ class WordPressEventUploader:
         # i.e., the timestamp of the local time treating it as if it were UTC
         if pd.notna(event_row.get('start')):
             start_dt = pd.to_datetime(event_row['start'])
-            start_local = start_dt  # Keep original for display
+            start_local = start_dt
             try:
                 from zoneinfo import ZoneInfo
-                local_tz = ZoneInfo(os.getenv("SITE_TIMEZONE", "America/Chicago"))
+                local_tz = ZoneInfo(
+                    os.getenv("SITE_TIMEZONE", "America/Chicago")
+                )
                 # Treat naive as local time
                 if start_dt.tzinfo is None:
                     start_dt = start_dt.replace(tzinfo=local_tz)
-                # WORKAROUND: Store "local epoch" - epoch of local time treating as UTC
-                # Remove timezone info and get timestamp (treats as UTC)
+                # WORKAROUND: Store "local epoch" - epoch of local time
+                # treating as UTC
                 local_naive = start_dt.replace(tzinfo=None)
-                metadata['evcal_srow'] = str(int(local_naive.timestamp()))
-            except Exception:
+                epoch = int(local_naive.timestamp())
+                metadata['evcal_srow'] = str(epoch)
+            except Exception:  # pylint: disable=broad-except
                 # Fallback: use naive timestamp
-                metadata['evcal_srow'] = str(int(pd.Timestamp(start_dt).timestamp()))
-            # Use local time for display fields (though EventON ignores these)
+                epoch = int(pd.Timestamp(start_dt).timestamp())
+                metadata['evcal_srow'] = str(epoch)
+            # Use local time for display fields (EventON ignores these)
             metadata['evcal_start_date'] = start_local.strftime('%Y-%m-%d')
             metadata['evcal_start_time_hour'] = start_local.strftime('%I')
             metadata['evcal_start_time_min'] = start_local.strftime('%M')
-            metadata['evcal_start_time_ampm'] = start_local.strftime('%p').lower()
+            metadata['evcal_start_time_ampm'] = (
+                start_local.strftime('%p').lower()
+            )
         
         if pd.notna(event_row.get('end')):
             end_dt = pd.to_datetime(event_row['end'])
-            end_local = end_dt  # Keep original for display
+            end_local = end_dt
             try:
                 from zoneinfo import ZoneInfo
-                local_tz = ZoneInfo(os.getenv("SITE_TIMEZONE", "America/Chicago"))
+                local_tz = ZoneInfo(
+                    os.getenv("SITE_TIMEZONE", "America/Chicago")
+                )
                 if end_dt.tzinfo is None:
                     end_dt = end_dt.replace(tzinfo=local_tz)
                 # WORKAROUND: Store "local epoch"
                 local_naive = end_dt.replace(tzinfo=None)
-                metadata['evcal_erow'] = str(int(local_naive.timestamp()))
-            except Exception:
-                metadata['evcal_erow'] = str(int(pd.Timestamp(end_dt).timestamp()))
+                epoch = int(local_naive.timestamp())
+                metadata['evcal_erow'] = str(epoch)
+            except Exception:  # pylint: disable=broad-except
+                epoch = int(pd.Timestamp(end_dt).timestamp())
+                metadata['evcal_erow'] = str(epoch)
             # Use local time for display fields
             metadata['evcal_end_date'] = end_local.strftime('%Y-%m-%d')
             metadata['evcal_end_time_hour'] = end_local.strftime('%I')
             metadata['evcal_end_time_min'] = end_local.strftime('%M')
-            metadata['evcal_end_time_ampm'] = end_local.strftime('%p').lower()
+            metadata['evcal_end_time_ampm'] = (
+                end_local.strftime('%p').lower()
+            )
         
         # Location - use normalized location if available
-        location_text = event_row.get('normalized_location') or event_row.get('location')
+        location_text = (
+            event_row.get('normalized_location')
+            or event_row.get('location')
+        )
         if pd.notna(location_text):
             location_id = self.create_or_get_location(str(location_text))
             if location_id:
@@ -194,20 +234,27 @@ class WordPressEventUploader:
         
         return metadata
     
-    def upload_image(self, image_path_or_url, title=None):
-        """
-        Upload an image to WordPress media library.
+    def upload_image(
+        self,
+        image_path_or_url: str,
+        title: str | None = None
+    ) -> int | None:
+        """Upload an image to WordPress media library.
         
         Args:
-            image_path_or_url: Local file path or URL to image
-            title: Optional title for the image
-            
+            image_path_or_url: Local file path or URL to image.
+            title: Optional title for the image.
+        
         Returns:
-            Media ID if successful, None otherwise
+            Media ID if successful, None otherwise.
         """
         try:
             # Determine if it's a URL or local file
-            if image_path_or_url.startswith('http://') or image_path_or_url.startswith('https://'):
+            is_url = (
+                image_path_or_url.startswith('http://')
+                or image_path_or_url.startswith('https://')
+            )
+            if is_url:
                 # Download image from URL
                 response = requests.get(image_path_or_url, timeout=30)
                 response.raise_for_status()
@@ -255,15 +302,31 @@ class WordPressEventUploader:
                 log(f"   Uploaded image: {filename} (Media ID: {media_id})")
                 return media_id
             else:
-                log(f"   Warning: Failed to upload image: {response.status_code}")
+                log(f"   Warning: Failed to upload image: "
+                    f"{response.status_code}")
                 return None
                 
-        except Exception as e:
+        except OSError as e:  # File access errors
+            log(f"   Warning: Error uploading image: {e}")
+            return None
+        except requests.RequestException as e:  # Network errors
             log(f"   Warning: Error uploading image: {e}")
             return None
     
-    def create_event(self, event_row, image_column='image_url'):
-        """Create a single event in WordPress."""
+    def create_event(
+        self,
+        event_row: pd.Series,
+        image_column: str = 'image_url'
+    ) -> int | None:
+        """Create a single event in WordPress.
+        
+        Args:
+            event_row: Pandas Series with event data.
+            image_column: Name of column containing image URL/path.
+        
+        Returns:
+            Event ID if created successfully, None otherwise.
+        """
         try:
             # Prepare event data
             title = event_row.get('title', 'Untitled Event')
@@ -281,9 +344,12 @@ class WordPressEventUploader:
                     try:
                         import json as json_lib
                         tags = json_lib.loads(tag_data)
-                    except:
+                    except ValueError:  # JSON parse error
                         # Try splitting as comma-separated
-                        tags = [t.strip() for t in tag_data.split(',') if t.strip()]
+                        tags = [
+                            t.strip() for t in tag_data.split(',')
+                            if t.strip()
+                        ]
                 elif isinstance(tag_data, list):
                     tags = tag_data
             
@@ -295,8 +361,9 @@ class WordPressEventUploader:
                 featured_media_id = self.upload_image(image_source, title=title)
                 
                 if featured_media_id:
-                    # Store image ID in custom meta field instead of featured_media
-                    # This prevents EventON from showing it in the popup
+                    # Store image ID in custom meta field instead of
+                    # featured_media. This prevents EventON from showing it
+                    # in the popup.
                     metadata['_event_image_id'] = str(featured_media_id)
                     
                     # Try to get the image URL for calendar display
@@ -306,15 +373,19 @@ class WordPressEventUploader:
                             auth=self.auth
                         )
                         if response.status_code == 200:
-                            image_url = response.json().get('source_url', '')
+                            image_url = response.json().get(
+                                'source_url', ''
+                            )
                             metadata['_event_image_url'] = image_url
-                    except:
+                    except requests.RequestException:  # pylint: disable=broad-except
                         pass
             
             # Create post data with featured image if available
             post_data = {
                 'title': title,
-                'content': description if pd.notna(description) else '',
+                'content': (
+                    description if pd.notna(description) else ''
+                ),
                 'status': 'draft',
                 'type': 'ajde_events',
                 'meta': metadata
@@ -331,7 +402,9 @@ class WordPressEventUploader:
             # Add tags if available (EventON uses event_type taxonomy)
             if tags:
                 # Convert tag slugs to display names for EventON
-                tag_names = [tag.replace('_', ' ').title() for tag in tags]
+                tag_names = [
+                    tag.replace('_', ' ').title() for tag in tags
+                ]
                 # Store tag IDs if available, or create them
                 tag_ids = self._get_or_create_event_tags(tags)
                 if tag_ids:
@@ -358,19 +431,27 @@ class WordPressEventUploader:
                 
                 return event_id
             else:
-                log(f"ERROR: Failed to create event '{title}': {response.status_code}")
+                log(f"ERROR: Failed to create event '{title}': "
+                    f"{response.status_code}")
                 log(f"   Response: {response.text[:200]}")
                 return None
                 
-        except Exception as e:
-            log(f"ERROR: Error creating event '{event_row.get('title', 'Unknown')}': {e}")
+        except Exception as e:  # pylint: disable=broad-except
+            event_title = event_row.get('title', 'Unknown')
+            log(f"ERROR: Error creating event '{event_title}': {e}")
             return None
     
-    def _get_or_create_event_tags(self, tag_slugs):
-        """
-        Get or create event tags and return their IDs.
+    def _get_or_create_event_tags(
+        self,
+        tag_slugs: list[str]
+    ) -> list[int]:
+        """Get or create event tags and return their IDs.
         
-        Returns list of tag IDs that can be assigned to event_type taxonomy.
+        Args:
+            tag_slugs: List of tag slug strings.
+        
+        Returns:
+            List of tag IDs that can be assigned to event_type taxonomy.
         """
         tag_ids = []
         try:
@@ -403,16 +484,23 @@ class WordPressEventUploader:
                 
                 if tag_id:
                     tag_ids.append(tag_id)
-        except Exception as e:
+        except requests.RequestException as e:  # pylint: disable=broad-except
             log(f"   Warning: Could not fetch/create tags: {e}")
         
         return tag_ids
     
-    def _set_event_tags(self, event_id, tags):
-        """
-        Attempt to set event tags via taxonomy after event creation.
+    def _set_event_tags(
+        self,
+        event_id: int,
+        tags: list[str]
+    ) -> None:
+        """Attempt to set event tags via taxonomy after creation.
         
-        This is a fallback if tags weren't set during creation.
+        This is a fallback if tags weren't set during event creation.
+        
+        Args:
+            event_id: WordPress event post ID.
+            tags: List of tag slugs to assign.
         """
         try:
             tag_ids = self._get_or_create_event_tags(tags)
@@ -422,11 +510,23 @@ class WordPressEventUploader:
                     auth=self.auth,
                     json={'event_type': tag_ids}
                 )
-        except Exception as e:
+        except requests.RequestException as e:  # pylint: disable=broad-except
             log(f"   Note: Could not set tags via taxonomy: {e}")
     
-    def _create_events_parallel(self, events_list, max_workers):
-        """Create multiple events in parallel using thread pool."""
+    def _create_events_parallel(
+        self,
+        events_list: list[pd.Series],
+        max_workers: int
+    ) -> list[int]:
+        """Create multiple events in parallel using thread pool.
+        
+        Args:
+            events_list: List of pandas Series (rows) with event data.
+            max_workers: Maximum number of worker threads.
+        
+        Returns:
+            List of created event IDs.
+        """
         created_ids = []
         total = len(events_list)
         
@@ -447,13 +547,28 @@ class WordPressEventUploader:
                     # Progress indicator
                     if i % 10 == 0 or i == total:
                         log(f"  Progress: {i}/{total} events processed")
-                except Exception as e:
-                    log(f"ERROR: Failed to create event '{event.get('title', 'Unknown')}': {e}")
+                except Exception as e:  # pylint: disable=broad-except
+                    event_title = event.get('title', 'Unknown')
+                    log(f"ERROR: Failed to create event '{event_title}': {e}")
         
         return created_ids
     
-    def upload_events_from_csv(self, csv_path, dry_run=True, max_workers=None):
-        """Upload events from CSV file in parallel."""
+    def upload_events_from_csv(
+        self,
+        csv_path: Path,
+        dry_run: bool = True,
+        max_workers: int | None = None
+    ) -> list[int]:
+        """Upload events from CSV file in parallel.
+        
+        Args:
+            csv_path: Path to CSV file with events.
+            dry_run: If True, show events but don't create them.
+            max_workers: Maximum number of worker threads.
+        
+        Returns:
+            List of created event IDs.
+        """
         log(f"Loading events from {csv_path}...")
         
         df = pd.read_csv(csv_path)
@@ -463,7 +578,8 @@ class WordPressEventUploader:
             log("DRY RUN MODE - No events will be created")
             log("Review the following events:")
             for idx, row in df.iterrows():
-                log(f"  - {row.get('title', 'Untitled')} ({row.get('start', 'No date')})")
+                log(f"  - {row.get('title', 'Untitled')} "
+                    f"({row.get('start', 'No date')})")
             log(f"\nTo actually upload, run with dry_run=False")
             return []
         
@@ -477,8 +593,20 @@ class WordPressEventUploader:
         log(f"Upload complete: {len(created_ids)}/{len(df)} events created")
         return created_ids
     
-    def publish_events(self, event_ids, max_workers=None):
-        """Publish events that were created as drafts in parallel."""
+    def publish_events(
+        self,
+        event_ids: list[int],
+        max_workers: int | None = None
+    ) -> int:
+        """Publish events that were created as drafts in parallel.
+        
+        Args:
+            event_ids: List of event IDs to publish.
+            max_workers: Maximum number of worker threads.
+        
+        Returns:
+            Number of events successfully published.
+        """
         log(f"Publishing {len(event_ids)} events...")
         
         workers = max_workers or self.max_workers
@@ -487,8 +615,15 @@ class WordPressEventUploader:
         log(f"Published {published}/{len(event_ids)} events")
         return published
     
-    def _publish_single_event(self, event_id):
-        """Publish a single event."""
+    def _publish_single_event(self, event_id: int) -> bool:
+        """Publish a single event.
+        
+        Args:
+            event_id: WordPress event post ID.
+        
+        Returns:
+            True if published successfully, False otherwise.
+        """
         try:
             response = self.session.post(
                 f"{self.api_base}/ajde_events/{event_id}",
@@ -496,12 +631,24 @@ class WordPressEventUploader:
                 json={'status': 'publish'}
             )
             return response.status_code == 200
-        except Exception as e:
+        except requests.RequestException as e:  # pylint: disable=broad-except
             log(f"Error publishing event {event_id}: {e}")
             return False
     
-    def _publish_events_parallel(self, event_ids, max_workers):
-        """Publish multiple events in parallel using thread pool."""
+    def _publish_events_parallel(
+        self,
+        event_ids: list[int],
+        max_workers: int
+    ) -> int:
+        """Publish multiple events in parallel using thread pool.
+        
+        Args:
+            event_ids: List of event IDs to publish.
+            max_workers: Maximum number of worker threads.
+        
+        Returns:
+            Number of events successfully published.
+        """
         published_count = 0
         total = len(event_ids)
         
@@ -521,13 +668,17 @@ class WordPressEventUploader:
                     # Progress indicator
                     if i % 10 == 0 or i == total:
                         log(f"  Progress: {i}/{total} events published")
-                except Exception as e:
+                except Exception as e:  # pylint: disable=broad-except
                     log(f"ERROR: Failed to publish event {event_id}: {e}")
         
         return published_count
 
-def setup_wordpress_credentials():
-    """Interactive setup for WordPress credentials."""
+def setup_wordpress_credentials() -> dict[str, str]:
+    """Interactive setup for WordPress credentials.
+    
+    Returns:
+        Dictionary with site_url, username, and app_password.
+    """
     print("\n" + "="*80)
     print("WORDPRESS CREDENTIALS SETUP")
     print("="*80)
@@ -537,10 +688,14 @@ def setup_wordpress_credentials():
     print("2. Go to Users → Profile")
     print("3. Scroll to 'Application Passwords'")
     print("4. Enter a name (e.g., 'Event Uploader') and click 'Add New'")
-    print("5. Copy the generated password (it will look like: 'xxxx xxxx xxxx xxxx xxxx xxxx')")
+    print("5. Copy the generated password "
+          "(it will look like: 'xxxx xxxx xxxx xxxx xxxx xxxx')")
     print("\n" + "="*80)
     
-    site_url = input("\nWordPress Site URL (default: https://sandbox.envisionperdido.org): ").strip()
+    site_url = input(
+        "\nWordPress Site URL "
+        "(default: https://sandbox.envisionperdido.org): "
+    ).strip()
     if not site_url:
         site_url = "https://sandbox.envisionperdido.org"
     
@@ -553,29 +708,35 @@ def setup_wordpress_credentials():
     os.environ["WP_APP_PASSWORD"] = app_password
     
     print("\nCredentials set for this session.")
-    print("To make permanent, add to your environment variables or .env file:")
+    print("To make permanent, add to your environment variables or "
+          ".env file:")
     print(f"  WP_SITE_URL={site_url}")
     print(f"  WP_USERNAME={username}")
     print(f"  WP_APP_PASSWORD=<your_password>")
     
     return site_url, username, app_password
 
-def main():
+def main() -> None:
     """Main upload workflow."""
     print("\n" + "="*80)
     print("WORDPRESS CALENDAR UPLOADER")
     print("="*80)
     
     # Check for credentials
-    if not WORDPRESS_CONFIG['username'] or not WORDPRESS_CONFIG['app_password']:
+    if (not WORDPRESS_CONFIG['username']
+            or not WORDPRESS_CONFIG['app_password']):
         log("WordPress credentials not found in environment variables.")
-        site_url, username, app_password = setup_wordpress_credentials()
+        site_url, username, app_password = (
+            setup_wordpress_credentials()
+        )
     else:
         site_url = WORDPRESS_CONFIG['site_url']
         username = WORDPRESS_CONFIG['username']
         app_password = WORDPRESS_CONFIG['app_password']
+        uploader = WordPressEventUploader(
+            site_url, username, app_password
+        )
         log(f"Using credentials from environment for {username}")
-    
     # Create uploader
     uploader = WordPressEventUploader(site_url, username, app_password)
     
@@ -614,7 +775,9 @@ def main():
     
     # Confirm upload
     print("\n" + "="*80)
-    response = input("Upload these events to WordPress? (yes/no): ").strip().lower()
+    response = input(
+        "Upload these events to WordPress? (yes/no): "
+    ).strip().lower()
     
     if response == 'yes':
         print("\n" + "="*80)
@@ -623,12 +786,16 @@ def main():
         created_ids = uploader.upload_events_from_csv(latest_csv, dry_run=False)
         
         if created_ids:
-            response = input(f"\n{len(created_ids)} events created as DRAFTS. Publish them? (yes/no): ").strip().lower()
+            response = input(
+                f"\n{len(created_ids)} events created as DRAFTS. "
+                f"Publish them? (yes/no): "
+            ).strip().lower()
             if response == 'yes':
                 uploader.publish_events(created_ids)
                 log("OK: Upload complete! Check your WordPress calendar.")
             else:
-                log("Events saved as drafts. You can publish them manually in WordPress.")
+                log("Events saved as drafts. You can publish them manually "
+                    "in WordPress.")
     else:
         log("Upload cancelled.")
     

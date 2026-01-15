@@ -32,10 +32,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 # Load environment variables
 from env_loader import load_env
 load_env()
-# Import scraper from scripts directory
-from scripts.Envision_Perdido_DataCollection import scrape_month, save_events_csv, save_events_json
-# Import enrichment modules
-from scripts.event_normalizer import enrich_events_dataframe, filter_events_dataframe
+# Import scraper and normalizer modules
+from scripts import Envision_Perdido_DataCollection
+from scripts import event_normalizer
 
 # Configuration
 BASE_DIR = Path(__file__).parent.parent
@@ -51,7 +50,12 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 _MODEL_CACHE = {'model': None, 'vectorizer': None}
 
 def load_model_and_vectorizer():
-    """Load model and vectorizer with caching."""
+    """Load model and vectorizer with caching.
+    
+    Returns:
+        Tuple[object | None, object | None]: Tuple of (model,
+            vectorizer), or (None, None) if files not found.
+    """
     global _MODEL_CACHE
     
     if _MODEL_CACHE['model'] is None or _MODEL_CACHE['vectorizer'] is None:
@@ -78,27 +82,45 @@ def log(message):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print(f"[{timestamp}] {message}")
 
-def build_features(df):
-    """Build text features from event data using vectorized operations."""
-    # Create feature columns, fill NA with empty string
+def build_features(df: pd.DataFrame) -> list[str]:
+    """Build text features from event data using vectorized operations.
+    
+    Args:
+        df: DataFrame with 'title', 'description', 'location',
+            'category' columns.
+    
+    Returns:
+        List of concatenated feature strings.
+    """
     title = df.get('title', pd.Series()).fillna('').astype(str)
-    description = df.get('description', pd.Series()).fillna('').astype(str)
+    description = (
+        df.get('description', pd.Series()).fillna('').astype(str)
+    )
     location = df.get('location', pd.Series()).fillna('').astype(str)
     category = df.get('category', pd.Series()).fillna('').astype(str)
     
-    # Concatenate with space separator using vectorized string operations
-    features = (title + ' ' + description + ' ' + location + ' ' + category).str.split().str.join(' ')
+    features = (
+        (title + ' ' + description + ' ' + location + ' ' + category)
+        .str.split().str.join(' ')
+    )
     return features.tolist()
 
-def scrape_events(year=None, month=None, include_sources=None):
-    """Scrape events from all configured sources (chamber + additional sources).
+def scrape_events(
+    year: int | None = None,
+    month: int | None = None,
+    include_sources: list[str] | None = None
+) -> list[dict]:
+    """Scrape events from all configured sources.
     
     Args:
-        year: Year to scrape (default current)
-        month: Month to scrape (default current)
-        include_sources: List of source names to include. 
-                        Options: 'perdido_chamber', 'wren_haven'
-                        Default: ['perdido_chamber'] (for backward compatibility)
+        year: Year to scrape (default current year).
+        month: Month to scrape (default current month).
+        include_sources: List of source names to include. Options:
+            'perdido_chamber', 'wren_haven'. Default:
+            ['perdido_chamber'] (for backward compatibility).
+    
+    Returns:
+        List of event dictionaries from all sources.
     """
     log("Starting event scraping...")
     
@@ -117,52 +139,58 @@ def scrape_events(year=None, month=None, include_sources=None):
         log("Scraping Perdido Chamber...")
         for m in range(month, min(month + 2, 13)):
             month_str = f"{year}-{m:02d}-01"
-            month_url = f"https://business.perdidochamber.com/events/calendar/{month_str}"
+            base_url = "https://business.perdidochamber.com/events/calendar"
+            month_url = f"{base_url}/{month_str}"
             log(f"Scraping {month_url}...")
             
             try:
-                from scripts.Envision_Perdido_DataCollection import scrape_month
-                events = scrape_month(month_url)
+                events = Envision_Perdido_DataCollection.scrape_month(
+                    month_url
+                )
                 log(f"Scraped {len(events)} events from {month_url}")
                 all_events.extend(events)
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-except
                 log(f"Error scraping {month_url}: {e}")
     
     # Scrape Wren Haven (if enabled)
     if 'wren_haven' in include_sources:
         log("Scraping Wren Haven Homestead...")
         try:
-            from scripts.wren_haven_scraper import scrape_wren_haven
-            events = scrape_wren_haven()
+            from scripts import wren_haven_scraper
+            events = wren_haven_scraper.scrape_wren_haven()
             log(f"Scraped {len(events)} events from Wren Haven")
             all_events.extend(events)
         except ImportError:
-            log("Warning: wren_haven_scraper not available (Playwright not installed?)")
-        except Exception as e:
+            log("Warning: wren_haven_scraper not available "
+                "(Playwright not installed?)")
+        except Exception as e:  # pylint: disable=broad-except
             log(f"Error scraping Wren Haven: {e}")
     
     log(f"Total events scraped from all sources: {len(all_events)}")
     return all_events
 
-def assign_event_images(events_df):
-    """
-    Assign images to events based on weighted keyword scoring (optimized).
+def assign_event_images(events_df: pd.DataFrame) -> pd.DataFrame:
+    """Assign images to events based on weighted keyword scoring.
     
     Uses vectorized text operations and pre-processed keyword data for
     efficient scoring. Assigns the highest-scoring image to each event.
     
+    Args:
+        events_df: DataFrame with event data.
+    
     Returns:
-        DataFrame with 'image_url' column added (absolute path or None)
+        DataFrame with 'image_url' column added (absolute path or None).
     """
     if not IMAGE_CONFIG_PATH.exists():
-        log("Warning: Image config not found, skipping image assignment")
+        log("Warning: Image config not found, skipping image "
+            "assignment")
         events_df['image_url'] = None
         return events_df
     
     log("Assigning images based on keyword scoring...")
     
     # Load image keyword configuration
-    with open(IMAGE_CONFIG_PATH, 'r') as f:
+    with open(IMAGE_CONFIG_PATH) as f:
         config = json.load(f)
     
     images_config = config.get('images', {})
@@ -222,8 +250,18 @@ def assign_event_images(events_df):
     
     return events_df
 
-def classify_events(events_df):
-    """Classify events using trained SVM model (with cached loading)."""
+def classify_events(events_df: pd.DataFrame) -> pd.DataFrame | None:
+    """Classify events using trained SVM model.
+    
+    Uses cached model loading for efficiency. Adds confidence scores and
+    review flags.
+    
+    Args:
+        events_df: DataFrame with event data.
+    
+    Returns:
+        DataFrame with classification columns added, or None on error.
+    """
     log("Loading trained model...")
     
     model, vectorizer = load_model_and_vectorizer()
@@ -250,12 +288,15 @@ def classify_events(events_df):
     log(f"Classification complete: {community_count} community events, {len(events_df) - community_count} non-community events")
     
     # Enrich events with tags, paid/free status, venue resolution
-    log("Enriching events with tags, paid/free status, and venue information...")
-    events_df = enrich_events_dataframe(events_df)
+    log("Enriching events with tags, paid/free status, and venue "
+        "information...")
+    events_df = event_normalizer.enrich_events_dataframe(events_df)
     log(f"Enrichment complete. Added tags, event types, and venue data.")
     
     # Apply filters (Brandon Styles @ OWA, etc.)
-    kept_df, filtered_df = filter_events_dataframe(events_df)
+    kept_df, filtered_df = event_normalizer.filter_events_dataframe(
+        events_df
+    )
     if len(filtered_df) > 0:
         log(f"Filtered out {len(filtered_df)} events:")
         for _, event in filtered_df.iterrows():
@@ -269,8 +310,19 @@ def classify_events(events_df):
     
     return events_df
 
-def generate_review_html(community_events_df, stats):
-    """Generate HTML email for event review (optimized with list join)."""
+def generate_review_html(
+    community_events_df: pd.DataFrame,
+    stats: dict
+) -> str:
+    """Generate HTML email for event review.
+    
+    Args:
+        community_events_df: DataFrame of community events.
+        stats: Dictionary with statistics (total_events, etc.).
+    
+    Returns:
+        HTML string for email body.
+    """
     
     html_parts = [
         f"""
@@ -374,8 +426,21 @@ def generate_review_html(community_events_df, stats):
     
     return '\n'.join(html_parts)
 
-def send_email_notification(community_events_df, all_events_df, csv_path):
-    """Send email notification with classified events."""
+def send_email_notification(
+    community_events_df: pd.DataFrame,
+    all_events_df: pd.DataFrame,
+    csv_path: Path
+) -> bool:
+    """Send email notification with classified events.
+    
+    Args:
+        community_events_df: DataFrame of community events.
+        all_events_df: DataFrame of all events (for statistics).
+        csv_path: Path to CSV export file to attach.
+    
+    Returns:
+        True if email sent successfully, False otherwise.
+    """
     log("Preparing email notification...")
     
     # Calculate statistics
@@ -404,29 +469,48 @@ def send_email_notification(community_events_df, all_events_df, csv_path):
             part = MIMEBase('application', 'octet-stream')
             part.set_payload(f.read())
             encoders.encode_base64(part)
-            part.add_header('Content-Disposition', f'attachment; filename="{csv_path.name}"')
+            filename = csv_path.name
+            part.add_header(
+                'Content-Disposition',
+                f'attachment; filename="{filename}"'
+            )
             msg.attach(part)
-    except Exception as e:
+    except OSError as e:  # File access errors
         log(f"Warning: Could not attach CSV file: {e}")
     
     # Send email
     try:
-        log(f"Sending email to {EMAIL_CONFIG['recipient_email']}...")
-        with smtplib.SMTP(EMAIL_CONFIG['smtp_server'], EMAIL_CONFIG['smtp_port']) as server:
+        recipient = EMAIL_CONFIG['recipient_email']
+        log(f"Sending email to {recipient}...")
+        smtp_server = EMAIL_CONFIG['smtp_server']
+        smtp_port = EMAIL_CONFIG['smtp_port']
+        with smtplib.SMTP(smtp_server, smtp_port) as server:
             server.starttls()
-            server.login(EMAIL_CONFIG['sender_email'], EMAIL_CONFIG['sender_password'])
+            sender_email = EMAIL_CONFIG['sender_email']
+            sender_password = EMAIL_CONFIG['sender_password']
+            server.login(sender_email, sender_password)
             server.send_message(msg)
         log("Email sent successfully!")
         return True
-    except Exception as e:
+    except smtplib.SMTPException as e:
         log(f"ERROR: Failed to send email: {e}")
         log("Please check your email configuration and credentials.")
         return False
 
-def export_for_calendar(community_events_df, format='csv'):
+def export_for_calendar(
+    community_events_df: pd.DataFrame,
+    format: str = 'csv'
+) -> Path | None:
     """Export community events in format ready for calendar upload.
     
     Uses automated keyword-based image assignment from classification.
+    
+    Args:
+        community_events_df: DataFrame of community events.
+        format: Export format ('csv', 'json', 'ical'). Default: 'csv'.
+    
+    Returns:
+        Path to exported file, or None on error.
     """
     log(f"Exporting events for calendar upload (format: {format})...")
     
@@ -434,8 +518,10 @@ def export_for_calendar(community_events_df, format='csv'):
     df = community_events_df.copy()
     
     # Log image assignment statistics
-    events_with_images = len([x for x in df.get('image_url', [None] * len(df)) if pd.notna(x)])
-    log(f"Automated keyword-based image assignments: {events_with_images} events with images")
+    image_urls = df.get('image_url', [None] * len(df))
+    events_with_images = sum(1 for img in image_urls if pd.notna(img))
+    log(f"Automated keyword-based image assignments: "
+        f"{events_with_images} events with images")
     
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     
@@ -458,9 +544,16 @@ def export_for_calendar(community_events_df, format='csv'):
     
     return None
 
-def upload_to_wordpress(csv_path):
-    """Upload events to WordPress and return results."""
-    from wordpress_uploader import WordPressEventUploader
+def upload_to_wordpress(csv_path: Path) -> tuple[list | None, int]:
+    """Upload events to WordPress and return results.
+    
+    Args:
+        csv_path: Path to CSV file with events.
+    
+    Returns:
+        Tuple of (created_ids list or None, published_count).
+    """
+    from scripts import wordpress_uploader
     
     # Get WordPress credentials from environment
     site_url = os.getenv("WP_SITE_URL", "")
@@ -472,7 +565,9 @@ def upload_to_wordpress(csv_path):
         return None, None
     
     log("Connecting to WordPress...")
-    uploader = WordPressEventUploader(site_url, username, app_password)
+    uploader = wordpress_uploader.WordPressEventUploader(
+        site_url, username, app_password
+    )
     
     if not uploader.test_connection():
         log("ERROR: WordPress connection failed")
@@ -490,8 +585,21 @@ def upload_to_wordpress(csv_path):
     
     return created_ids, published
 
-def send_upload_confirmation_email(community_events_df, created_ids, published_count):
-    """Send confirmation email with upload results."""
+def send_upload_confirmation_email(
+    community_events_df: pd.DataFrame,
+    created_ids: list,
+    published_count: int
+) -> bool:
+    """Send confirmation email with upload results.
+    
+    Args:
+        community_events_df: DataFrame of community events.
+        created_ids: List of created event IDs.
+        published_count: Number of events published.
+    
+    Returns:
+        True if email sent successfully, False otherwise.
+    """
     log("Sending upload confirmation email...")
     
     # Generate HTML for confirmation using list join for efficiency
@@ -581,13 +689,17 @@ def send_upload_confirmation_email(community_events_df, created_ids, published_c
     
     # Send email
     try:
-        with smtplib.SMTP(EMAIL_CONFIG['smtp_server'], EMAIL_CONFIG['smtp_port']) as server:
+        smtp_server = EMAIL_CONFIG['smtp_server']
+        smtp_port = EMAIL_CONFIG['smtp_port']
+        with smtplib.SMTP(smtp_server, smtp_port) as server:
             server.starttls()
-            server.login(EMAIL_CONFIG['sender_email'], EMAIL_CONFIG['sender_password'])
+            sender_email = EMAIL_CONFIG['sender_email']
+            sender_password = EMAIL_CONFIG['sender_password']
+            server.login(sender_email, sender_password)
             server.send_message(msg)
         log("Upload confirmation email sent successfully!")
         return True
-    except Exception as e:
+    except smtplib.SMTPException as e:
         log(f"ERROR: Failed to send confirmation email: {e}")
         return False
 
