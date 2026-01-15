@@ -77,9 +77,20 @@ def build_features(df):
         features.append(' '.join(parts))
     return features
 
-def scrape_events(year=None, month=None):
-    """Scrape events from the chamber website."""
+def scrape_events(year=None, month=None, include_sources=None):
+    """Scrape events from all configured sources (chamber + additional sources).
+    
+    Args:
+        year: Year to scrape (default current)
+        month: Month to scrape (default current)
+        include_sources: List of source names to include. 
+                        Options: 'perdido_chamber', 'wren_haven'
+                        Default: ['perdido_chamber'] (for backward compatibility)
+    """
     log("Starting event scraping...")
+    
+    if include_sources is None:
+        include_sources = ['perdido_chamber']
     
     if year is None:
         year = datetime.now().year
@@ -88,16 +99,37 @@ def scrape_events(year=None, month=None):
     
     all_events = []
     
-    # Scrape current month and next month
-    for m in range(month, min(month + 2, 13)):
-        month_str = f"{year}-{m:02d}-01"
-        month_url = f"https://business.perdidochamber.com/events/calendar/{month_str}"
-        log(f"Scraping {month_url}...")
-        
+    # Scrape Perdido Chamber (original source)
+    if 'perdido_chamber' in include_sources:
+        log("Scraping Perdido Chamber...")
+        for m in range(month, min(month + 2, 13)):
+            month_str = f"{year}-{m:02d}-01"
+            month_url = f"https://business.perdidochamber.com/events/calendar/{month_str}"
+            log(f"Scraping {month_url}...")
+            
+            try:
+                from scripts.Envision_Perdido_DataCollection import scrape_month
+                events = scrape_month(month_url)
+                log(f"Scraped {len(events)} events from {month_url}")
+                all_events.extend(events)
+            except Exception as e:
+                log(f"Error scraping {month_url}: {e}")
+    
+    # Scrape Wren Haven (if enabled)
+    if 'wren_haven' in include_sources:
+        log("Scraping Wren Haven Homestead...")
         try:
-            from scripts.Envision_Perdido_DataCollection import scrape_month
-            events = scrape_month(month_url)
-            log(f"Scraped {len(events)} events from {month_url}")
+            from scripts.wren_haven_scraper import scrape_wren_haven
+            events = scrape_wren_haven()
+            log(f"Scraped {len(events)} events from Wren Haven")
+            all_events.extend(events)
+        except ImportError:
+            log("Warning: wren_haven_scraper not available (Playwright not installed?)")
+        except Exception as e:
+            log(f"Error scraping Wren Haven: {e}")
+    
+    log(f"Total events scraped from all sources: {len(all_events)}")
+    return all_events
             all_events.extend(events)
         except Exception as e:
             log(f"Error scraping {month_url}: {e}")
