@@ -284,9 +284,28 @@ class WordPressEventUploader:
         if pd.notna(event_row.get('venue_id')):
             metadata['_venue_id'] = str(event_row['venue_id'])
         
-        # URL
+        # URL - Safety guard: Do NOT use external Chamber URLs
+        # Only use internal WP post permalink or our own domain URLs
+        # Reject any URLs from perdidochamber.com or other external sources
+        BLOCKED_DOMAINS = ['perdidochamber.com', 'business.perdidochamber.com']
+        
+        url_value = None
         if pd.notna(event_row.get('url')):
-            metadata['evcal_lmlink'] = str(event_row['url'])
+            url_str = str(event_row['url']).lower()
+            
+            # Check if URL contains any blocked external domain
+            is_blocked = any(domain in url_str for domain in BLOCKED_DOMAINS)
+            
+            if is_blocked:
+                # Log that we're rejecting the Chamber URL
+                log(f"WARN: Rejecting external Chamber URL for event "
+                    f"'{event_row.get('title', 'Unknown')}': {event_row['url']}")
+                # Do NOT set evcal_lmlink - let WordPress use the internal permalink
+                url_value = None
+            else:
+                # URL is safe (internal or our controlled domain)
+                url_value = str(event_row['url'])
+                metadata['evcal_lmlink'] = url_value
         
         # Cost/Price information
         if pd.notna(event_row.get('cost_text')):
