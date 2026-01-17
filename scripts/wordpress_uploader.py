@@ -16,6 +16,7 @@ from datetime import datetime
 from pathlib import Path
 import os
 import sys
+import re
 from requests.auth import HTTPBasicAuth
 import mimetypes
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -202,6 +203,98 @@ class WordPressEventUploader:
         
         return None
     
+    def _generate_event_summary(self, description: str, max_chars: int = 280) -> str:
+        """Generate a short summary from event description.
+        
+        Mirrors the PHP plugin logic. Strips HTML, removes boilerplate,
+        and extracts 1-3 sentences.
+        
+        Args:
+            description: Full event description
+            max_chars: Maximum characters for summary (default 280)
+        
+        Returns:
+            Generated summary string
+        """
+        if not description or not description.strip():
+            return ''
+        
+        # Strip HTML tags using BeautifulSoup if available, else regex
+        try:
+            from bs4 import BeautifulSoup
+            text = BeautifulSoup(description, 'html.parser').get_text()
+        except ImportError:
+            # Fallback to simple regex
+            text = re.sub(r'<[^>]+>', '', description)
+        
+        # Remove common boilerplate phrases
+        boilerplate_patterns = [
+            (r'\s*click\s+here\s*', ' ', re.IGNORECASE),
+            (r'\s*learn\s+more\s*', ' ', re.IGNORECASE),
+            (r'\s*for\s+more\s+information.*?(?=\.|$)', ' ', re.IGNORECASE),
+            (r'https?://[^\s.]+(?:\.\S+)?', '', 0),  # URLs
+            (r'\b[\d\(\)\s-]{10,}\b', ' ', 0),  # Phone numbers
+            (r'\s*RSVP\s+(?:at|to).*?(?=\.|$)', ' ', re.IGNORECASE),
+            (r'\s+or\s+call\s*', ' ', re.IGNORECASE),
+            (r'\.com(?![a-z])', '', 0),
+        ]
+        
+        for pattern, replacement, flags in boilerplate_patterns:
+            if flags:
+                text = re.sub(pattern, replacement, text, flags=flags)
+            else:
+                text = re.sub(pattern, replacement, text)
+        
+        # Remove multiple spaces and cleanup
+        text = re.sub(r'\s+', ' ', text.strip())
+        text = re.sub(r'[\s.!?]+$', '', text).strip()
+        
+        if not text:
+            return ''
+        
+        # If short enough, return as-is
+        if len(text) <= max_chars:
+            return text
+        
+        # Truncate at sentence boundary
+        return self._truncate_at_sentence_boundary(text, max_chars)
+    
+    def _truncate_at_sentence_boundary(self, text: str, max_chars: int) -> str:
+        """Truncate text at sentence boundary without mid-word cuts.
+        
+        Args:
+            text: Text to truncate
+            max_chars: Maximum characters
+        
+        Returns:
+            Truncated text
+        """
+        if len(text) <= max_chars:
+            return text
+        
+        # Split at sentence boundaries (., !, ?) with capital letter lookahead
+        pattern = r'[.!?]+\s+(?=[A-Z])'
+        sentences = re.split(pattern, text[:max_chars * 2])
+        
+        summary = ''
+        sentence_count = 0
+        
+        for sentence in sentences:
+            sentence = sentence.strip()
+            if not sentence:
+                continue
+            
+            test_summary = (summary + ' ' + sentence).strip() if summary else sentence
+            
+            # Stop if we've hit 3 sentences or exceeded max length
+            if sentence_count >= 2 or len(test_summary) > max_chars:
+                break
+            
+            summary = test_summary
+            sentence_count += 1
+        
+        return summary.strip()
+    
     def parse_event_metadata(self, event_row: pd.Series) -> dict:
         """Parse event data into EventON metadata format.
         
@@ -310,6 +403,14 @@ class WordPressEventUploader:
         # Cost/Price information
         if pd.notna(event_row.get('cost_text')):
             metadata['_event_cost'] = str(event_row['cost_text'])
+        
+        # Generate event summary from description (local, no external sources)
+        # This will be stored in _event_summary meta field
+        description = event_row.get('description', '')
+        if pd.notna(description) and description.strip():
+            summary = self._generate_event_summary(str(description))
+            if summary:
+                metadata['_event_summary'] = summary
         
         # Event type (free/paid)
         if pd.notna(event_row.get('event_type')):
