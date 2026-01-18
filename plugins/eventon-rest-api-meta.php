@@ -49,6 +49,7 @@ function register_eventon_meta_fields() {
         'event_location',             // Location taxonomy term ID
         'evcal_organizer',            // Organizer details
         'event_organizer',            // Organizer taxonomy term ID
+        '_event_summary',             // Event summary (auto-generated or manual)
         
         // Additional fields
         'evcal_subtitle',             // Event subtitle
