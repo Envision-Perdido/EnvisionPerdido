@@ -130,7 +130,7 @@ def scrape_events(
         year: Year to scrape (default current year).
         month: Month to scrape (default current month).
         include_sources: List of source names to include. Options:
-            'perdido_chamber', 'wren_haven'. Default:
+            'perdido_chamber', 'wren_haven', 'google_sheets'. Default:
             ['perdido_chamber'] (for backward compatibility).
     
     Returns:
@@ -185,6 +185,28 @@ def scrape_events(
             errors.append(error_msg)
         except Exception as e:  # pylint: disable=broad-except
             error_msg = f"Error scraping Wren Haven: {e}"
+            log(f"ERROR: {error_msg}")
+            errors.append(error_msg)
+    
+    # Fetch from Google Sheets (if enabled)
+    if 'google_sheets' in include_sources:
+        log("Fetching events from Google Sheets...")
+        try:
+            from scripts import google_sheets_source
+            events, sheet_errors = google_sheets_source.get_events_from_sheets()
+            log(f"Fetched {len(events)} events from Google Sheets")
+            all_events.extend(events)
+            if sheet_errors:
+                errors.extend(sheet_errors)
+        except ImportError as e:
+            error_msg = (
+                f"Warning: google_sheets_source not available "
+                f"(google-auth/google-api-python-client not installed?): {e}"
+            )
+            log(error_msg)
+            errors.append(error_msg)
+        except Exception as e:  # pylint: disable=broad-except
+            error_msg = f"Error fetching from Google Sheets: {e}"
             log(f"ERROR: {error_msg}")
             errors.append(error_msg)
     
