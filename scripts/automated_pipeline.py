@@ -150,10 +150,12 @@ def scrape_events(
     
     all_events = []
     errors = []
+    source_counts = {}  # Track event count per source for output
     
     # Scrape Perdido Chamber (original source)
     if 'perdido_chamber' in include_sources:
         log("Scraping Perdido Chamber...")
+        chamber_count = 0
         for m in range(month, min(month + 2, 13)):
             month_str = f"{year}-{m:02d}-01"
             base_url = "https://business.perdidochamber.com/events/calendar"
@@ -165,11 +167,13 @@ def scrape_events(
                     month_url
                 )
                 log(f"Scraped {len(events)} events from {month_url}")
+                chamber_count += len(events)
                 all_events.extend(events)
             except Exception as e:  # pylint: disable=broad-except
                 error_msg = f"Error scraping Perdido Chamber {month_url}: {e}"
                 log(f"ERROR: {error_msg}")
                 errors.append(error_msg)
+        source_counts['perdido_chamber'] = chamber_count
     
     # Scrape Wren Haven (if enabled)
     if 'wren_haven' in include_sources:
@@ -178,15 +182,18 @@ def scrape_events(
             from scripts import wren_haven_scraper
             events = wren_haven_scraper.scrape_wren_haven()
             log(f"Scraped {len(events)} events from Wren Haven")
+            source_counts['wren_haven'] = len(events)
             all_events.extend(events)
         except ImportError as e:
             error_msg = f"Warning: wren_haven_scraper not available (Playwright not installed?): {e}"
             log(error_msg)
             errors.append(error_msg)
+            source_counts['wren_haven'] = 0
         except Exception as e:  # pylint: disable=broad-except
             error_msg = f"Error scraping Wren Haven: {e}"
             log(f"ERROR: {error_msg}")
             errors.append(error_msg)
+            source_counts['wren_haven'] = 0
     
     # Fetch from Google Sheets (if enabled)
     if 'google_sheets' in include_sources:
@@ -195,6 +202,7 @@ def scrape_events(
             from scripts import google_sheets_source
             events, sheet_errors = google_sheets_source.get_events_from_sheets()
             log(f"Fetched {len(events)} events from Google Sheets")
+            source_counts['google_sheets'] = len(events)
             all_events.extend(events)
             if sheet_errors:
                 errors.extend(sheet_errors)
@@ -205,10 +213,18 @@ def scrape_events(
             )
             log(error_msg)
             errors.append(error_msg)
+            source_counts['google_sheets'] = 0
         except Exception as e:  # pylint: disable=broad-except
             error_msg = f"Error fetching from Google Sheets: {e}"
             log(f"ERROR: {error_msg}")
             errors.append(error_msg)
+            source_counts['google_sheets'] = 0
+    
+    # Log per-source summary
+    if source_counts:
+        for source, count in source_counts.items():
+            if count > 0:
+                log(f"Processing source {source} ({count} events)")
     
     log(f"Total events scraped from all sources: {len(all_events)}")
     if errors:
@@ -764,8 +780,15 @@ def main():
     log("=" * 80)
     
     try:
-        # Step 1: Scrape events
-        events, scrape_errors = scrape_events(include_sources=['perdido_chamber', 'wren_haven'])
+        # Step 1: Scrape events from enabled sources
+        # Default: Perdido Chamber and Wren Haven
+        # Set INCLUDE_GOOGLE_SHEETS=true to add Google Sheets source
+        sources_to_scrape = ['perdido_chamber', 'wren_haven']
+        if os.getenv('INCLUDE_GOOGLE_SHEETS', 'false').lower() in {'true', '1', 'yes'}:
+            sources_to_scrape.append('google_sheets')
+        
+        log(f"Enabled sources: {', '.join(sources_to_scrape)}")
+        events, scrape_errors = scrape_events(include_sources=sources_to_scrape)
         
         # Log scraper errors and add to metrics
         for error in scrape_errors:

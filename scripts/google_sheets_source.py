@@ -132,23 +132,34 @@ def fetch_sheet_rows(
     Raises:
         Exception: If API call fails.
     """
-    service = build_sheets_client(credentials)
+    import time
     
-    try:
-        result = service.spreadsheets().values().get(
-            spreadsheetId=spreadsheet_id,
-            range=sheet_range,
-            valueRenderOption='FORMATTED_VALUE',
-            dateTimeRenderOption='FORMATTED_STRING'
-        ).execute()
+    # Retry logic for transient JWT errors
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            service = build_sheets_client(credentials)
+            
+            result = service.spreadsheets().values().get(
+                spreadsheetId=spreadsheet_id,
+                range=sheet_range,
+                valueRenderOption='FORMATTED_VALUE',
+                dateTimeRenderOption='FORMATTED_STRING'
+            ).execute()
+            
+            rows = result.get('values', [])
+            logger.info(f"Fetched {len(rows)} rows from Google Sheet (including header)")
+            return rows
         
-        rows = result.get('values', [])
-        logger.info(f"Fetched {len(rows)} rows from Google Sheet (including header)")
-        return rows
-    
-    except Exception as e:
-        logger.error(f"Failed to fetch Google Sheet: {e}")
-        raise
+        except Exception as e:
+            if "Invalid JWT Signature" in str(e) and attempt < max_retries - 1:
+                # Transient JWT error, retry with backoff
+                logger.warning(f"JWT error on attempt {attempt + 1}, retrying in 2 seconds...")
+                time.sleep(2)
+                continue
+            # Final attempt or non-JWT error
+            logger.error(f"Failed to fetch Google Sheet: {e}")
+            raise
 
 
 def normalize_header(header: str) -> str:
@@ -229,16 +240,20 @@ def parse_datetime_flexible(
     
     # Try common date/time formats
     formats = [
-        "%m/%d/%Y %I:%M %p",  # 12/31/2025 2:30 PM
-        "%m/%d/%Y %H:%M",     # 12/31/2025 14:30
-        "%m/%d/%Y",           # 12/31/2025
-        "%Y-%m-%d %H:%M:%S",  # 2025-12-31 14:30:00
-        "%Y-%m-%d %I:%M %p",  # 2025-12-31 2:30 PM
-        "%Y-%m-%d %H:%M",     # 2025-12-31 14:30
-        "%Y-%m-%d",           # 2025-12-31
-        "%B %d, %Y %I:%M %p", # December 31, 2025 2:30 PM
-        "%B %d, %Y",          # December 31, 2025
-        "%b %d, %Y",          # Dec 31, 2025
+        "%m/%d/%Y %I:%M:%S %p",  # 12/31/2025 2:30:00 PM (Google Form format)
+        "%m/%d/%Y %I:%M %p",     # 12/31/2025 2:30 PM
+        "%m/%d/%Y %H:%M:%S",     # 12/31/2025 14:30:00
+        "%m/%d/%Y %H:%M",        # 12/31/2025 14:30
+        "%m/%d/%Y",              # 12/31/2025
+        "%Y-%m-%d %H:%M:%S",     # 2025-12-31 14:30:00
+        "%Y-%m-%d %I:%M %p",     # 2025-12-31 2:30 PM
+        "%Y-%m-%d %H:%M",        # 2025-12-31 14:30
+        "%Y-%m-%d",              # 2025-12-31
+        "%B %d, %Y %I:%M %p",    # December 31, 2025 2:30 PM
+        "%B %d, %Y",             # December 31, 2025
+        "%b %d, %Y",             # Dec 31, 2025
+        "%I:%M:%S %p",           # 2:30:00 PM (time only)
+        "%I:%M %p",              # 2:30 PM (time only)
     ]
     
     for fmt in formats:
@@ -285,16 +300,16 @@ def map_sheet_row_to_event(
     """
     if column_mapping is None:
         column_mapping = {
-            'title': ['title', 'event_name', 'event'],
+            'title': ['title', 'event_name', 'event', 'title_or_event_name', 'title_of_event_name'],
             'description': ['description', 'event_description', 'details'],
             'location': ['location', 'venue'],
-            'start': ['start_date', 'date'],
-            'start_time': ['start_time', 'time'],
-            'end': ['end_date'],
+            'start': ['start_date', 'date', 'start_date____format_mm_dd_yyyy', 'start_date___format:_mm/dd/yyyy'],
+            'start_time': ['start_time', 'time', 'start_time____format_hh_mm', 'start_time___format:_hh:mm'],
+            'end': ['end_date', 'end_date__optional_', 'end_date_(optional)'],
             'end_time': ['end_time'],
-            'url': ['url', 'registration_link', 'link'],
+            'url': ['url', 'registration_link', 'link', 'url_or_registration_link__optional_'],
             'category': ['category', 'tags', 'type'],
-            'organizer_name': ['organizer_name', 'organizer', 'contact_name'],
+            'organizer_name': ['organizer_name', 'organizer', 'contact_name', 'organizer_name__optional_'],
             'organizer_email': ['organizer_email', 'contact_email'],
         }
     
