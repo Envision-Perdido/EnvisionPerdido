@@ -20,6 +20,7 @@ import re
 from requests.auth import HTTPBasicAuth
 import mimetypes
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import hashlib
 
 # Add scripts directory to path
 sys.path.insert(0, str(Path(__file__).parent))
@@ -73,13 +74,15 @@ def log(message):
 class WordPressEventUploader:
     """Handle uploading events to WordPress EventON calendar."""
     
-    def __init__(self, site_url, username, app_password, max_workers=5):
+    def __init__(self, site_url, username, app_password, max_workers=5, check_existing_media=True):
         self.site_url = site_url.rstrip('/')
         self.api_base = f"{self.site_url}/wp-json/wp/v2"
         self.auth = HTTPBasicAuth(username, app_password)
         self.session = _create_session_with_retries()
         self.session.auth = self.auth
         self.max_workers = max_workers
+        self.check_existing_media = check_existing_media  # Enable/disable existing media check
+        self._media_cache = {}  # Cache for media search results
     
     def test_connection(self) -> bool:
         """Test WordPress API connection and authentication.
@@ -429,6 +432,80 @@ class WordPressEventUploader:
         
         return metadata
     
+    def _calculate_file_hash(self, data: bytes) -> str:
+        """Calculate SHA-256 hash of file data for duplicate detection.
+        
+        Args:
+            data: File content bytes.
+        
+        Returns:
+            Hex-encoded SHA-256 hash.
+        """
+        return hashlib.sha256(data).hexdigest()
+    
+    def _get_existing_media_by_filename(self, filename: str) -> int | None:
+        """Search for existing media by filename in WordPress.
+        
+        Args:
+            filename: Filename to search for (e.g., 'event_image.jpg').
+        
+        Returns:
+            Media ID if found, None otherwise.
+        """
+        try:
+            # Check cache first
+            if filename in self._media_cache:
+                return self._media_cache[filename]
+            
+            response = self.session.get(
+                f"{self.api_base}/media",
+                auth=self.auth,
+                params={'search': filename, 'per_page': 100}
+            )
+            
+            if response.status_code == 200:
+                media_items = response.json()
+                for item in media_items:
+                    if item.get('media_details', {}).get('file', '').endswith(filename) or \
+                       item.get('slug') == filename.split('.')[0]:
+                        media_id = item['id']
+                        self._media_cache[filename] = media_id
+                        return media_id
+        except Exception as e:
+            log(f"   Warning: Error checking for existing media by filename: {e}")
+        
+        return None
+    
+    def _get_existing_media_by_hash(self, file_hash: str) -> int | None:
+        """Search for existing media by file hash (detects duplicates with different names).
+        
+        Queries WordPress meta field '_file_hash' if available.
+        
+        Args:
+            file_hash: SHA-256 hash of file content.
+        
+        Returns:
+            Media ID if found, None otherwise.
+        """
+        try:
+            response = self.session.get(
+                f"{self.api_base}/media",
+                auth=self.auth,
+                params={'per_page': 100}
+            )
+            
+            if response.status_code == 200:
+                media_items = response.json()
+                for item in media_items:
+                    # Check if this media has a hash stored in meta
+                    meta = item.get('meta', {})
+                    if meta.get('_file_hash') == file_hash:
+                        return item['id']
+        except Exception as e:
+            log(f"   Warning: Error checking for existing media by hash: {e}")
+        
+        return None
+    
     def upload_image(
         self,
         image_path_or_url: str,
@@ -436,12 +513,14 @@ class WordPressEventUploader:
     ) -> int | None:
         """Upload an image to WordPress media library.
         
+        Optionally checks for existing media to avoid duplicates.
+        
         Args:
             image_path_or_url: Local file path or URL to image.
             title: Optional title for the image.
         
         Returns:
-            Media ID if successful, None otherwise.
+            Media ID if successful (or existing), None otherwise.
         """
         try:
             # Determine if it's a URL or local file
@@ -463,6 +542,21 @@ class WordPressEventUploader:
                 with open(image_path_or_url, 'rb') as f:
                     image_data = f.read()
                 filename = os.path.basename(image_path_or_url)
+            
+            # Check for existing media if enabled
+            if self.check_existing_media:
+                # First, try by filename
+                existing_id = self._get_existing_media_by_filename(filename)
+                if existing_id:
+                    log(f"   Reusing existing image: {filename} (Media ID: {existing_id})")
+                    return existing_id
+                
+                # Then, try by file hash (catches duplicates with different names)
+                file_hash = self._calculate_file_hash(image_data)
+                existing_id = self._get_existing_media_by_hash(file_hash)
+                if existing_id:
+                    log(f"   Reusing existing image (hash match): {filename} (Media ID: {existing_id})")
+                    return existing_id
             
             # Determine MIME type
             mime_type, _ = mimetypes.guess_type(filename)
@@ -486,13 +580,20 @@ class WordPressEventUploader:
                 media_data = response.json()
                 media_id = media_data['id']
                 
-                # Optionally update title
-                if title:
+                # Store file hash in media meta for future duplicate detection
+                file_hash = self._calculate_file_hash(image_data)
+                try:
                     self.session.post(
                         f"{self.api_base}/media/{media_id}",
                         auth=self.auth,
-                        json={'title': title}
+                        json={
+                            'title': title or filename,
+                            'meta': {'_file_hash': file_hash}
+                        }
                     )
+                except Exception as e:
+                    # Non-critical; log but continue
+                    log(f"   Note: Could not store file hash: {e}")
                 
                 log(f"   Uploaded image: {filename} (Media ID: {media_id})")
                 return media_id
@@ -940,12 +1041,20 @@ def main() -> None:
         site_url = WORDPRESS_CONFIG['site_url']
         username = WORDPRESS_CONFIG['username']
         app_password = WORDPRESS_CONFIG['app_password']
-        uploader = WordPressEventUploader(
-            site_url, username, app_password
-        )
         log(f"Using credentials from environment for {username}")
+    
+    # Check if existing media checking is enabled (default: true)
+    check_existing = os.getenv('CHECK_EXISTING_MEDIA', 'true').lower() == 'true'
+    
     # Create uploader
-    uploader = WordPressEventUploader(site_url, username, app_password)
+    uploader = WordPressEventUploader(
+        site_url, username, app_password, check_existing_media=check_existing
+    )
+    
+    if check_existing:
+        log("Image deduplication enabled: will reuse existing media when possible")
+    else:
+        log("Image deduplication disabled: will upload all images")
     
     # Test connection
     if not uploader.test_connection():

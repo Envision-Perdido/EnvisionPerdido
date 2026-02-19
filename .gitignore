@@ -43,6 +43,9 @@ fix_eventon_metadata.py
 
 # Secrets (local env for automation; do not commit)
 scripts/windows/env.ps1
+scripts/make_env_secrets.json
+.make_credentials/
+credentials_local.json
 
 # Local virtual environment
 .venvEnvisionPerdido/

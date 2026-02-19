@@ -155,29 +155,123 @@ credentials_local.json
 
 ### 2.2 Connect Necessary Services
 
-**A. Google Drive Integration:**
-1. In Make.com dashboard: **Connections**
-2. Add → **Google Drive**
-3. Authorize Make.com to access your Drive
-4. Note the **Folder ID** of your `EnvisionPerdido` folder:
-   - Open https://drive.google.com/drive/folders/YOUR_FOLDER_ID
-   - Copy the ID from URL
+This section walks you through connecting each service. Make.com will ask for permission when you add each connection.
 
-**B. Gmail Integration (for email notifications):**
-1. **Connections** → **Gmail**
-2. Authorize (use your configured sender email)
+---
 
-**C. WordPress Integration (via REST API):**
-1. No pre-connection needed; we'll use HTTP module
-2. But verify your App Password works locally first:
+#### **A. Google Drive Integration (Step-by-step)**
+
+This allows Make.com to download your model files and upload results to Google Drive.
+
+**Step 1: Go to Connections**
+1. Log in to Make.com (https://make.com)
+2. Look at the **left sidebar** (navigation menu)
+3. Click **Connections** (it looks like a chain link icon)
+4. You'll see a list of connected services (currently empty)
+
+**Step 2: Add Google Drive**
+1. Click the **+ Add connection** button (top right of the Connections page)
+2. A list of apps will appear
+3. **Search for "Google Drive"** in the search box
+4. Click on **Google Drive** when it appears
+5. A new window will pop up asking permission
+6. **Click "Allow"** to let Make.com access your Google Drive
+
+**Step 3: Verify Your Google Drive Folder ID**
+1. Open a new browser tab and go to Google Drive: https://drive.google.com
+2. Navigate to your **EnvisionPerdido** folder (the one you created in Phase 1.2)
+3. Look at the **URL bar** at the top of the browser
+4. You should see: `https://drive.google.com/drive/folders/[FOLDER_ID]`
+5. Copy the long ID after `/folders/`
+   - Example: `1AV4jSzgjFkwC-FF_wITEeyZRgOxdGDTI`
+6. **Paste this into your `make_env_secrets.json`** as `GOOGLE_DRIVE_FOLDER_ID` (you may have already done this)
+
+**What you just did:** Make.com can now access your Google Drive and work with files in your EnvisionPerdido folder.
+
+---
+
+#### **B. Gmail Integration (for email notifications)**
+
+This allows Make.com to send you email notifications when the pipeline runs.
+
+**Step 1: Go Back to Connections**
+1. In Make.com, click **Connections** again (left sidebar)
+2. Click **+ Add connection**
+3. Search for **"Gmail"**
+4. Click **Gmail** in the results
+
+**Step 2: Authorize Gmail**
+1. A browser pop-up will ask: "Make.com wants to access your Google Account"
+2. **Click "Allow"**
+3. Select the email address you want to use (the one from `SENDER_EMAIL` in your `make_env_secrets.json`)
+4. Click **Allow** again to confirm permissions
+
+**Step 3: Test Gmail Access**
+1. Back in Make.com, you should now see **Gmail** in your Connections list
+2. The connection status should say **Connected** ✅
+
+**What you just did:** Make.com can now send emails from your Gmail account.
+
+---
+
+#### **C. Google Sheets Integration (Optional but Recommended for Dashboards)**
+
+This allows Make.com to log execution history to a Google Sheet for tracking.
+
+**Step 1: Create a Google Sheet First (Optional)**
+1. Go to https://sheets.google.com
+2. Click **+ Create new spreadsheet**
+3. Name it: `EnvisionPerdido Execution Log`
+4. Create tabs (sheets) for:
+   - **Pipeline Runs** — Dates, event counts, status
+   - **Upload History** — Upload attempts, who approved, when
+   - **Error Log** — Any failures and details
+
+**Step 2: Add Google Sheets Connection**
+1. In Make.com, click **Connections**
+2. Click **+ Add connection**
+3. Search for **"Google Sheets"**
+4. Click **Google Sheets** in results
+5. A pop-up will ask for permission → **Click Allow**
+6. Select your Google account → **Allow**
+
+**What you just did:** Make.com can now write data to your Google Sheet (for dashboards & tracking).
+
+---
+
+#### **D. WordPress Integration (NO pre-connection needed)**
+
+WordPress uses **HTTP Basic Auth** with your app password, which we'll handle inside the scenarios using environment variables (from `make_env_secrets.json`).
+
+**But first, verify your credentials work locally:**
+
+1. Open **PowerShell** on your PC
+2. Run this command:
    ```powershell
-   # Test WordPress connection
-   python scripts\test_wp_auth.py
+   # Test WordPress REST API with your credentials
+   $auth = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes("YOUR_WP_USERNAME:YOUR_WP_APP_PASSWORD"))
+   
+   $response = Invoke-WebRequest `
+     -Uri "https://your-site.org/wp-json/wp/v2/users/me" `
+     -Headers @{"Authorization" = "Basic $auth"} `
+     -Method GET
+   
+   if ($response.StatusCode -eq 200) {
+       Write-Host "✅ WordPress connection works!"
+   } else {
+       Write-Host "❌ WordPress connection failed. Check credentials."
+   }
    ```
 
-**D. Google Sheets (optional, for public dashboards):**
-1. **Connections** → **Google Sheets**
-2. Authorize if using Sheets for event summaries
+3. Replace:
+   - `YOUR_WP_USERNAME` with your WordPress username
+   - `YOUR_WP_APP_PASSWORD` with your app password
+   - `https://your-site.org` with your actual site URL
+
+4. If you see `✅ WordPress connection works!`, you're good!
+5. If you get an error, double-check your credentials
+
+**What you just did:** Verified that WordPress can authenticate with Make.com (no connection needed, we'll use HTTP module instead).
 
 ---
 
@@ -415,126 +509,276 @@ if __name__ == '__main__':
 
 ## Phase 4: Build Make.com Scenarios
 
-### 4.1 Create Scenario 1: Weekly Scrape & Classify
+### 4.1 Create Scenario 1: Weekly Scrape & Classify (Complete Step-by-Step)
 
-**Scenario Name:** `EnvisionPerdido - Weekly Event Pipeline`
+This scenario will run every Monday morning and automatically scrape events, classify them, and email you the results.
 
-**Trigger:** Schedule (Weekly, Monday 8 AM UTC)
+---
 
-**Flow:**
+#### **Step 1: Create a New Scenario**
+
+1. Log in to Make.com
+2. Click **Scenarios** in the left sidebar
+3. Click **+ Create a new scenario** (or **Create**)
+4. A dialog will pop up asking for a name
+5. Enter: `EnvisionPerdido - Weekly Event Pipeline`
+6. Click **Create**
+
+**You're now in the Scenario Editor** — This is where you build the workflow!
+
+---
+
+#### **Step 2: Add a Scheduler Trigger**
+
+The scheduler will automatically run this workflow every Monday at 8 AM.
+
+**In the scenario editor:**
+
+1. You'll see a blank canvas with a **+ (plus icon)** in the middle
+2. Click the **+** icon
+3. A module search box will appear
+4. Search for **"Scheduler"** and click it
+5. A configuration panel will appear on the right
+
+**Configure the Scheduler:**
+
+In the right panel, you'll see:
 
 ```
-1. SCHEDULER
-   ├─ Trigger: Weekly, Monday 8:00 AM UTC
-   ├─ Timezone: America/Chicago (auto-convert)
-   
-2. ENVIRONMENT SETUP (Set Variables module)
-   ├─ SMTP_SERVER: smtp.gmail.com
-   ├─ SMTP_PORT: 587
-   ├─ SENDER_EMAIL: {{secrets.SENDER_EMAIL}}
-   ├─ EMAIL_PASSWORD: {{secrets.EMAIL_PASSWORD}}
-   ├─ RECIPIENT_EMAIL: {{secrets.RECIPIENT_EMAIL}}
-   ├─ WP_SITE_URL: {{secrets.WP_SITE_URL}}
-   ├─ WP_USERNAME: {{secrets.WP_USERNAME}}
-   ├─ WP_APP_PASSWORD: {{secrets.WP_APP_PASSWORD}}
-   └─ GOOGLE_DRIVE_FOLDER_ID: {{secrets.GOOGLE_DRIVE_FOLDER_ID}}
-
-3. GOOGLE DRIVE - DOWNLOAD MODEL ARTIFACTS
-   ├─ Module: Google Drive → Download a file
-   ├─ File: event_classifier_model.pkl (from Your Drive/EnvisionPerdido/models/)
-   └─ Output: {{model_binary}}
-
-4. GOOGLE DRIVE - DOWNLOAD VECTORIZER
-   ├─ Module: Google Drive → Download a file
-   ├─ File: event_vectorizer.pkl
-   └─ Output: {{vectorizer_binary}}
-
-5. WEBHOOK / PYTHON EXECUTION
-   ├─ Module: HTTP → Make a request
-   ├─ URL: https://your-python-runtime.com/execute
-   ├─ Method: POST
-   ├─ Body: {
-   │   "script": "make_cloud_pipeline.py",
-   │   "env": {environment variables},
-   │   "model": {{model_binary}},
-   │   "vectorizer": {{vectorizer_binary}}
-   │ }
-   └─ Output: {{pipeline_result}}
-
-6. UPLOAD RESULTS TO GOOGLE DRIVE
-   ├─ Module: Google Drive → Create a file
-   ├─ Filename: calendar_upload_{{now.timestamp()}}.csv
-   ├─ Content: {{pipeline_result.csv}}
-   └─ Folder: Your Drive/EnvisionPerdido/outputs/
-
-7. SEND SUCCESS EMAIL
-   ├─ Module: Gmail → Send an email
-   ├─ To: {{secrets.RECIPIENT_EMAIL}}
-   ├─ Subject: ✅ EnvisionPerdido Weekly Pipeline - {{now.formatAsString('YYYY-MM-DD')}}
-   ├─ Body: HTML with statistics
-   └─ Attachment: calendar_upload_*.csv
-
-8. ERROR HANDLING (Router)
-   ├─ If pipeline_result.status == 'error'
-   │  └─ Send alert email to supervisors
-   └─ If success
-      └─ Log to Google Sheets (optional)
+[ Schedule type dropdown: Currently says "Once" ]
+[ Timezone field ]
+[ Time fields ]
 ```
 
-**Module Details:**
+1. Click the **"Once" dropdown** and select **"Weekly"**
+2. Now you'll see day/time fields:
+   - **Day of week:** Select **Monday**
+   - **Time:** Type **08:00** (8 AM)
+   - **Timezone:** Select **America/Chicago**
 
-**Set Variables:**
+3. Click **OK** (or the checkmark icon)
+
+**Visual result:** You now have a blue box on the canvas labeled **"Scheduler"** with "Weekly" underneath.
+
+---
+
+#### **Step 3: Add a Set Variables Module (for environment variables)**
+
+This module will set all your credentials from the `make_env_secrets.json` file before running the pipeline.
+
+1. Click the **arrow** coming out of the Scheduler box → You'll see a **+** icon appear
+2. Click the **+** to add the next module
+3. Search for **"Set Variables"** and click it
+4. A configuration panel opens on the right
+
+**Configure Set Variables:**
+
+You'll see a table with columns:
+- **Variable name** (left column)
+- **Variable value** (right column)
+
+Create these 10 variables (click **+ Add** button for each row):
+
+| Variable Name | Variable Value |
+|---|---|
+| `SMTP_SERVER` | `smtp.gmail.com` |
+| `SMTP_PORT` | `587` |
+| `SENDER_EMAIL` | Your Gmail from `make_env_secrets.json` |
+| `EMAIL_PASSWORD` | Click the **padlock icon** → Select from Secrets |
+| `RECIPIENT_EMAIL` | Your supervisor email |
+| `WP_SITE_URL` | Your WordPress site URL |
+| `WP_USERNAME` | Your WordPress username |
+| `WP_APP_PASSWORD` | Click padlock → Select from Secrets |
+| `GOOGLE_DRIVE_FOLDER_ID` | Your folder ID (already in `make_env_secrets.json`) |
+| `SITE_TIMEZONE` | `America/Chicago` |
+
+**What's the padlock icon?** Clicking it lets you reference secrets from Make.com's vault instead of pasting plaintext. Click it for EMAIL_PASSWORD and WP_APP_PASSWORD.
+
+**After filling in all 10 variables, click OK** ✓
+
+**Visual result:** You now have Scheduler → Set Variables in your workflow.
+
+---
+
+#### **Step 4: Add Google Drive Module to Download Model Artifacts**
+
+This downloads your trained ML model from Google Drive.
+
+1. Click the **arrow** from Set Variables → Click the **+** icon
+2. Search for **"Google Drive"** and click it
+3. You'll see a list of Google Drive operations (Download file, Upload file, etc.)
+4. Click **"Download a file"**
+
+**Configure Download File:**
+
+A panel appears with fields:
+
 ```
-Make.com Dashboard → Click "+" → Search "Set Variables"
-
-Variable 1:
-  Name: SMTP_SERVER
-  Type: Text
-  Value: smtp.gmail.com
-
-Variable 2:
-  Name: EMAIL_PASSWORD
-  Type: Text (Secret)
-  Value: Click "Secrets" button, select EMAIL_PASSWORD from vault
-
-[Repeat for all 9 variables listed above]
+[ Folder field: search for folder ]
+[ File field: search for file name ]
 ```
 
-**Download Model (Google Drive):**
+1. **Folder field:** Click the folder icon, then search for your `EnvisionPerdido` folder → Select it
+2. **File field:** Type `event_classifier_model.pkl`
+3. Click **OK**
+
+**Visual result:** You now have a Google Drive module downloading the model file.
+
+---
+
+#### **Step 5: Add Another Google Drive Download for Vectorizer**
+
+1. Click the **arrow** from the previous Google Drive module → Click **+**
+2. Search **"Google Drive"** → Click **"Download a file"** again
+3. **Folder:** Same as before (EnvisionPerdido folder)
+4. **File:** Type `event_vectorizer.pkl`
+5. Click **OK**
+
+**Visual result:** Now you have two Google Drive downloads in your scenario.
+
+---
+
+#### **Step 6: Add HTTP Module to Call Your Lambda Function**
+
+This is where the actual Python pipeline runs (we'll set up Lambda in Phase 5).
+
+1. Click the **arrow** from the second Google Drive module → Click **+**
+2. Search for **"HTTP"** and click **"Make a request"**
+3. A configuration panel appears
+
+**Configure HTTP Request:**
+
+Fill in these fields:
+
 ```
-Search: Google Drive
-Select: Download a file
-Choose: event_classifier_model.pkl
-Result variable: model_file
+URL:            [We'll come back to this after Lambda is set up]
+Method:         POST
+Headers:        Content-Type: application/json
+Body:           [See below for JSON structure]
 ```
 
-**Python Execution (via HTTP):**
+**For the Body (JSON format):**
 
-Since Make.com doesn't have native Python execution, use one of these:
+Click on the **Body field** and enter:
 
-**Option A: AWS Lambda (Recommended)**
-```
-1. Create Lambda function with your Python code
-2. Add Make.com execution role
-3. In Make.com: HTTP → POST to Lambda function URL
-4. Pass environment variables in request body
-```
-
-**Option B: Replit (Free)**
-```
-1. Host scripts on Replit
-2. Create POST endpoint
-3. Call from Make.com HTTP module
-```
-
-**Option C: PythonAnywhere**
-```
-1. Upload scripts to PythonAnywhere
-2. Create Web API endpoint
-3. Call from Make.com
+```json
+{
+  "SMTP_SERVER": {{SMTP_SERVER}},
+  "SMTP_PORT": {{SMTP_PORT}},
+  "SENDER_EMAIL": {{SENDER_EMAIL}},
+  "EMAIL_PASSWORD": {{EMAIL_PASSWORD}},
+  "RECIPIENT_EMAIL": {{RECIPIENT_EMAIL}},
+  "WP_SITE_URL": {{WP_SITE_URL}},
+  "WP_USERNAME": {{WP_USERNAME}},
+  "WP_APP_PASSWORD": {{WP_APP_PASSWORD}},
+  "GOOGLE_DRIVE_FOLDER_ID": {{GOOGLE_DRIVE_FOLDER_ID}},
+  "SITE_TIMEZONE": {{SITE_TIMEZONE}}
+}
 ```
 
-For now, let's use **AWS Lambda** as it's most reliable.
+**Note:** The `{{ }}` notation tells Make.com to insert the actual variable values (from Set Variables) instead of literal text.
+
+**Don't click OK yet** — We need the Lambda URL first (Phase 5). For now, just leave the URL blank.
+
+---
+
+#### **Step 7: Add Gmail Module to Send Success Email**
+
+This sends you a notification after the pipeline completes.
+
+1. Click the **arrow** from the HTTP module → Click **+**
+2. Search for **"Gmail"** and click **"Send an email"**
+3. A configuration panel appears
+
+**Configure Email:**
+
+Fill in:
+
+```
+To:         {{RECIPIENT_EMAIL}}
+Subject:    ✅ EnvisionPerdido Weekly Pipeline - {{now.formatAsString('YYYY-MM-DD')}}
+Body:       [See below for HTML template]
+```
+
+**For the Body, use this HTML template:**
+
+```html
+<h2>📊 EnvisionPerdido Weekly Pipeline Completed</h2>
+
+<p><strong>Date:</strong> {{now.formatAsString('YYYY-MM-DD HH:mm')}}</p>
+
+<p><strong>Results from Lambda execution:</strong></p>
+<ul>
+  <li><strong>Events Scraped:</strong> {{1.body.events_scraped}}</li>
+  <li><strong>Community Events Found:</strong> {{1.body.community_events}}</li>
+  <li><strong>Needs Review:</strong> {{1.body.needs_review}}</li>
+  <li><strong>Status:</strong> {{1.body.status}}</li>
+</ul>
+
+<p>Results are uploaded to your Google Drive folder.</p>
+
+<p><strong>To manually upload these events to WordPress, click here:</strong><br>
+<a href="[webhook-url-here]">Upload to Calendar</a></p>
+
+<p>—<br>
+EnvisionPerdido Automation System
+</p>
+```
+
+**Note:** `{{1.body.*}}` refers to the response from the Lambda function (the HTTP module). We'll get this URL in Phase 5.
+
+4. Click **OK**
+
+---
+
+#### **Step 8: Add Error Handler (Optional but Recommended)**
+
+This catches failures and sends you an alert.
+
+1. Click the **arrow** from Gmail module → Click **+**
+2. Search for **"Router"** (this is Make.com's conditional logic)
+3. Click **"Router"** when it appears
+4. A split appears (two paths: "Route 1" and "Default")
+
+**Configure Router:**
+
+1. Click on **"Route 1"** box
+2. Add a condition: **IF** `{{1.body.status}}` **equals** `error`
+3. This means: "If the pipeline failed..."
+4. Then add an **Email** module to this route to send an error alert
+5. The **Default** route handles successful runs
+
+---
+
+#### **Step 9: Test the Scenario**
+
+1. Click the **Play button** (▶️) at the bottom of the editor
+2. Make.com will simulate running the scenario
+3. Check the **Execution History** to see if it worked
+4. Look for any red error icons (these mean something failed)
+
+**Common issues at this point:**
+- ❌ "HTTP URL is blank" — That's OK, we'll fix it in Phase 5
+- ❌ "Gmail not authorized" — Go back to Phase 2.2, re-authorize Gmail
+- ❌ "Google Drive module can't find folder" — Make sure you authorized Google Drive in Phase 2.2
+
+---
+
+#### **Step 10: Save the Scenario**
+
+1. Click the **Scenario name** at the top (editable)
+2. Make sure it says: `EnvisionPerdido - Weekly Event Pipeline`
+3. Click the **Save** button (disk icon) at the bottom
+4. You should see a notification: "Scenario saved successfully" ✅
+
+---
+
+**You've now created your first Make.com scenario!** 🎉
+
+**What happens next:**
+- Phase 5: We'll deploy a Lambda function and get a URL
+- Phase 6: We'll paste that URL into the HTTP module
+- Then the scenario will be fully functional!
 
 ---
 
@@ -622,64 +866,205 @@ For now, let's use **AWS Lambda** as it's most reliable.
 
 ---
 
-## Phase 5: Deploy to AWS Lambda
+## Phase 5: Deploy to AWS Lambda (Complete Step-by-Step Guide for Beginners)
 
-### 5.1 Create Lambda Function
+AWS Lambda is where your Python pipeline code runs in the cloud. Think of it as a serverless computer that only runs when needed.
 
 **Prerequisites:**
-- AWS account (free tier available)
-- AWS CLI installed
+- AWS account (sign up free at https://aws.amazon.com)
+- AWS CLI installed on your PC (https://aws.amazon.com/cli/)
 
-**Step 1: Prepare deployment package**
+---
+
+### 5.0 Set Up AWS Account (First Time Only)
+
+If you don't have an AWS account yet:
+
+1. Go to https://aws.amazon.com
+2. Click **Create an AWS Account**
+3. Follow the sign-up wizard (you'll need a credit card, but free tier won't charge)
+4. Verify your email
+5. After account creation, go to AWS Management Console: https://console.aws.amazon.com
+
+---
+
+### 5.1 Create an IAM User & Get Credentials (First Time Only)
+
+This gives you a way to authenticate with AWS from your PC.
+
+**Step 1: Create IAM User**
+
+1. In AWS Console, search for **"IAM"** in the search bar
+2. Click **IAM** (Identity and Access Management)
+3. In the left menu, click **Users**
+4. Click **Create user** button
+5. Name it: `envision-perdido-lambda`
+6. Click **Create user**
+
+**Step 2: Add Permissions**
+
+1. Click your new user name
+2. Click **Add permissions** → **Attach policies directly**
+3. Search for `AWSLambdaFullAccess` and check it
+4. Search for `IAMFullAccess` and check it (for creating roles)
+5. Click **Next** → **Add permissions**
+
+**Step 3: Create Access Key**
+
+1. Still in your user's page, click **Security credentials** tab
+2. Scroll down to **Access keys**
+3. Click **Create access key**
+4. Choose **Command Line Interface (CLI)**
+5. Click **Next**
+6. Click **Create access key**
+7. **SAVE THESE VALUES** (copy them somewhere safe):
+   - Access Key ID
+   - Secret Access Key
+8. Click **Done**
+
+---
+
+### 5.2 Install AWS CLI on Your PC
+
+**Step 1: Download & Install**
+
+1. Go to https://aws.amazon.com/cli/
+2. Download the **Windows installer** (`.msi` file)
+3. Run the installer and follow the steps (default settings are fine)
+
+**Step 2: Verify Installation**
+
+1. Open **PowerShell** on your PC
+2. Type: `aws --version`
+3. You should see: `aws-cli/2.x.x`
+
+**If this fails:**
+- Restart PowerShell
+- Or restart your PC
+
+---
+
+### 5.3 Configure AWS Credentials on Your PC
+
+This tells AWS CLI which account to use.
+
+**Step 1: Run Configuration**
+
+1. Open **PowerShell**
+2. Type: `aws configure`
+3. You'll be prompted for:
+
+```
+AWS Access Key ID [None]: [paste your Access Key ID from 5.1]
+AWS Secret Access Key [None]: [paste your Secret Access Key from 5.1]
+Default region name [None]: us-east-1
+Default output format [None]: json
+```
+
+**Step 2: Verify It Worked**
+
+1. Type: `aws s3 ls`
+2. If you see a list (or empty list), it worked! ✅
+3. If you get an error, double-check your keys
+
+---
+
+### 5.4 Create Lambda Deployment Package
+
+This is where we bundle your Python scripts and dependencies into a ZIP file.
+
+**Step 1: Create Lambda Directory**
+
+1. Open **PowerShell**
+2. Navigate to your project:
+   ```powershell
+   cd c:\Users\scott\UWF-Code\EnvisionPerdido
+   ```
+
+3. Create a new folder:
+   ```powershell
+   mkdir lambda_deployment
+   cd lambda_deployment
+   ```
+
+**Step 2: Copy Your Python Scripts**
 
 ```powershell
-# On your PC
-cd c:\Users\scott\UWF-Code\EnvisionPerdido
-
-# Create lambda directory
-mkdir lambda_deployment
-cd lambda_deployment
-
-# Copy scripts
+# From the parent EnvisionPerdido folder
 Copy-Item ..\scripts\make_cloud_pipeline.py -Destination .\
 Copy-Item ..\scripts\automated_pipeline.py -Destination .\
 Copy-Item ..\scripts\wordpress_uploader.py -Destination .\
 Copy-Item ..\scripts\Envision_Perdido_DataCollection.py -Destination .\
 Copy-Item ..\requirements.txt -Destination .\
+```
 
-# Install dependencies
+**Verify files were copied:**
+```powershell
+ls .\  # Should list: make_cloud_pipeline.py, automated_pipeline.py, etc.
+```
+
+**Step 3: Install Python Dependencies**
+
+This downloads all the libraries your scripts need:
+
+```powershell
 pip install -r requirements.txt -t ./
+```
 
-# Create handler file
-@"
+**This may take a few minutes.** Wait for it to complete. You'll see packages being downloaded.
+
+**Verify installation:**
+```powershell
+ls .\ | where { $_.PSIsContainer }  # Should see folders like: requests, scikit-learn, etc.
+```
+
+**Step 4: Create Lambda Handler File**
+
+This is the entry point that Lambda calls:
+
+```powershell
+$handler_code = @"
 import json
 import os
 import sys
-from make_cloud_pipeline import run_pipeline_in_make, load_make_secrets
+from make_cloud_pipeline import run_pipeline_in_make
 
 def lambda_handler(event, context):
     """
-    AWS Lambda handler for Make.com pipeline execution.
+    AWS Lambda handler - called by Make.com
     
-    event: Contains environment variables and webhook data
+    Args:
+        event: Dict with credentials from Make.com
+        context: Lambda context (ignore for now)
+    
+    Returns:
+        Dict with statusCode and response body
     """
     try:
-        # Extract secrets from event (passed by Make.com)
-        secrets = {key: event.get(key) for key in [
-            'SMTP_SERVER', 'SMTP_PORT', 'SENDER_EMAIL', 'EMAIL_PASSWORD',
-            'RECIPIENT_EMAIL', 'WP_SITE_URL', 'WP_USERNAME', 'WP_APP_PASSWORD',
-            'GOOGLE_DRIVE_FOLDER_ID', 'SITE_TIMEZONE'
-        ]}
+        # Extract credentials from Make.com event
+        secrets = {
+            'SMTP_SERVER': event.get('SMTP_SERVER'),
+            'SMTP_PORT': event.get('SMTP_PORT'),
+            'SENDER_EMAIL': event.get('SENDER_EMAIL'),
+            'EMAIL_PASSWORD': event.get('EMAIL_PASSWORD'),
+            'RECIPIENT_EMAIL': event.get('RECIPIENT_EMAIL'),
+            'WP_SITE_URL': event.get('WP_SITE_URL'),
+            'WP_USERNAME': event.get('WP_USERNAME'),
+            'WP_APP_PASSWORD': event.get('WP_APP_PASSWORD'),
+            'GOOGLE_DRIVE_FOLDER_ID': event.get('GOOGLE_DRIVE_FOLDER_ID'),
+            'SITE_TIMEZONE': event.get('SITE_TIMEZONE', 'America/Chicago'),
+        }
         
-        # Run pipeline
+        # Run the pipeline
         result = run_pipeline_in_make(secrets)
         
         return {
-            'statusCode': 200 if result['status'] == 'success' else 500,
+            'statusCode': 200 if result.get('status') == 'success' else 500,
             'body': json.dumps(result)
         }
     
     except Exception as e:
+        print(f"ERROR: {str(e)}")
         return {
             'statusCode': 500,
             'body': json.dumps({
@@ -687,124 +1072,449 @@ def lambda_handler(event, context):
                 'message': str(e)
             })
         }
-"@ | Out-File -FilePath .\lambda_handler.py -Encoding UTF8
+"@
 
-# Create deployment package
+Out-File -FilePath .\lambda_handler.py -InputObject $handler_code -Encoding UTF8
+```
+
+**Verify the file was created:**
+```powershell
+cat .\lambda_handler.py  # Should show the Python code
+```
+
+**Step 5: Create ZIP File**
+
+This compresses everything into one file for upload:
+
+```powershell
 Compress-Archive -Path .\ -DestinationPath lambda_function.zip -Force
 ```
 
-**Step 2: Deploy to AWS Lambda**
-
+**Verify:**
 ```powershell
-# Configure AWS credentials
-aws configure
-# Enter: AWS Access Key ID, Secret Access Key, Region (us-east-1), Output (json)
-
-# Create Lambda function
-aws lambda create-function `
-  --function-name EnvisionPerdido-Pipeline `
-  --runtime python3.11 `
-  --role arn:aws:iam::YOUR_ACCOUNT_ID:role/lambda-execution-role `
-  --handler lambda_handler.lambda_handler `
-  --zip-file fileb://lambda_function.zip `
-  --timeout 300 `
-  --memory-size 512
-
-# Create Function URL (for webhook access)
-aws lambda create-function-url-config `
-  --function-name EnvisionPerdido-Pipeline `
-  --auth-type NONE `
-  --cors AllowOrigins='*',AllowMethods='POST',AllowHeaders='*'
-```
-
-**Step 3: Get Function URL**
-
-```powershell
-aws lambda get-function-url-config `
-  --function-name EnvisionPerdido-Pipeline
-
-# Note the FunctionUrl - this is what you'll call from Make.com
-# Example: https://abcdef123xyz.lambda-url.us-east-1.on.aws/
-```
-
-### 5.2 Create Lambda IAM Role (One-time)
-
-```powershell
-# Create role
-aws iam create-role `
-  --role-name lambda-execution-role `
-  --assume-role-policy-document '{
-    "Version": "2012-10-17",
-    "Statement": [{
-      "Effect": "Allow",
-      "Principal": {"Service": "lambda.amazonaws.com"},
-      "Action": "sts:AssumeRole"
-    }]
-  }'
-
-# Attach basic execution policy
-aws iam attach-role-policy `
-  --role-name lambda-execution-role `
-  --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+ls -la .\lambda_function.zip  # Should show a file ~20-50 MB
 ```
 
 ---
 
-## Phase 6: Configure Make.com Scenarios (Final Assembly)
+### 5.5 Create IAM Role for Lambda
 
-### 6.1 Add Secrets Vault
+Lambda needs permission to run and write logs:
 
-In Make.com Dashboard:
+**Step 1: Create the Role**
 
-1. **Organization** → **Secrets**
-2. **Add secret** for each:
-   ```
-   - SENDER_EMAIL: your_email@gmail.com
-   - EMAIL_PASSWORD: your_16_char_app_password
-   - RECIPIENT_EMAIL: supervisor@example.com
-   - WP_SITE_URL: https://your-site.org
-   - WP_USERNAME: your_wp_username
-   - WP_APP_PASSWORD: xxxx xxxx xxxx xxxx xxxx xxxx
-   - GOOGLE_DRIVE_FOLDER_ID: 1abc2def3ghi4jkl5mno6pqr
-   - AWS_LAMBDA_URL: https://abcdef123xyz.lambda-url.us-east-1.on.aws/
-   ```
+```powershell
+# This creates an IAM role that Lambda can assume
+$trust_policy = @{
+    Version = "2012-10-17"
+    Statement = @(
+        @{
+            Effect = "Allow"
+            Principal = @{ Service = "lambda.amazonaws.com" }
+            Action = "sts:AssumeRole"
+        }
+    )
+} | ConvertTo-Json
 
-3. **Copy the secret name** (e.g., `{{secrets.SENDER_EMAIL}}`)
-
-### 6.2 Build HTTP Module to Call Lambda
-
-In the Pipeline Scenario:
-
-```
-1. Click "+" → Search "HTTP"
-2. Select "Make a request"
-3. Configure:
-   - URL: {{secrets.AWS_LAMBDA_URL}}
-   - Method: POST
-   - Headers:
-     - Content-Type: application/json
-   - Body (JSON):
-     {
-       "SMTP_SERVER": "smtp.gmail.com",
-       "SMTP_PORT": "587",
-       "SENDER_EMAIL": "{{secrets.SENDER_EMAIL}}",
-       "EMAIL_PASSWORD": "{{secrets.EMAIL_PASSWORD}}",
-       "RECIPIENT_EMAIL": "{{secrets.RECIPIENT_EMAIL}}",
-       "WP_SITE_URL": "{{secrets.WP_SITE_URL}}",
-       "WP_USERNAME": "{{secrets.WP_USERNAME}}",
-       "WP_APP_PASSWORD": "{{secrets.WP_APP_PASSWORD}}",
-       "GOOGLE_DRIVE_FOLDER_ID": "{{secrets.GOOGLE_DRIVE_FOLDER_ID}}",
-       "SITE_TIMEZONE": "America/Chicago"
-     }
-4. Parse response: Toggle "Parse response"
+aws iam create-role `
+  --role-name EnvisionPerdido-Lambda-Execution-Role `
+  --assume-role-policy-document $trust_policy
 ```
 
-### 6.3 Enable Scenario Error Notifications
+**Step 2: Attach Policies**
 
-1. Scenario settings (gear icon)
-2. **Advanced settings** → **Errors**
-3. Enable: "Send notification if scenario fails"
-4. Email: {{secrets.RECIPIENT_EMAIL}}
+```powershell
+# Allow Lambda to write logs
+aws iam attach-role-policy `
+  --role-name EnvisionPerdido-Lambda-Execution-Role `
+  --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+```
+
+**Step 3: Wait for Role to Be Ready**
+
+AWS sometimes takes a minute to fully create the role. Wait ~30 seconds before proceeding.
+
+---
+
+### 5.6 Deploy Lambda Function
+
+Now upload your ZIP to AWS:
+
+**Step 1: Get Your AWS Account ID**
+
+```powershell
+aws sts get-caller-identity
+```
+
+This shows your AWS Account ID (looks like: `123456789012`). **Copy it** for the next command.
+
+**Step 2: Deploy the Function**
+
+Replace `YOUR_ACCOUNT_ID` with your actual account ID:
+
+```powershell
+aws lambda create-function `
+  --function-name EnvisionPerdido-Pipeline `
+  --runtime python3.11 `
+  --role arn:aws:iam::YOUR_ACCOUNT_ID:role/EnvisionPerdido-Lambda-Execution-Role `
+  --handler lambda_handler.lambda_handler `
+  --zip-file fileb://lambda_function.zip `
+  --timeout 300 `
+  --memory-size 512
+```
+
+**Expected output:**
+```json
+{
+    "FunctionName": "EnvisionPerdido-Pipeline",
+    "FunctionArn": "arn:aws:lambda:us-east-1:YOUR_ACCOUNT_ID:function:EnvisionPerdido-Pipeline",
+    "Runtime": "python3.11",
+    "CodeSize": 50000000,
+    ...
+}
+```
+
+**If you get an error:**
+- "Role is invalid" → Wait 30 more seconds for the role to be fully created
+- "Function already exists" → That's OK, you can skip to Step 3
+
+---
+
+### 5.7 Create Function URL (So Make.com Can Call Lambda)
+
+**Step 1: Create the URL**
+
+```powershell
+aws lambda create-function-url-config `
+  --function-name EnvisionPerdido-Pipeline `
+  --auth-type NONE `
+  --cors AllowOrigins="*",AllowMethods="POST",AllowHeaders="*"
+```
+
+**Expected output:**
+```json
+{
+    "FunctionUrl": "https://abcdef123xyz.lambda-url.us-east-1.on.aws/",
+    "FunctionArn": "...",
+    "CreationTime": "...",
+    "Cors": {...}
+}
+```
+
+**COPY THE FunctionUrl** — This is what you'll put in Make.com!
+
+Example: `https://abcdef123xyz.lambda-url.us-east-1.on.aws/`
+
+**Step 2: Save This URL**
+
+1. Open your `scripts/make_env_secrets.json`
+2. Add this new field:
+   ```json
+   "AWS_LAMBDA_URL": "https://abcdef123xyz.lambda-url.us-east-1.on.aws/"
+   ```
+3. Save the file
+
+---
+
+### 5.8 Test Lambda from Your PC
+
+Before using it in Make.com, let's verify it works:
+
+**Step 1: Create a Test File**
+
+```powershell
+# Save this as test_lambda.json
+$test_event = @{
+    SMTP_SERVER = "smtp.gmail.com"
+    SMTP_PORT = "587"
+    SENDER_EMAIL = "your_email@gmail.com"
+    EMAIL_PASSWORD = "your_app_password"
+    RECIPIENT_EMAIL = "your_email@gmail.com"
+    WP_SITE_URL = "https://your-site.org"
+    WP_USERNAME = "your_username"
+    WP_APP_PASSWORD = "xxxx xxxx xxxx xxxx"
+    GOOGLE_DRIVE_FOLDER_ID = "your_folder_id"
+    SITE_TIMEZONE = "America/Chicago"
+} | ConvertTo-Json | Out-File -FilePath test_lambda.json
+```
+
+**Step 2: Invoke Lambda Locally**
+
+```powershell
+aws lambda invoke `
+  --function-name EnvisionPerdido-Pipeline `
+  --cli-binary-format raw-in-base64-out `
+  --payload file://test_lambda.json `
+  response.json
+
+# Check the response
+cat response.json
+```
+
+**Expected response:**
+```json
+{
+  "statusCode": 200,
+  "body": "{\"status\": \"success\", \"events_scraped\": 42, ...}"
+}
+```
+
+**If you get an error:**
+- Check error messages in response.json
+- Look at Lambda logs: `aws logs tail /aws/lambda/EnvisionPerdido-Pipeline --follow`
+
+---
+
+**Congratulations!** Your Lambda function is deployed and has a public URL. Now go to **Phase 6** to add this URL to your Make.com scenario!
+
+## Phase 6: Configure Make.com Scenarios (Detailed Step-by-Step)
+
+### 6.1 Add Secrets Vault (Save Sensitive Values Securely)
+
+The Secrets vault is where you store passwords and API keys in Make.com. Instead of writing passwords directly in scenarios, you reference them safely.
+
+**Step 1: Go to Organization Settings**
+
+1. Log in to Make.com
+2. Look at the **top-left corner** of the dashboard
+3. You'll see your **Organization name** (click on it if needed)
+4. Click **Settings** (gear icon) → This should open a dropdown menu
+5. From the dropdown, click **Organization**
+6. You'll see tabs: **General**, **Teams**, **Security**, **Integrations**, **Secrets**
+7. Click the **Secrets** tab
+
+**Step 2: Add Your First Secret (Email Password)**
+
+1. In the **Secrets** tab, click **+ Add secret** button (top right)
+2. A form appears:
+   ```
+   [ Identifier/Name field ]
+   [ Value field (hidden) ]
+   [ Description field (optional) ]
+   ```
+
+3. For the **Identifier**, type: `EMAIL_PASSWORD`
+4. For the **Value**, paste your Gmail app password (16 characters, should look like `xxxx xxxx xxxx xxxx`)
+5. **Description** (optional): `Gmail app password for SMTP`
+6. Click **Save**
+
+**Step 3: Repeat for Other Sensitive Values**
+
+Create secrets for these values from your `make_env_secrets.json`:
+
+| Secret Identifier | Value | Example |
+|---|---|---|
+| `EMAIL_PASSWORD` | Your Gmail app password | `xxxx xxxx xxxx xxxx` |
+| `WP_APP_PASSWORD` | Your WordPress app password | `xxxx xxxx xxxx xxxx` |
+| `AWS_LAMBDA_URL` | (We'll get this in Phase 5) | `https://abcd123.lambda-url.us-east-1.on.aws/` |
+
+**Repeat the "Add secret" process for each one.**
+
+**What you just did:** Make.com now stores these sensitive values encrypted, and you can reference them in scenarios without showing passwords in plaintext.
+
+---
+
+### 6.2 Go Back to Your Scenario and Complete the HTTP Module
+
+Now that you have secrets stored, let's fill in the HTTP module that calls your Lambda function.
+
+**Step 1: Open Your Scenario**
+
+1. Click **Scenarios** in the left sidebar
+2. Find **`EnvisionPerdido - Weekly Event Pipeline`**
+3. Click it to open it in the editor
+
+**Step 2: Find and Edit the HTTP Module**
+
+In the canvas, you should see the modules you created:
+```
+Scheduler → Set Variables → Google Drive (model) → Google Drive (vectorizer) → HTTP → Gmail
+```
+
+1. Click on the **HTTP** module (the one that says "Make a request" or similar)
+2. The configuration panel will open on the right
+
+**Step 3: Configure the HTTP Module URL**
+
+In the HTTP module configuration:
+
+1. Find the **URL** field
+2. This is where the Lambda function URL goes
+3. For now, we'll leave it as a placeholder: `https://lambda-url-will-go-here.com/`
+4. (We'll come back after Phase 5 when we deploy Lambda)
+
+**But here's the key:** After Phase 5, paste your Lambda URL here:
+```
+https://abcdef123xyz.lambda-url.us-east-1.on.aws/
+```
+
+**Step 4: Verify Headers**
+
+In the HTTP module, make sure:
+
+1. **Method:** Set to **POST**
+2. **Headers:** Should have:
+   ```
+   Content-Type: application/json
+   ```
+
+3. If you don't see headers, click **Show advanced settings** or similar
+
+**Step 5: Configure the Body (JSON)**
+
+This is the most important part. The Body tells Lambda what to do.
+
+1. In the HTTP module, find the **Body** field
+2. Switch it to **"Raw"** or **"JSON"** mode (if there's a dropdown)
+3. Enter this JSON:
+
+```json
+{
+  "SMTP_SERVER": "smtp.gmail.com",
+  "SMTP_PORT": "587",
+  "SENDER_EMAIL": {{SENDER_EMAIL}},
+  "EMAIL_PASSWORD": {{EMAIL_PASSWORD}},
+  "RECIPIENT_EMAIL": {{RECIPIENT_EMAIL}},
+  "WP_SITE_URL": {{WP_SITE_URL}},
+  "WP_USERNAME": {{WP_USERNAME}},
+  "WP_APP_PASSWORD": {{WP_APP_PASSWORD}},
+  "GOOGLE_DRIVE_FOLDER_ID": {{GOOGLE_DRIVE_FOLDER_ID}},
+  "SITE_TIMEZONE": "America/Chicago"
+}
+```
+
+**Important:** The `{{ }}` syntax tells Make.com to insert variable values. These variables come from the **Set Variables** module you created in Step 3.
+
+**Step 6: Enable Response Parsing**
+
+After the Body field, you should see an option like:
+
+```
+[ ] Parse response   OR   [ ] Use JSON
+```
+
+1. **Toggle this ON** (click the checkbox)
+2. This tells Make.com to read the response from Lambda and make it available to the next modules
+
+**Step 7: Click OK**
+
+Save the HTTP module configuration by clicking **OK** or the checkmark icon.
+
+---
+
+### 6.3 Add Error Handling (Catch Failures)
+
+Let's make sure the scenario alerts you if something goes wrong.
+
+**Step 1: Open Scenario Settings**
+
+1. In the Scenario Editor, look for the **gear icon** (⚙️) at the bottom or top
+2. Click it → A settings menu opens
+
+**Step 2: Find Error Handling**
+
+1. Look for **"Execution"** or **"Advanced settings"** section
+2. Find the **"Handle errors"** or **"On error"** option
+
+**Step 3: Configure Error Notifications**
+
+1. Enable: **"Send notification if scenario fails"** (toggle ON)
+2. Set notification email to: `{{RECIPIENT_EMAIL}}`
+   (This uses the variable from Set Variables)
+3. Optional: Add error message template in the notification
+
+**Step 4: Save Settings**
+
+Click **OK** or **Save** to close settings.
+
+---
+
+### 6.4 Test Your Scenario (Before Going Live)
+
+Before setting up the schedule to run weekly, let's test it:
+
+**Step 1: Run the Scenario Manually**
+
+1. In the Scenario Editor, look for a **Play button (▶️)** at the bottom
+2. Click it to run the scenario ONE TIME
+3. Make.com will execute all modules in sequence
+
+**Step 2: Check Execution History**
+
+1. After clicking Play, you'll see **Execution details**
+2. Look for each module to see if it succeeded (✅) or failed (❌)
+3. Click on individual modules to see error messages if any failed
+
+**Expected results (at this point):**
+- ✅ Scheduler module: "Scheduled"
+- ✅ Set Variables: "Variables set"
+- ✅ Google Drive (model): "Downloaded successfully"
+- ✅ Google Drive (vectorizer): "Downloaded successfully"
+- ❌ HTTP: "URL is empty" or "Connection refused" — **This is OK for now!** We'll fix it in Phase 5
+- ✅ Gmail: "Email sent" (should work if Gmail is connected)
+
+**Step 3: If Gmail Fails:**
+
+1. Check that you authorized Gmail in Phase 2.2
+2. Go back to **Connections** and re-authorize Gmail if needed
+3. Re-run the test
+
+**Step 4: If Google Drive Fails:**
+
+1. Check that you authorized Google Drive in Phase 2.2
+2. Verify your EnvisionPerdido folder exists in Google Drive
+3. Verify the .pkl files are in the correct subfolder
+
+---
+
+### 6.5 Set Up the Weekly Schedule
+
+Once testing passes, activate the automatic schedule:
+
+**Step 1: Open Scheduler Module**
+
+1. In the Scenario Editor, click the **Scheduler** module (the first box)
+2. The configuration panel opens
+
+**Step 2: Verify Schedule Settings**
+
+Make sure these are correct:
+
+```
+Schedule type:  Weekly
+Day of week:    Monday
+Time:           08:00 (8 AM)
+Timezone:       America/Chicago
+```
+
+**Step 3: Enable the Schedule**
+
+Look for a toggle or checkbox labeled **"Enabled"** or **"Active"**
+
+1. Toggle it **ON** ✓
+2. This activates the weekly schedule
+
+**Step 4: Save the Scenario**
+
+1. Click the **Save** button (💾 icon) at the bottom
+2. You should see: "Scenario saved successfully" ✅
+
+---
+
+**You've now completed Phase 6!** The scenario is set up, but the HTTP module doesn't have a Lambda URL yet. That's OK — we'll complete it in Phase 5 (deploy Lambda) and Phase 5.2 (add the URL).
+
+### 6.6 Summary: What Your Scenario Does Now
+
+Every **Monday at 8:00 AM** (Chicago time), this scenario will:
+
+1. ✅ Run the Scheduler trigger
+2. ✅ Set all your environment variables
+3. ✅ Download your ML model from Google Drive
+4. ✅ Download your vectorizer from Google Drive
+5. ⏳ Send the data to Lambda to run the pipeline (after Phase 5)
+6. ✅ Email you the results
+
+**Next:** Phase 5 - Deploy to AWS Lambda to get the URL you need for the HTTP module.
 
 ---
 

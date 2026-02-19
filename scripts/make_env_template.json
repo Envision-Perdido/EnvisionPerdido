@@ -1,0 +1,15 @@
+{
+  "REQUIRED_ENV_VARS": {
+    "SMTP_SERVER": "smtp.gmail.com",
+    "SMTP_PORT": "587",
+    "SENDER_EMAIL": "your_email@gmail.com",
+    "EMAIL_PASSWORD": "STORE_IN_MAKE_SECRETS",
+    "RECIPIENT_EMAIL": "your_email@gmail.com",
+    "WP_SITE_URL": "https://your-site.org",
+    "WP_USERNAME": "STORE_IN_MAKE_SECRETS",
+    "WP_APP_PASSWORD": "STORE_IN_MAKE_SECRETS",
+    "GOOGLE_DRIVE_FOLDER_ID": "your_folder_id_here",
+    "SITE_TIMEZONE": "America/Chicago"
+  },
+  "NOTES": "All STORE_IN_MAKE_SECRETS values should be configured in Make.com Secrets module"
+}
