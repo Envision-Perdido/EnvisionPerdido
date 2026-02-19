@@ -1,0 +1,26 @@
+line-length = 100
+target-version = "py313"
+
+exclude = [
+    ".venv*",
+    "data",
+    "output",
+    "notebooks",
+    ".git",
+    "__pycache__",
+    "*.pyc",
+]
+
+[lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "N",   # pep8-naming
+    "UP",  # pyupgrade
+]
+
+ignore = [
+    "E501",  # line too long (handled by formatter)
+]

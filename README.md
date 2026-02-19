@@ -102,3 +102,15 @@ $env:RECIPIENT_EMAIL = "your_email@gmail.com"
 ## Support
 
 For detailed instructions, troubleshooting, and advanced configuration, see the documentation in the `docs/` folder.
+
+## CI/CD & Monitoring
+
+This repository uses GitHub Actions for automated testing, security scanning, and monitoring:
+
+- **🧪 Automated Tests:** Run on every PR/push
+- **🔒 Dependabot:** Weekly security scans
+- **💚 Health Checks:** Weekly system monitoring
+- **✨ Code Linting:** Automated style checks
+- **🧹 Stale Management:** Auto-closes inactive issues
+
+See `.github/workflows/` for configuration and [docs/CI_CD_GUIDE.md](docs/CI_CD_GUIDE.md) for details.
