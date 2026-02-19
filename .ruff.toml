@@ -23,4 +23,15 @@ select = [
 
 ignore = [
     "E501",  # line too long (handled by formatter)
+    "N806",  # allow uppercase variable names for ML (X, X_train, etc.)
+    "N999",  # allow non-standard module names for legacy files
 ]
+
+[lint.per-file-ignores]
+"examples/*.py" = ["E402"]  # allow imports not at top in example files
+"tests/*.py" = ["F841", "E722", "E741", "N812"]  # allow unused variables, bare except, short var names in tests
+"scripts/automated_pipeline.py" = ["E402"]  # loads env before imports
+"scripts/wren_haven_scraper.py" = ["E722"]  # allow bare except in error handling
+"scripts/smart_label_helper.py" = ["E712"]  # allow == True for clarity in pandas
+"scripts/env_loader.py" = ["F841"]  # allow unused variables for clarity
+"scripts/test_wp_auth.py" = ["F841"]  # allow unused variables in tests

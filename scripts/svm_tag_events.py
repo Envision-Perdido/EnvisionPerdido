@@ -13,7 +13,7 @@ def load_any(p: Path) -> pd.DataFrame:
     if p.suffix.lower() == ".csv":
         return pd.read_csv(p)
     if p.suffix.lower() == ".json":
-        with open(p, "r", encoding="utf-8") as f:
+        with open(p, encoding="utf-8") as f:
             data = json.load(f)
         if isinstance(data, dict) and "events" in data:
             data = data["events"]
@@ -35,15 +35,17 @@ def build_features(df: pd.DataFrame, title_col: str, desc_col: str, start_col: s
     venue_church = loc.str.contains(r"\bchurch\b").astype(int)
     venue_museum = loc.str.contains(r"\bmuseum\b|gallery").astype(int)
 
-    X = pd.DataFrame({
-        "text": text,
-        "hour": hour,
-        "is_weekend": is_weekend,
-        "venue_library": venue_library,
-        "venue_park": venue_park,
-        "venue_church": venue_church,
-        "venue_museum": venue_museum,
-    })
+    X = pd.DataFrame(
+        {
+            "text": text,
+            "hour": hour,
+            "is_weekend": is_weekend,
+            "venue_library": venue_library,
+            "venue_park": venue_park,
+            "venue_church": venue_church,
+            "venue_museum": venue_museum,
+        }
+    )
     return X
 
 
@@ -52,8 +54,12 @@ def main():
         description="Use trained SVM model to predict community event labels."
     )
     ap.add_argument("--input", required=True, help="Path to events CSV or JSON file")
-    ap.add_argument("--output", help="Path to save tagged output (CSV or JSON, defaults to input_tagged.csv)")
-    ap.add_argument("--model-path", default="models/community_svm.pkl", help="Path to trained model")
+    ap.add_argument(
+        "--output", help="Path to save tagged output (CSV or JSON, defaults to input_tagged.csv)"
+    )
+    ap.add_argument(
+        "--model-path", default="models/community_svm.pkl", help="Path to trained model"
+    )
     ap.add_argument("--confidence", action="store_true", help="Add prediction confidence scores")
     ap.add_argument("--show-predictions", action="store_true", help="Print predictions to console")
 
@@ -62,7 +68,9 @@ def main():
     # Load model
     model_path = Path(args.model_path).expanduser().resolve()
     if not model_path.exists():
-        raise SystemExit(f"Model not found: {model_path}\nTrain a model first using svm_train_from_file.py")
+        raise SystemExit(
+            f"Model not found: {model_path}\nTrain a model first using svm_train_from_file.py"
+        )
 
     print(f"Loading model from {model_path}...")
     model_data = joblib.load(model_path)
@@ -106,7 +114,9 @@ def main():
     # Count predictions
     community_count = int(predictions.sum())
     non_community_count = len(predictions) - community_count
-    print(f"\nPredictions: {community_count} community events, {non_community_count} non-community events")
+    print(
+        f"\nPredictions: {community_count} community events, {non_community_count} non-community events"
+    )
 
     # Show sample predictions if requested
     if args.show_predictions:

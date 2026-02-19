@@ -1,7 +1,7 @@
 # tests/test_perdido_scraper.py
-import types
 import importlib.util
 from pathlib import Path
+
 import pytest
 
 # --- Load the scraper module directly from its file path ---
@@ -23,6 +23,7 @@ class DummyResponse:
 
 class DummySession:
     """Minimal stub of requests.Session for deterministic tests."""
+
     def __init__(self, html_by_url):
         self.html_by_url = html_by_url
 

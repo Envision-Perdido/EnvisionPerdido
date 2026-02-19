@@ -9,14 +9,15 @@ This script demonstrates the common use cases for the Wren Haven scraper.
 # BASIC USAGE - Add Wren Haven to Monthly Scraping
 # ============================================================================
 
-from scripts.automated_pipeline import scrape_events
 import pandas as pd
+
+from scripts.automated_pipeline import scrape_events
 
 # Scrape from BOTH Perdido Chamber AND Wren Haven
 all_events = scrape_events(
     year=2025,
     month=3,
-    include_sources=['perdido_chamber', 'wren_haven']  # <-- Add 'wren_haven'
+    include_sources=["perdido_chamber", "wren_haven"],  # <-- Add 'wren_haven'
 )
 
 # Result: List of event dicts, combined from both sources
@@ -34,10 +35,7 @@ events = scrape_wren_haven()
 print(f"Wren Haven events: {len(events)}")
 
 # Option 2: Scrape specific date range
-events = scrape_wren_haven(
-    start_date='2025-03-01',
-    end_date='2025-03-31'
-)
+events = scrape_wren_haven(start_date="2025-03-01", end_date="2025-03-31")
 print(f"March 2025 events: {len(events)}")
 
 # Option 3: Force re-bootstrap (ignore 24h cache)
@@ -50,7 +48,7 @@ events = scrape_wren_haven(force_bootstrap=True)
 from scripts.browser_bootstrap import clear_bootstrap_cache
 
 # Clear cache for Wren Haven (forces next scrape to re-bootstrap)
-clear_bootstrap_cache('wren_haven_homestead', 'www.wrenhavenhomestead.com')
+clear_bootstrap_cache("wren_haven_homestead", "www.wrenhavenhomestead.com")
 
 # Clear ALL cached bootstrap artifacts
 clear_bootstrap_cache()
@@ -69,7 +67,7 @@ artifacts = bootstrap_json_api(
     url="https://www.wrenhavenhomestead.com/events",
     previous_month_selector="button[aria-label='Previous month']",
     source_name="wren_haven_homestead",
-    headless=False  # <-- Open browser to watch bootstrap
+    headless=False,  # <-- Open browser to watch bootstrap
 )
 
 if artifacts:
@@ -83,15 +81,11 @@ else:
 # INTEGRATION WITH ENRICHMENT PIPELINE
 # ============================================================================
 
-from scripts.automated_pipeline import (
-    scrape_events,
-    assign_event_images,
-    classify_events
-)
+from scripts.automated_pipeline import assign_event_images, classify_events, scrape_events
 from scripts.event_normalizer import enrich_events_dataframe, filter_events_dataframe
 
 # Scrape from multiple sources
-raw_events = scrape_events(include_sources=['perdido_chamber', 'wren_haven'])
+raw_events = scrape_events(include_sources=["perdido_chamber", "wren_haven"])
 
 # Convert to DataFrame for enrichment
 df = pd.DataFrame(raw_events)
@@ -99,8 +93,8 @@ print(f"Before enrichment: {len(df)} events")
 
 # Apply standard enrichment pipeline (works on all sources)
 df = enrich_events_dataframe(df)  # Detect paid/free, category enrichment
-df = assign_event_images(df)      # Assign images by keyword matching
-df = classify_events(df)          # SVM classification
+df = assign_event_images(df)  # Assign images by keyword matching
+df = classify_events(df)  # SVM classification
 
 # Filter (keep only community events)
 community_df, other_df = filter_events_dataframe(df)

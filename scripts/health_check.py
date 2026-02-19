@@ -17,12 +17,11 @@ Env vars expected:
 from __future__ import annotations
 
 import os
-import sys
 import smtplib
+import sys
+from datetime import UTC, datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from datetime import datetime, timezone
-from typing import Tuple, List
 
 import requests
 from requests.auth import HTTPBasicAuth
@@ -59,14 +58,14 @@ def send_email(subject: str, html_body: str) -> None:
         server.sendmail(sender, [recipient], msg.as_string())
 
 
-def wp_auth() -> Tuple[str, HTTPBasicAuth]:
+def wp_auth() -> tuple[str, HTTPBasicAuth]:
     site = get_env("WP_SITE_URL", "https://sandbox.envisionperdido.org").rstrip("/")
     user = get_env("WP_USERNAME", "")
     app = get_env("WP_APP_PASSWORD", "")
     return site, HTTPBasicAuth(user, app)
 
 
-def check_api_connection() -> Tuple[bool, str]:
+def check_api_connection() -> tuple[bool, str]:
     site, auth = wp_auth()
     try:
         r = requests.get(f"{site}/wp-json/wp/v2/users/me", auth=auth, timeout=15)
@@ -78,7 +77,7 @@ def check_api_connection() -> Tuple[bool, str]:
         return False, f"API connection error: {e}"
 
 
-def fetch_events() -> Tuple[bool, List[dict] | None, str]:
+def fetch_events() -> tuple[bool, list[dict] | None, str]:
     site, auth = wp_auth()
     try:
         # Fetch latest 100 published events
@@ -95,8 +94,8 @@ def fetch_events() -> Tuple[bool, List[dict] | None, str]:
         return False, None, f"Events fetch error: {e}"
 
 
-def count_upcoming(events: List[dict]) -> int:
-    now_ts = int(datetime.now(timezone.utc).timestamp())
+def count_upcoming(events: list[dict]) -> int:
+    now_ts = int(datetime.now(UTC).timestamp())
     cnt = 0
     for e in events:
         meta = e.get("meta", {})
@@ -110,7 +109,7 @@ def count_upcoming(events: List[dict]) -> int:
     return cnt
 
 
-def check_calendar_page() -> Tuple[bool, str]:
+def check_calendar_page() -> tuple[bool, str]:
     site, _ = wp_auth()
     url = f"{site}/events"
     try:
@@ -121,12 +120,12 @@ def check_calendar_page() -> Tuple[bool, str]:
         hlow = html.lower()
         # Heuristic: EventON calendar markup (broadened)
         patterns = [
-            "ajde_evcal",        # core eventon class
-            "evo-calendar",      # eventon block/widget
-            "evo_event",         # event items
-            "evcal_list",        # list mode container
-            "evo_cal",           # calendar container
-            "eventon",           # plugin namespace
+            "ajde_evcal",  # core eventon class
+            "evo-calendar",  # eventon block/widget
+            "evo_event",  # event items
+            "evcal_list",  # list mode container
+            "evo_cal",  # calendar container
+            "eventon",  # plugin namespace
         ]
         if any(p in hlow for p in patterns):
             return True, "Calendar page markup detected"
