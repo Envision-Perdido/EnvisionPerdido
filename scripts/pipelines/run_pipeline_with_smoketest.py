@@ -26,7 +26,8 @@ from pathlib import Path
 def main():
     """Run pipeline + smoke test with safe defaults"""
     
-    base = Path(__file__).resolve().parent.parent
+    # Base is the EnvisionPerdido root (go up 2 levels: scripts/pipelines/ -> root)
+    base = Path(__file__).resolve().parent.parent.parent
     
     # Enforce safe defaults
     if 'AUTO_UPLOAD' not in os.environ:
@@ -41,7 +42,7 @@ def main():
     print("[run] Running pipeline (safe defaults: AUTO_UPLOAD=false)...")
     print("-" * 70)
     try:
-        pipeline_script = base / 'scripts' / 'automated_pipeline.py'
+        pipeline_script = base / 'scripts' / 'pipelines' / 'automated_pipeline.py'
         result = subprocess.run(
             [sys.executable, str(pipeline_script)],
             cwd=base,
@@ -59,7 +60,7 @@ def main():
     print("-" * 70)
     
     # Step 2: Run smoke test (if it exists)
-    smoketest_script = base / 'scripts' / 'check_evcal_srow.py'
+    smoketest_script = base / 'scripts' / 'dev' / 'check_evcal_srow.py'
     if not smoketest_script.exists():
         print(f"[warn] Smoke test script not found: {smoketest_script}")
         print("[warn] Skipping smoke test (this is optional)")

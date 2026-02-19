@@ -1,14 +1,13 @@
 # Maintenance & Administrative Scripts
 
-This directory contains administrative utilities (6 scripts) for managing deployed Envision Perdido systems.
+This directory contains administrative utilities (6+ scripts) for managing deployed Envision Perdido systems.
 
 ## Administrative Scripts
-
-**Event Management:**
 
 **Deletion & Cleanup:**
 - `delete_all_events.py` — Delete all events from WordPress (use **extremely cautiously**, typically only for complete resets)
 - `delete_test_events.py` — Delete test or staging events by tag, date range, or other criteria
+- `run_delete_all_events.sh` — Shell wrapper for delete operation (macOS/Linux)
 
 **Inspection & Export:**
 - `dump_all_meta.py` — Export all event metadata for analysis, backup, or auditing

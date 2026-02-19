@@ -1,6 +1,6 @@
 # Development & Testing Scripts
 
-This directory contains debugging, testing, and experimental scripts for local development and validation.
+This directory contains debugging, testing, and development utility scripts for local development and validation.
 
 ## Testing & Debugging Scripts (14)
 
@@ -25,6 +25,11 @@ This directory contains debugging, testing, and experimental scripts for local d
 - `browser_bootstrap.py` — Bootstrap/test browser automation utilities
 - `modelViewer.py` — Inspect and debug model artifacts
 - `setup_image_mapper.py` — Image mapping configuration and testing
+
+## Git Development Utilities
+
+- `new-branch.sh` — Create and setup new feature branches (macOS/Linux compatible)
+- `new-branch.ps1` — Create and setup new feature branches (PowerShell)
 
 ## Usage
 

@@ -23,7 +23,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import hashlib
 
 # Add scripts directory to path
-sys.path.insert(0, str(Path(__file__).parent))
+SCRIPTS_DIR = Path(__file__).parent.parent
+sys.path.insert(0, str(SCRIPTS_DIR))
+sys.path.insert(0, str(SCRIPTS_DIR / 'core'))
 
 # Load environment variables
 from env_loader import load_env

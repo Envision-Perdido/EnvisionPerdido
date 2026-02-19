@@ -26,8 +26,12 @@ from email import encoders
 import json
 
 # Add scripts directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent))
-sys.path.insert(0, str(Path(__file__).parent.parent))
+SCRIPTS_DIR = Path(__file__).parent.parent
+BASE_DIR = SCRIPTS_DIR.parent
+sys.path.insert(0, str(SCRIPTS_DIR))
+sys.path.insert(0, str(SCRIPTS_DIR / 'core'))
+sys.path.insert(0, str(SCRIPTS_DIR / 'data_processing'))
+sys.path.insert(0, str(SCRIPTS_DIR / 'scrapers'))
 
 # Load environment variables
 from env_loader import load_env, validate_env_config
@@ -35,11 +39,10 @@ load_env()
 # Import logger and metrics
 from logger import get_logger, PipelineMetrics
 # Import scraper and normalizer modules
-from scripts import Envision_Perdido_DataCollection
-from scripts import event_normalizer
+from Envision_Perdido_DataCollection import scrape_month, parse_calendar_to_events
+from event_normalizer import enrich_events_dataframe, filter_events_dataframe
 
 # Configuration
-BASE_DIR = Path(__file__).parent.parent
 MODEL_PATH = BASE_DIR / "data" / "artifacts" / "event_classifier_model.pkl"
 VECTORIZER_PATH = BASE_DIR / "data" / "artifacts" / "event_vectorizer.pkl"
 IMAGE_CONFIG_PATH = BASE_DIR / "data" / "image_keyword_config.json"
@@ -353,13 +356,11 @@ def classify_events(events_df: pd.DataFrame) -> pd.DataFrame | None:
     # Enrich events with tags, paid/free status, venue resolution
     log("Enriching events with tags, paid/free status, and venue "
         "information...")
-    events_df = event_normalizer.enrich_events_dataframe(events_df)
+    events_df = enrich_events_dataframe(events_df)
     log(f"Enrichment complete. Added tags, event types, and venue data.")
-    
+
     # Apply filters (Brandon Styles @ OWA, etc.)
-    kept_df, filtered_df = event_normalizer.filter_events_dataframe(
-        events_df
-    )
+    kept_df, filtered_df = filter_events_dataframe(events_df)
     if len(filtered_df) > 0:
         log(f"Filtered out {len(filtered_df)} events:")
         for _, event in filtered_df.iterrows():

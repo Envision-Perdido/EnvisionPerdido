@@ -4,46 +4,83 @@ This directory contains the automation pipeline, machine learning utilities, and
 
 ## Structure
 
-### Root Level (23 Core Scripts + Utilities)
+### Root Level - Main Entry Points (3)
 
-**Main Entry Points:**
+**Pipeline executables:**
 - `automated_pipeline.py` — Full pipeline: scrape → classify → export → email → (optional) upload
 - `wordpress_uploader.py` — Interactive uploader (dry-run → create drafts → publish)
-- `Envision_Perdido_DataCollection.py` — Scraper and ICS parsing
+- `run_pipeline_with_smoketest.py` — Cross-platform safe pipeline execution with validation
 
-**Machine Learning & Classification:**
-- `svm_train_from_file.py` — Train the event classifier SVM model from labeled data
-- `auto_label_and_train.py` — Automated labeling and model retraining
-- `svm_tag_events.py` — Tag/classify events using trained SVM model
+### ml/ - Machine Learning & Classification (4)
 
-**Data Processing & Normalization:**
-- `event_normalizer.py` — Normalize and standardize event data
-- `events_to_labelset.py` — Convert events into labeled training sets
-- `fill_recurring_labels.py` — Propagate labels across recurring events
+SVM-based event classification:
+- `svm_train_from_file.py` — Train SVM model from labeled event data
+- `svm_tag_events.py` — Classify events using trained model
+- `auto_label_and_train.py` — Auto-label new events and retrain
+- `smart_label_helper.py` — Interactive labeling assistant
+
+See [ml/README.md](ml/README.md) for details.
+
+### data_processing/ - Normalization & Enrichment (6)
+
+Event data cleaning and preparation:
+- `event_normalizer.py` — Normalize and enrich event data
+- `events_to_labelset.py` — Convert events to training sets
+- `clean_chamber_urls.py` — Remove unsafe URLs from events
 - `fix_event_times.py` — Fix and standardize event times
-- `clean_chamber_urls.py` — Clean and validate chamber/venue URLs
+- `fill_recurring_labels.py` — Propagate labels in series
+- `merge_and_propagate_labels.py` — Merge manual/predicted labels
 
-**Integration & Data Sources:**
-- `google_sheets_source.py` — Google Sheets integration and syncing
-- `venue_registry.py` — Manage venue and organization data
-- `wren_haven_scraper.py` — Scraper for Wren Haven events
+See [data_processing/README.md](data_processing/README.md) for details.
 
-**Utilities:**
-- `env_loader.py` — Environment variable loading and configuration
-- `logger.py` — Centralized logging configuration
-- `smart_label_helper.py` — Helper utilities for labeling workflows
-- `tag_taxonomy.py` — Taxonomy and tag management
+### scrapers/ - Data Collection (3)
 
-**Deployment & Health:**
-- `make_cloud_pipeline.py` — MAKE.COM (CloudMIG) workflow integration
-- `make_deploy_helper.py` — Deployment helper utilities
-- `make_health_check.py` — Deployment health verification
-- `health_check.py` — General system health checks
+Web scrapers and data source integrations:
+- `Envision_Perdido_DataCollection.py` — Perdido Chamber scraper
+- `wren_haven_scraper.py` — Wren Haven events scraper
+- `google_sheets_source.py` — Google Sheets event submissions
 
-**Wrappers & Runners:**
-- `run_pipeline_with_smoketest.py` — Safe pipeline execution with validation
-- `run_pipeline_with_smoketest.sh` — Shell wrapper for safe pipeline runs
-- `run_with_venv.sh` — Virtual environment activation wrapper
+See [scrapers/README.md](scrapers/README.md) for details.
+
+### core/ - Core Utilities (5)
+
+Shared utilities and modules:
+- `env_loader.py` — Cross-platform environment configuration
+- `logger.py` — Structured logging system
+- `health_check.py` — System health verification
+- `tag_taxonomy.py` — Controlled tag vocabulary
+- `venue_registry.py` — Known venues database
+
+See [core/README.md](core/README.md) for details.
+
+### deployment/ - Cloud Integration (3)
+
+AWS Lambda and Make.com deployment:
+- `make_cloud_pipeline.py` — AWS Lambda handler for Make.com
+- `make_deploy_helper.py` — Lambda deployment preparation
+- `make_health_check.py` — CI/CD health checks
+
+See [deployment/README.md](deployment/README.md) for details.
+
+### config/ - Configuration Files (2)
+
+Environment and secrets templates:
+- `make_env_secrets.json` — Example secrets (DO NOT COMMIT)
+- `make_env_template.json` — Configuration template
+
+See [config/README.md](config/README.md) for details.
+
+### dev/ - Testing & Development (17)
+
+Testing, debugging, and development utilities. See [dev/README.md](dev/README.md).
+
+### maintenance/ - Administrative (7)
+
+Administrative operations for managing deployed systems. See [maintenance/README.md](maintenance/README.md).
+
+### windows/ & macos/ - Platform-Specific
+
+Platform-specific runners and environment setup scripts.
 
 ### dev/ (Testing & Debugging)
 
@@ -76,28 +113,34 @@ These scripts are typically used directly via command line or scheduled tasks.
 
 ### windows/ (Windows-Specific Scripts)
 
-Windows batch/PowerShell scripts:
-- Environment setup (`env.ps1`, `env.ps1.template`)
-- Wrappers and runners (`run_*.ps1`, `run_*.bat`)
-- Deployment helpers (`setup_scheduled_tasks.ps1`)
+Windows batch/PowerShell runner and setup scripts:
+- `run_pipeline.ps1` — Run pipeline with PowerShell
+- `run_pipeline_with_smoketest.ps1` — Safe pipeline with validation
+- `run_delete_all_events.ps1` — Delete events runner
+- `run_fix_event_times.ps1` — Fix event times runner
+- `run_health_check.ps1` — Health check runner
+- `env.ps1`, `env.ps1.template` — Environment setup for Windows
+- `setup_scheduled_tasks.ps1` — Configure Windows scheduled tasks
 
-### macos/ (macOS-Specific Scripts)
+### macos/ (macOS/Linux-Specific Scripts)
 
-macOS/Linux shell scripts:
-- Environment setup (`env.sh`, `env.sh.template`)
-- Platform-specific utilities
+Shell scripts for macOS and Linux:
+- `run_pipeline_with_smoketest.sh` — Safe pipeline execution wrapper
+- `run_with_venv.sh` — Virtual environment activation wrapper
+- `env.sh`, `env.sh.template` — Environment setup for macOS/Linux
 
 ## Quick Start
 
 **Full pipeline (safe-by-default):**
 ```bash
 export AUTO_UPLOAD=false
+export SITE_TIMEZONE="America/Chicago"
 python scripts/automated_pipeline.py
 ```
 
 **Training a new classifier:**
 ```bash
-python scripts/svm_train_from_file.py --input data/labeled/events.csv --output data/artifacts/
+python scripts/ml/svm_train_from_file.py --input data/labeled/events.csv --output data/artifacts/
 ```
 
 **WordPress upload (interactive):**
@@ -105,9 +148,30 @@ python scripts/svm_train_from_file.py --input data/labeled/events.csv --output d
 python scripts/wordpress_uploader.py
 ```
 
-**Health check:**
+**System health check:**
 ```bash
-python scripts/health_check.py
+python scripts/core/health_check.py
+```
+
+## Organization Summary
+
+```
+scripts/                    (Total: 61+ scripts organized)
+├── automated_pipeline.py   (3 main entry points)
+├── wordpress_uploader.py
+├── run_pipeline_with_smoketest.py
+│
+├── ml/                     (4 ML/classification scripts)
+├── data_processing/        (6 data pipeline scripts)
+├── scrapers/               (3 web scraper scripts)
+├── core/                   (5 utility modules)
+├── deployment/             (3 AWS Lambda scripts)
+├── config/                 (2 config templates)
+│
+├── dev/                    (17 test/debug scripts)
+├── maintenance/            (7 admin scripts)
+├── windows/                (9 Windows scripts)
+└── macos/                  (5 macOS/Linux scripts)
 ```
 
 ## Environment Variables
