@@ -57,7 +57,7 @@ def main():
     print("-" * 70)
 
     # Step 2: Run smoke test (if it exists)
-    smoketest_script = base / "scripts" / "check_evcal_srow.py"
+    smoketest_script = base / "scripts" / "dev" / "check_evcal_srow.py"
     if not smoketest_script.exists():
         print(f"[warn] Smoke test script not found: {smoketest_script}")
         print("[warn] Skipping smoke test (this is optional)")

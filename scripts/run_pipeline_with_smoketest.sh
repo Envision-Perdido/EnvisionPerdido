@@ -31,6 +31,6 @@ echo "[run] Running pipeline (safe defaults: AUTO_UPLOAD=false)..."
 run_python scripts/automated_pipeline.py
 
 echo "[run] Running evcal_srow smoke-test against latest CSV..."
-run_python scripts/check_evcal_srow.py
+run_python scripts/dev/check_evcal_srow.py
 
 echo "[run] Done."

@@ -37,7 +37,7 @@ jobs:
       - name: Run evcal_srow smoke-test
         env:
           SITE_TIMEZONE: America/Chicago
-        run: python scripts/check_evcal_srow.py
+        run: python scripts/dev/check_evcal_srow.py
 
       - name: CI notes
         run: |

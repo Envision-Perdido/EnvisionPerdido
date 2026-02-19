@@ -30,15 +30,14 @@ python scripts\health_check.py
 
 ## Documentation
 
-All detailed documentation is in the `docs/` folder:
+All detailed documentation is in the `docs/` folder. See **[docs/INDEX.md](docs/INDEX.md)** for a complete navigation guide.
 
-- **[Contributing & Branching](CONTRIBUTING.md)** - Development workflow, branching strategy, and contribution guidelines
-- **[Project Structure](docs/PROJECT_STRUCTURE.md)** - Complete folder organization and file locations
-- **[Quick Start Guide](docs/QUICKSTART.md)** - Getting started with the system
-- **[Setup Guide](docs/SETUP_GUIDE.md)** - Initial setup and configuration
+**Quick Links:**
+- **[Quick Start Guide](docs/QUICKSTART.md)** - Get started in 5 minutes
+- **[Project Structure](docs/PROJECT_STRUCTURE.md)** - Folder organization and file locations
 - **[WordPress Integration](docs/WORDPRESS_INTEGRATION_GUIDE.md)** - Calendar upload workflow
-- **[EventON Plugin](docs/EVENTON_PLUGIN_INSTALL.md)** - WordPress plugin installation
-- **[SVM Usage](docs/SVM_USAGE_GUIDE.md)** - Model training and classification
+- **[Contributing](CONTRIBUTING.md)** - Development workflow and branching strategy
+- **[Critical Issues](CRITICAL_ISSUES.md)** - Known blockers and production issues
 
 ## Project Structure
 

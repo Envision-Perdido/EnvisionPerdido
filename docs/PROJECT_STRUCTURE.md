@@ -12,13 +12,29 @@ EnvisionPerdido/
 │   ├── automated_pipeline.py          # Main pipeline: scrape → classify → email
 │   ├── wordpress_uploader.py          # Upload events to WordPress
 │   ├── health_check.py                # Health check for calendar/API
-│   ├── auto_label_and_train.py        # Training utilities
-│   ├── svm_train_from_file.py
-│   ├── svm_tag_events.py
-│   ├── events_to_labelset.py
-│   ├── smart_label_helper.py
-│   ├── merge_and_propagate_labels.py
-│   ├── fill_recurring_labels.py
+│   ├── Envision_Perdido_DataCollection.py  # Perdido Chamber scraper
+│   ├── wren_haven_scraper.py          # Wren Haven Homestead scraper
+│   ├── event_normalizer.py            # Event enrichment and normalization
+│   ├── logger.py                      # Structured logging
+│   ├── env_loader.py                  # Cross-platform env loader
+│   ├── venue_registry.py              # Venue name resolution
+│   ├── browser_bootstrap.py           # Playwright API discovery helper
+│   ├── auto_label_and_train.py        # ML training utilities
+│   ├── svm_train_from_file.py         # Train SVM model
+│   ├── svm_tag_events.py              # Apply SVM model
+│   ├── smart_label_helper.py          # Predict with confidence scores
+│   ├── events_to_labelset.py          # Convert to training format
+│   ├── merge_and_propagate_labels.py  # Label management
+│   ├── fill_recurring_labels.py       # Propagate recurring labels
+│   ├── dev/                           # Testing and debugging scripts
+│   │   ├── test_*.py                  # Various test scripts
+│   │   ├── debug_*.py                 # Debugging utilities
+│   │   └── check_evcal_srow.py        # Epoch validation smoke test
+│   ├── maintenance/                   # Administrative scripts
+│   │   ├── delete_*.py                # Event deletion scripts
+│   │   ├── fix_*.py                   # Data repair scripts
+│   │   ├── set_*.py                   # Configuration scripts
+│   │   └── query_*.py                 # Data query scripts
 │   └── windows/                       # Windows-specific runners
 │       └── run_health_check.bat
 │
@@ -70,8 +86,9 @@ python scripts\health_check.py
 ```
 
 ### Documentation
+- **Documentation Index**: `docs/INDEX.md`
 - **Getting Started**: `docs/QUICKSTART.md`
-- **Setup Instructions**: `docs/SETUP_GUIDE.md`
+- **Setup Instructions**: `docs/CROSS_PLATFORM_SETUP.md`
 - **WordPress Integration**: `docs/WORDPRESS_INTEGRATION_GUIDE.md`
 - **Plugin Installation**: `docs/EVENTON_PLUGIN_INSTALL.md`
 
