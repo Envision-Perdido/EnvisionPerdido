@@ -70,8 +70,9 @@ python scripts\health_check.py
 ```
 
 ### Documentation
+- **Documentation Index**: `docs/INDEX.md`
 - **Getting Started**: `docs/QUICKSTART.md`
-- **Setup Instructions**: `docs/SETUP_GUIDE.md`
+- **Setup Instructions**: `docs/CROSS_PLATFORM_SETUP.md`
 - **WordPress Integration**: `docs/WORDPRESS_INTEGRATION_GUIDE.md`
 - **Plugin Installation**: `docs/EVENTON_PLUGIN_INSTALL.md`
 
