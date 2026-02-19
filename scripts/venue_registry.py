@@ -6,18 +6,17 @@ aliases, and metadata. Used for location matching and normalization.
 """
 
 import re
-from typing import Optional, Dict, List
 from dataclasses import dataclass
-
 
 # ============================================================================
 # LOCATION NORMALIZATION
 # ============================================================================
 
+
 def normalize_location_text(text: str) -> str:
     """
     Normalize location text for matching.
-    
+
     - Convert to lowercase
     - Remove punctuation (except hyphens between words)
     - Collapse multiple spaces
@@ -25,32 +24,33 @@ def normalize_location_text(text: str) -> str:
     """
     if not text:
         return ""
-    
+
     # Convert to lowercase
     text = text.lower()
-    
+
     # Remove punctuation except hyphens and spaces
-    text = re.sub(r'[^\w\s\-]', '', text)
-    
+    text = re.sub(r"[^\w\s\-]", "", text)
+
     # Collapse multiple spaces
-    text = re.sub(r'\s+', ' ', text)
-    
+    text = re.sub(r"\s+", " ", text)
+
     # Strip whitespace
     text = text.strip()
-    
+
     return text
 
 
 @dataclass
 class Venue:
     """Represents a known venue with metadata."""
+
     id: str
     canonical_name: str
-    aliases: List[str]
-    city: Optional[str] = None
-    state: Optional[str] = None
-    address: Optional[str] = None
-    
+    aliases: list[str]
+    city: str | None = None
+    state: str | None = None
+    address: str | None = None
+
     def __post_init__(self):
         """Normalize aliases for matching."""
         # Include canonical name in aliases
@@ -166,7 +166,7 @@ KNOWN_VENUES = [
 
 
 # Build lookup index for fast matching
-_venue_lookup: Dict[str, Venue] = {}
+_venue_lookup: dict[str, Venue] = {}
 for venue in KNOWN_VENUES:
     for normalized_alias in venue.normalized_aliases:
         _venue_lookup[normalized_alias] = venue
@@ -176,35 +176,36 @@ for venue in KNOWN_VENUES:
 # VENUE RESOLUTION
 # ============================================================================
 
-def resolve_venue(location_text: str) -> Optional[Venue]:
+
+def resolve_venue(location_text: str) -> Venue | None:
     """
     Resolve a location string to a known venue.
-    
+
     Args:
         location_text: The location string from event data
-    
+
     Returns:
         Venue object if matched, None otherwise
     """
     if not location_text:
         return None
-    
+
     normalized = normalize_location_text(location_text)
-    
+
     # Direct lookup
     if normalized in _venue_lookup:
         return _venue_lookup[normalized]
-    
+
     # Fuzzy matching - check if normalized text contains any venue name
     for venue in KNOWN_VENUES:
         for alias in venue.normalized_aliases:
             if alias in normalized or normalized in alias:
                 return venue
-    
+
     return None
 
 
-def get_venue_by_id(venue_id: str) -> Optional[Venue]:
+def get_venue_by_id(venue_id: str) -> Venue | None:
     """Get a venue by its ID."""
     for venue in KNOWN_VENUES:
         if venue.id == venue_id:
@@ -212,7 +213,7 @@ def get_venue_by_id(venue_id: str) -> Optional[Venue]:
     return None
 
 
-def get_all_venues() -> List[Venue]:
+def get_all_venues() -> list[Venue]:
     """Get list of all known venues."""
     return KNOWN_VENUES.copy()
 
@@ -220,12 +221,12 @@ def get_all_venues() -> List[Venue]:
 def add_venue(venue: Venue) -> None:
     """
     Add a new venue to the registry (runtime only).
-    
+
     Note: This does not persist the venue. For permanent additions,
     update the KNOWN_VENUES list in this module.
     """
     KNOWN_VENUES.append(venue)
-    
+
     # Update lookup index
     for normalized_alias in venue.normalized_aliases:
         _venue_lookup[normalized_alias] = venue

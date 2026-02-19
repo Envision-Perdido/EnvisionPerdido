@@ -10,19 +10,21 @@ Options:
 Requires env vars: WP_SITE_URL, WP_USERNAME, WP_APP_PASSWORD
 """
 
-import os
-import sys
-from pathlib import Path
-from datetime import datetime
 import argparse
 import base64
+import os
+import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
+from pathlib import Path
+
 import requests
 from requests.auth import HTTPBasicAuth
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Add scripts directory to path and load environment
 sys.path.insert(0, str(Path(__file__).parent))
 from env_loader import load_env
+
 load_env()
 
 SITE = os.getenv("WP_SITE_URL", "https://sandbox.envisionperdido.org").rstrip("/")
@@ -42,7 +44,7 @@ def _explicit_auth_header():
     """Return dict of Authorization header (Basic base64(username:password))."""
     user = os.getenv("WP_USERNAME", "")
     pwd = os.getenv("WP_APP_PASSWORD", "")
-    token = base64.b64encode(f"{user}:{pwd}".encode("utf-8")).decode("ascii")
+    token = base64.b64encode(f"{user}:{pwd}".encode()).decode("ascii")
     return {"Authorization": f"Basic {token}"}
 
 
@@ -54,7 +56,7 @@ def fetch_all_events(debug: bool = False):
     """Fetch all events from WordPress."""
     all_events = []
     page = 1
-    
+
     while True:
         try:
             r = requests.get(
@@ -64,14 +66,16 @@ def fetch_all_events(debug: bool = False):
                     "page": page,
                     "status": "any",
                     "orderby": "id",
-                    "order": "desc"
+                    "order": "desc",
                 },
                 auth=AUTH,
                 timeout=30,
             )
             if r.status_code == 200:
                 if debug:
-                    print(f"DEBUG: GET {r.url}\nResponse status: {r.status_code}\nResponse body (truncated):\n{str(r.text)[:1000]}\n--- end debug ---")
+                    print(
+                        f"DEBUG: GET {r.url}\nResponse status: {r.status_code}\nResponse body (truncated):\n{str(r.text)[:1000]}\n--- end debug ---"
+                    )
 
                 try:
                     events = r.json()
@@ -114,10 +118,10 @@ def fetch_all_events(debug: bool = False):
                 try:
                     j = r.json()
                     # Check common error shapes for forbidden status
-                    msg = j.get('message', '') if isinstance(j, dict) else ''
-                    params = j.get('data', {}).get('params', {}) if isinstance(j, dict) else {}
+                    msg = j.get("message", "") if isinstance(j, dict) else ""
+                    params = j.get("data", {}).get("params", {}) if isinstance(j, dict) else {}
                     forbidden_status = False
-                    if 'Status is forbidden' in msg or params.get('status'):
+                    if "Status is forbidden" in msg or params.get("status"):
                         forbidden_status = True
                 except Exception:
                     forbidden_status = False
@@ -133,7 +137,7 @@ def fetch_all_events(debug: bool = False):
                                 "per_page": 100,
                                 "page": page,
                                 "orderby": "id",
-                                "order": "desc"
+                                "order": "desc",
                             },
                             auth=AUTH,
                             timeout=30,
@@ -161,13 +165,17 @@ def fetch_all_events(debug: bool = False):
                                 break
 
                             all_events.extend(events)
-                            log(f"Fetched page {page}: {len(events)} events (after retry without status)")
+                            log(
+                                f"Fetched page {page}: {len(events)} events (after retry without status)"
+                            )
                             page += 1
                             continue
                         else:
                             log(f"Retry without status failed: {r2.status_code}")
                             if debug:
-                                print(f"DEBUG: GET {r2.url}\nResponse status: {r2.status_code}\n{r2.text}")
+                                print(
+                                    f"DEBUG: GET {r2.url}\nResponse status: {r2.status_code}\n{r2.text}"
+                                )
                             break
                     except Exception as e:
                         log(f"Retry without status error: {e}")
@@ -175,11 +183,11 @@ def fetch_all_events(debug: bool = False):
 
                 # Not a forbidden-status case; break out
                 break
-                
+
         except Exception as e:
             log(f"Error fetching events: {e}")
             break
-    
+
     return all_events
 
 
@@ -204,19 +212,19 @@ def delete_event(event_id: int, force: bool = True) -> bool:
                 auth=AUTH,
                 timeout=30,
             )
-        
+
         if r.status_code in (200, 204):
             return True
         else:
             log(f"Failed to delete event {event_id}: {r.status_code}")
             # Print response body when debug enabled to help diagnose 401/403 issues
             try:
-                if os.getenv('DELETE_DEBUG', '').lower() in {'1','true','yes'}:
+                if os.getenv("DELETE_DEBUG", "").lower() in {"1", "true", "yes"}:
                     print(f"DEBUG DELETE {event_id} response:\n{r.text}")
             except Exception:
                 pass
             return False
-            
+
     except Exception as e:
         log(f"Error deleting event {event_id}: {e}")
         return False
@@ -224,41 +232,57 @@ def delete_event(event_id: int, force: bool = True) -> bool:
 
 def delete_events_parallel(events, max_workers=MAX_WORKERS):
     """Delete events in parallel using thread pool.
-    
+
     Returns the number of successfully deleted events.
     """
     deleted_count = 0
     total = len(events)
-    
+
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         # Submit all delete tasks
         future_to_event = {
-            executor.submit(delete_event, event.get("id")): event 
-            for event in events
+            executor.submit(delete_event, event.get("id")): event for event in events
         }
-        
+
         # Process completed deletions as they finish
         for i, future in enumerate(as_completed(future_to_event), 1):
             try:
                 if future.result():
                     deleted_count += 1
-                
+
                 # Progress update every 10 events or on final completion
                 if i % 10 == 0 or i == total:
                     log(f"Progress: {i}/{total} completed")
             except Exception as e:
                 log(f"Unexpected error in deletion task: {e}")
-    
+
     return deleted_count
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Delete all events from WordPress EventON calendar")
-    parser.add_argument('--dry-run', action='store_true', help='List events that would be deleted and exit')
-    parser.add_argument('--yes', action='store_true', help="Skip interactive confirmation (USE WITH CAUTION)")
-    parser.add_argument('--debug', action='store_true', help='Print debug HTTP responses and shapes')
-    parser.add_argument('--explicit-auth', action='store_true', help='Use explicit Authorization header (temporary workaround)')
-    parser.add_argument('--workers', type=int, default=MAX_WORKERS, help=f'Number of parallel delete threads (default: {MAX_WORKERS})')
+    parser = argparse.ArgumentParser(
+        description="Delete all events from WordPress EventON calendar"
+    )
+    parser.add_argument(
+        "--dry-run", action="store_true", help="List events that would be deleted and exit"
+    )
+    parser.add_argument(
+        "--yes", action="store_true", help="Skip interactive confirmation (USE WITH CAUTION)"
+    )
+    parser.add_argument(
+        "--debug", action="store_true", help="Print debug HTTP responses and shapes"
+    )
+    parser.add_argument(
+        "--explicit-auth",
+        action="store_true",
+        help="Use explicit Authorization header (temporary workaround)",
+    )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=MAX_WORKERS,
+        help=f"Number of parallel delete threads (default: {MAX_WORKERS})",
+    )
     args = parser.parse_args()
 
     log("Starting WordPress event deletion...")
@@ -268,14 +292,16 @@ def main():
         return
     # Honor CLI flag or environment variable to enable explicit Authorization header
     global USE_EXPLICIT_AUTH
-    env_flag = os.getenv('DELETE_USE_EXPLICIT_AUTH', '').lower() in {'1', 'true', 'yes'}
+    env_flag = os.getenv("DELETE_USE_EXPLICIT_AUTH", "").lower() in {"1", "true", "yes"}
     USE_EXPLICIT_AUTH = args.explicit_auth or env_flag
     if USE_EXPLICIT_AUTH:
-        log("NOTICE: Using explicit Authorization header for DELETE requests (temporary workaround).")
-    
+        log(
+            "NOTICE: Using explicit Authorization header for DELETE requests (temporary workaround)."
+        )
+
     # Set worker count
     workers = args.workers
-    
+
     # Fetch all events
     log("Fetching all events...")
     events = fetch_all_events(debug=args.debug)
@@ -289,27 +315,29 @@ def main():
     if args.dry_run:
         print("\nDRY RUN: The following events would be deleted:\n")
         for ev in events:
-            eid = ev.get('id')
-            title = ev.get('title', {}).get('rendered', 'Unknown')
+            eid = ev.get("id")
+            title = ev.get("title", {}).get("rendered", "Unknown")
             print(f" - {eid}: {title}")
         print(f"\nTotal: {len(events)} events")
         return
 
     # Confirm deletion
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("WARNING: This will permanently delete ALL events from WordPress!")
-    print("="*80)
+    print("=" * 80)
     if not args.yes:
-        response = input(f"Delete all {len(events)} events? (type 'DELETE ALL' to confirm): ").strip()
+        response = input(
+            f"Delete all {len(events)} events? (type 'DELETE ALL' to confirm): "
+        ).strip()
 
         if response != "DELETE ALL":
             log("Deletion cancelled.")
             return
-    
+
     # Delete all events
     log("\nDeleting events...")
     deleted = delete_events_parallel(events, max_workers=workers)
-    
+
     log(f"\nDone! Deleted {deleted}/{len(events)} events.")
 
 

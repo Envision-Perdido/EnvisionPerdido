@@ -11,12 +11,12 @@ The module gracefully handles missing optional dependencies:
 - zoneinfo/backports.zoneinfo/dateutil for timezone handling
 """
 
-import time
-import re
 import csv
 import json
-from urllib.parse import urlparse, urljoin
-from datetime import datetime
+import re
+import time
+from urllib.parse import urljoin, urlparse
+
 try:
     from zoneinfo import ZoneInfo
 except ImportError:
@@ -24,26 +24,31 @@ except ImportError:
     # packages
     try:
         import importlib
+
         _bz = importlib.import_module("backports.zoneinfo")
         ZoneInfo = getattr(_bz, "ZoneInfo")
     except (ImportError, AttributeError):
         try:
             import importlib
+
             _dt = importlib.import_module("dateutil.tz")
             # dateutil.tz.gettz returns a tzinfo-like object when called
             # with a name
             ZoneInfo = getattr(_dt, "gettz")
         except (ImportError, AttributeError):
             ZoneInfo = None
-            print("Warning: no ZoneInfo implementation available; install "
-                  "Python 3.9+, backports.zoneinfo, or python-dateutil to "
-                  "enable timezone support.")
+            print(
+                "Warning: no ZoneInfo implementation available; install "
+                "Python 3.9+, backports.zoneinfo, or python-dateutil to "
+                "enable timezone support."
+            )
 
 import importlib
+from typing import TYPE_CHECKING
+
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
-from typing import Optional, TYPE_CHECKING, List, Dict
 
 # Allow static type checkers to see BeautifulSoup without importing it at
 # runtime
@@ -57,16 +62,20 @@ try:
     BeautifulSoup = getattr(_bs, "BeautifulSoup")
 except (ImportError, AttributeError):
     BeautifulSoup = None
-    print("Warning: 'bs4' (BeautifulSoup) package not found. Install with "
-          "'pip install beautifulsoup4' to enable HTML parsing.")
+    print(
+        "Warning: 'bs4' (BeautifulSoup) package not found. Install with "
+        "'pip install beautifulsoup4' to enable HTML parsing."
+    )
 
 try:
     _ical = importlib.import_module("icalendar")
     Calendar = getattr(_ical, "Calendar")
 except (ImportError, AttributeError):
     Calendar = None
-    print("Warning: 'icalendar' package not found. Install with "
-          "'pip install icalendar' to enable ICS parsing.")
+    print(
+        "Warning: 'icalendar' package not found. Install with "
+        "'pip install icalendar' to enable ICS parsing."
+    )
 import os
 
 
@@ -74,32 +83,32 @@ def create_session_with_retries(
     retries: int = 5,
     backoff_factor: float = 0.5,
     status_forcelist: tuple = (429, 503),
-    timeout: int = 30
+    timeout: int = 30,
 ) -> requests.Session:
     """Create a requests session with exponential backoff retry strategy.
-    
+
     Args:
         retries: Maximum number of retries (default: 5)
         backoff_factor: Exponential backoff factor (default: 0.5)
         status_forcelist: HTTP status codes to retry on (default: 429, 503)
         timeout: Request timeout in seconds (default: 30)
-    
+
     Returns:
         Configured requests.Session with retry strategy mounted.
     """
     session = requests.Session()
-    
+
     retry_strategy = Retry(
         total=retries,
         backoff_factor=backoff_factor,
         status_forcelist=status_forcelist,
-        allowed_methods=["GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS"]
+        allowed_methods=["GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS"],
     )
-    
+
     adapter = HTTPAdapter(max_retries=retry_strategy)
-    session.mount('http://', adapter)
-    session.mount('https://', adapter)
-    
+    session.mount("http://", adapter)
+    session.mount("https://", adapter)
+
     return session
 
 
@@ -109,12 +118,16 @@ BASE = "https://business.perdidochamber.com"
 MONTH_URL = "https://business.perdidochamber.com/events/calendar/2025-09-01"
 
 sess = create_session_with_retries()
-sess.headers.update({
-    # Mimic a browser to prevent the scraper from being blocked
-    "User-Agent": ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                   "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472"
-                   ".114 Safari/537.36")
-})
+sess.headers.update(
+    {
+        # Mimic a browser to prevent the scraper from being blocked
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472"
+            ".114 Safari/537.36"
+        )
+    }
+)
 
 ## SiteMap URL: https://business.perdidochamber.com/SiteMap.xml
 ## List of all URL's we can scrape according to their robots.txt
@@ -123,13 +136,13 @@ sess.headers.update({
 
 def get_event_url(month_url: str) -> list[str]:
     """Get event detail URLs from a chamber calendar month view.
-    
+
     Args:
         month_url: URL to the chamber calendar month view.
-    
+
     Returns:
         List of unique event detail URLs.
-    
+
     Raises:
         RuntimeError: If BeautifulSoup is not available.
         requests.RequestException: If HTTP request fails.
@@ -140,16 +153,13 @@ def get_event_url(month_url: str) -> list[str]:
 
     # Parse the HTML content of the page
     if BeautifulSoup is None:
-        raise RuntimeError(
-            "BeautifulSoup is required to parse HTML; install "
-            "beautifulsoup4"
-        )
-    soup = BeautifulSoup(response.text, 'html.parser')
+        raise RuntimeError("BeautifulSoup is required to parse HTML; install beautifulsoup4")
+    soup = BeautifulSoup(response.text, "html.parser")
 
     # Collect the event detail links
     event_links = []
     for anchor in soup.select('a[href*="/events/details"]'):
-        href = anchor.get('href')
+        href = anchor.get("href")
         if href:
             event_links.append(urljoin(BASE, href))
 
@@ -161,43 +171,39 @@ def get_event_url(month_url: str) -> list[str]:
             unique_links.append(link)
     return unique_links
 
+
 def find_ics_links(soup) -> str | None:
     """Find iCalendar download link on an event detail page.
-    
+
     Args:
         soup: BeautifulSoup parsed HTML object.
-    
+
     Returns:
         URL to ICS file, or None if not found.
     """
-    anchor = soup.find(
-        'a',
-        string=re.compile(
-            r'Add to Calendar\s*-\s*iCal',
-            re.IGNORECASE
-        )
-    )
-    if anchor and anchor.get('href'):
-        return urljoin(BASE, anchor['href'])
-    
+    anchor = soup.find("a", string=re.compile(r"Add to Calendar\s*-\s*iCal", re.IGNORECASE))
+    if anchor and anchor.get("href"):
+        return urljoin(BASE, anchor["href"])
+
     generic = soup.select_one('a[href$=".ics"]')
-    if generic and generic.get('href'):
-        return urljoin(BASE, generic['href'])
-    
+    if generic and generic.get("href"):
+        return urljoin(BASE, generic["href"])
+
     return None
+
 
 def get_ics_url_from_event(event_url: str) -> str | None:
     """Fetches the ICS URL from the event page.
-    
-       GrowthZone event detail pages include an "Add to Calendar -> iCal" link 
-       that points to an ICS file. If that link cannot be found, this function
-       falls back to constructing the .ics URL from the event detil slug.
 
-       Args:
-           event_url (str): The URL of the event detail page.
+    GrowthZone event detail pages include an "Add to Calendar -> iCal" link
+    that points to an ICS file. If that link cannot be found, this function
+    falls back to constructing the .ics URL from the event detil slug.
 
-       Returns:
-           str | None: The URL of the ICS file, or None if it cannot be found.
+    Args:
+        event_url (str): The URL of the event detail page.
+
+    Returns:
+        str | None: The URL of the ICS file, or None if it cannot be found.
     """
     try:
         time.sleep(1)  # be polite and avoid overwhelming the server
@@ -211,23 +217,24 @@ def get_ics_url_from_event(event_url: str) -> str | None:
         print("Cannot parse event page HTML because BeautifulSoup is not installed.")
         return None
 
-    soup = BeautifulSoup(response.text, 'html.parser')
-    
+    soup = BeautifulSoup(response.text, "html.parser")
+
     # Look for the "Add to Calendar -> iCal" link
     ics_link = find_ics_links(soup)
     if ics_link:
         return ics_link
-    
+
     # Fallback: Construct the ICS URL from the event detail slug
-    match = re.search(r'/events/details/([^/]+)', urlparse(event_url).path)
+    match = re.search(r"/events/details/([^/]+)", urlparse(event_url).path)
     if match:
         event_slug = match.group(1)
         return urljoin(BASE, f"/events/ical/{event_slug}.ics")
     else:
         return None
 
-#ics fetching and parsing 
-def fetch_calendar(ics_url: str) -> Optional[object]:
+
+# ics fetching and parsing
+def fetch_calendar(ics_url: str) -> object | None:
     # If the icalendar package is not available, skip ICS fetching.
     if Calendar is None:
         print("Cannot fetch ICS files because the 'icalendar' package is not installed.")
@@ -239,10 +246,10 @@ def fetch_calendar(ics_url: str) -> Optional[object]:
         response = sess.get(ics_url, timeout=30)
         response.raise_for_status()
         # use Calendar.from_ical when available
-        if Calendar is not None and hasattr(Calendar, 'from_ical'):
+        if Calendar is not None and hasattr(Calendar, "from_ical"):
             return Calendar.from_ical(response.content)
         # fallback to module-level _ical if available
-        if '_ical' in globals() and hasattr(_ical, 'Calendar'):
+        if "_ical" in globals() and hasattr(_ical, "Calendar"):
             return _ical.Calendar.from_ical(response.content)
     except requests.RequestException as e:
         print(f"Error fetching ICS file {ics_url}: {e}")
@@ -251,52 +258,55 @@ def fetch_calendar(ics_url: str) -> Optional[object]:
 
     return None
 
+
 def _dt_to_iso(v):
-    #handle date or datetime with or without timezone, convert to America/Chicago, return ISO format string
+    # handle date or datetime with or without timezone, convert to America/Chicago, return ISO format string
 
     if not v:
         return None
-    
-    #icalendar stores time as vDDDTypes; .dt can be date or datetime
-    dt = getattr(v, 'dt', v)
-    
+
+    # icalendar stores time as vDDDTypes; .dt can be date or datetime
+    dt = getattr(v, "dt", v)
+
     try:
-        #if it's a datetime with timezone info, convert to America/Chicago
-        if hasattr(dt, 'tzinfo') and dt.tzinfo is not None:
+        # if it's a datetime with timezone info, convert to America/Chicago
+        if hasattr(dt, "tzinfo") and dt.tzinfo is not None:
             local_tz = ZoneInfo(os.getenv("SITE_TIMEZONE", "America/Chicago"))
             dt = dt.astimezone(local_tz)
             # Return naive local time (remove timezone for consistency with downstream code)
             return dt.replace(tzinfo=None).isoformat()
-        #if its a date or naive datetime, return as-is
-        if hasattr(dt, 'isoformat'):
+        # if its a date or naive datetime, return as-is
+        if hasattr(dt, "isoformat"):
             return dt.isoformat()
-        
-        #fallback: convert to string
+
+        # fallback: convert to string
         return str(dt)
     except Exception:
         return str(dt)
 
+
 def _text_or_none(val):
     return str(val) if val is not None else None
 
-def parse_calendar_to_events(cal, source_ics: str, source_page: Optional[str] = None) -> List[Dict]:
+
+def parse_calendar_to_events(cal, source_ics: str, source_page: str | None = None) -> list[dict]:
     # extract VEVENTS into a list of normalized dicts
     events = []
     if cal is None:
         return events
-    
+
     for component in cal.walk():
         # Some icalendar implementations require checking .name
-        if getattr(component, 'name', '').upper() != 'VEVENT':
+        if getattr(component, "name", "").upper() != "VEVENT":
             continue
-        summary = _text_or_none(component.get('SUMMARY'))
-        description = _text_or_none(component.get('DESCRIPTION'))
-        location = _text_or_none(component.get('LOCATION'))
-        url = _text_or_none(component.get('URL'))
-        uid = _text_or_none(component.get('UID'))
-        category = _text_or_none(component.get('CATEGORIES'))
+        summary = _text_or_none(component.get("SUMMARY"))
+        description = _text_or_none(component.get("DESCRIPTION"))
+        location = _text_or_none(component.get("LOCATION"))
+        url = _text_or_none(component.get("URL"))
+        uid = _text_or_none(component.get("UID"))
+        category = _text_or_none(component.get("CATEGORIES"))
         if category is not None:
-            #categories can be a vText or list-like; normalize
+            # categories can be a vText or list-like; normalize
             try:
                 category = list(category.cats)
             except Exception:
@@ -306,22 +316,22 @@ def parse_calendar_to_events(cal, source_ics: str, source_page: Optional[str] = 
             "title": summary,
             "description": description,
             "location": location,
-            "start": _dt_to_iso(component.get('DTSTART')),
-            "end": _dt_to_iso(component.get('DTEND')),
+            "start": _dt_to_iso(component.get("DTSTART")),
+            "end": _dt_to_iso(component.get("DTEND")),
             "url": url,
             "uid": uid,
             "category": category,
-            "last_modified": _dt_to_iso(component.get('LAST-MODIFIED')),
-            "created": _dt_to_iso(component.get('CREATED')),
-
-            #provencence
+            "last_modified": _dt_to_iso(component.get("LAST-MODIFIED")),
+            "created": _dt_to_iso(component.get("CREATED")),
+            # provencence
             "source_ics": source_ics,
-            "source_page": source_page
+            "source_page": source_page,
         }
 
         events.append(event)
-        
+
     return events
+
 
 def scrape_month(month_url: str, pause_seconds: float = 0.4) -> list[dict]:
     # Scrape all events from a month view URL
@@ -332,7 +342,7 @@ def scrape_month(month_url: str, pause_seconds: float = 0.4) -> list[dict]:
         event_pages = get_event_url(month_url)
     except Exception as e:
         print(f"Error fetching event URLs from {month_url}: {e}")
-        return all_events   
+        return all_events
     print(f"Found {len(event_pages)} event pages in month view.")
 
     seen_ics: set[str] = set()
@@ -341,7 +351,7 @@ def scrape_month(month_url: str, pause_seconds: float = 0.4) -> list[dict]:
             ics = get_ics_url_from_event(page_url)
             if not ics:
                 errors.append(f"No ICS link found on event page {page_url}")
-                continue    
+                continue
 
             if ics in seen_ics:
                 continue
@@ -363,33 +373,42 @@ def scrape_month(month_url: str, pause_seconds: float = 0.4) -> list[dict]:
             print(f"  ... and {len(errors) - 5} more errors.")
     return all_events
 
-#save to JSON/csv
+
+# save to JSON/csv
 def save_events_json(events: list[dict], path: str = "perdido_events.json"):
     with open(path, "w", encoding="utf-8") as f:
         json.dump(events, f, ensure_ascii=False, indent=2)
 
-def save_events_csv(events: list[dict], path: str = "perdido_events.csv"):   
+
+def save_events_csv(events: list[dict], path: str = "perdido_events.csv"):
     if not events:
         print("No events to save.")
         return
 
     cols = [
-        "title", "start", "end", "location", "url",
-        "description", "uid", "category",
-    ]         
+        "title",
+        "start",
+        "end",
+        "location",
+        "url",
+        "description",
+        "uid",
+        "category",
+    ]
 
-    #flatten categories
+    # flatten categories
     def rowify(e):
         r = {k: e.get(k) for k in cols}
         if isinstance(r.get("category"), list):
             r["category"] = ";".join(filter(None, map(str, r["category"])))
         return r
-    
-    with open(path, "w", newline = "", encoding = "utf-8") as f:
+
+    with open(path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=cols)
         writer.writeheader()
         for event in events:
             writer.writerow(rowify(event))
+
 
 if __name__ == "__main__":
     print("[runner] starting scrape for all months in 2025...", flush=True)
@@ -412,13 +431,10 @@ if __name__ == "__main__":
     print(f"[runner] total events scraped: {len(all_events)}", flush=True)
 
     json_path = os.path.join(OUT_DIR, "perdido_events_2025.json")
-    csv_path  = os.path.join(OUT_DIR, "perdido_events_2025.csv")
+    csv_path = os.path.join(OUT_DIR, "perdido_events_2025.csv")
 
     save_events_json(all_events, json_path)
     save_events_csv(all_events, csv_path)
 
     print(f"[runner] wrote:\n  - {json_path}\n  - {csv_path}", flush=True)
     print("[done]", flush=True)
-
-
-

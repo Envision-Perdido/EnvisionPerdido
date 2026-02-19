@@ -1,19 +1,21 @@
-import joblib
-from pathlib import Path
 import sys
+from pathlib import Path
 
+import joblib
 
 # Resolve artifact paths relative to the repository root so this script runs
 # regardless of where the repository is located on disk.
 REPO_ROOT = Path(__file__).resolve().parent.parent
-ARTIFACTS_DIR = REPO_ROOT / 'data' / 'artifacts'
-model_path = ARTIFACTS_DIR / 'event_classifier_model.pkl'
-vectorizer_path = ARTIFACTS_DIR / 'event_vectorizer.pkl'
+ARTIFACTS_DIR = REPO_ROOT / "data" / "artifacts"
+model_path = ARTIFACTS_DIR / "event_classifier_model.pkl"
+vectorizer_path = ARTIFACTS_DIR / "event_vectorizer.pkl"
 
 
 def load_or_raise(p: Path):
     if not p.exists():
-        raise FileNotFoundError(f"Expected artifact not found: {p}\n(looking relative to repo root: {REPO_ROOT})")
+        raise FileNotFoundError(
+            f"Expected artifact not found: {p}\n(looking relative to repo root: {REPO_ROOT})"
+        )
     return joblib.load(p)
 
 
@@ -30,7 +32,7 @@ def main():
         # Example: Predict on new data
         example_texts = [
             "Sample event description about a community cleanup.",
-            "Join us for a music festival downtown!"
+            "Join us for a music festival downtown!",
         ]
         X = vectorizer.transform(example_texts)
         predictions = model.predict(X)
@@ -45,5 +47,5 @@ def main():
         sys.exit(1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

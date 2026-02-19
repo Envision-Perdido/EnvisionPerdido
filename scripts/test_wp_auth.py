@@ -14,34 +14,36 @@ This means you're NOT properly authenticated with EDIT privileges.
 Solution: Generate a new app password in WordPress.
 """
 
+import base64
 import os
 import sys
-import requests
-import base64
 from pathlib import Path
+
+import requests
 
 # Add scripts directory to path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from env_loader import load_env
 
+
 def test_authentication():
     """Test if user is properly authenticated"""
     load_env(verbose=False)
-    
-    site_url = os.environ.get('WP_SITE_URL', '').rstrip('/')
-    username = os.environ.get('WP_USERNAME', '')
-    app_password = os.environ.get('WP_APP_PASSWORD', '')
-    
+
+    site_url = os.environ.get("WP_SITE_URL", "").rstrip("/")
+    username = os.environ.get("WP_USERNAME", "")
+    app_password = os.environ.get("WP_APP_PASSWORD", "")
+
     if not all([site_url, username, app_password]):
         print("❌ Missing credentials in environment!")
         return False
-    
+
     # Create Basic Auth header
     creds_str = f"{username}:{app_password}"
     creds_b64 = base64.b64encode(creds_str.encode()).decode()
-    headers = {'Authorization': f'Basic {creds_b64}'}
-    
+    headers = {"Authorization": f"Basic {creds_b64}"}
+
     print("=" * 70)
     print("WORDPRESS AUTHENTICATION DIAGNOSTIC")
     print("=" * 70)
@@ -49,30 +51,27 @@ def test_authentication():
     print(f"Testing credentials for user: {username}")
     print(f"WordPress Site: {site_url}")
     print()
-    
+
     # Test 1: /users/me (requires proper authentication with Basic Auth)
     print("🔑 TEST 1: /wp-json/wp/v2/users/me")
     print("   (Verifies Basic Auth is working)")
     print("   " + "-" * 60)
-    
+
     try:
         response = requests.get(
-            f"{site_url}/wp-json/wp/v2/users/me",
-            headers=headers,
-            verify=False,
-            timeout=10
+            f"{site_url}/wp-json/wp/v2/users/me", headers=headers, verify=False, timeout=10
         )
-        
+
         if response.status_code == 200:
             user = response.json()
             print(f"   ✅ STATUS: {response.status_code} OK")
             print(f"   ✅ Authenticated as: {user.get('name', 'Unknown')}")
             print(f"   ✅ User ID: {user.get('id')}")
             print(f"   ✅ Email: {user.get('email')}")
-            
+
             # Check capabilities
-            caps = user.get('capabilities', {})
-            has_edit = 'edit_posts' in caps or 'edit_ajde_events' in caps
+            caps = user.get("capabilities", {})
+            has_edit = "edit_posts" in caps or "edit_ajde_events" in caps
             print(f"   ✅ Has EDIT capability: {has_edit}")
             test1_pass = True
         else:
@@ -81,26 +80,26 @@ def test_authentication():
             print(f"   ❌ Error: {error_resp.get('code', 'UNKNOWN')}")
             print(f"   ❌ Message: {error_resp.get('message', 'No message')}")
             test1_pass = False
-    
+
     except Exception as e:
         print(f"   ❌ Exception: {str(e)}")
         test1_pass = False
-    
+
     print()
-    
+
     # Test 2: GET published events (should work)
     print("📋 TEST 2: GET /wp-json/wp/v2/ajde_events (published)")
     print("   (Should work with or without auth)")
     print("   " + "-" * 60)
-    
+
     try:
         response = requests.get(
             f"{site_url}/wp-json/wp/v2/ajde_events?per_page=5",
             headers=headers,
             verify=False,
-            timeout=10
+            timeout=10,
         )
-        
+
         if response.status_code == 200:
             events = response.json()
             print(f"   ✅ STATUS: {response.status_code} OK")
@@ -109,30 +108,30 @@ def test_authentication():
         else:
             print(f"   ❌ STATUS: {response.status_code}")
             test2_pass = False
-    
+
     except Exception as e:
         print(f"   ❌ Exception: {str(e)}")
         test2_pass = False
-    
+
     print()
-    
+
     # Test 3: GET with status=any (requires EDIT privileges)
     print("🔒 TEST 3: GET /wp-json/wp/v2/ajde_events?status=any")
     print("   (Requires EDIT privileges - this is where it likely fails)")
     print("   " + "-" * 60)
-    
+
     try:
         response = requests.get(
             f"{site_url}/wp-json/wp/v2/ajde_events?per_page=5&status=any",
             headers=headers,
             verify=False,
-            timeout=10
+            timeout=10,
         )
-        
+
         if response.status_code == 200:
             events = response.json()
             print(f"   ✅ STATUS: {response.status_code} OK")
-            print(f"   ✅ Can access ALL statuses (drafts, published, etc)")
+            print("   ✅ Can access ALL statuses (drafts, published, etc)")
             print(f"   ✅ Found {len(events)} events")
             test3_pass = True
         elif response.status_code == 400:
@@ -140,23 +139,23 @@ def test_authentication():
             print(f"   ❌ STATUS: {response.status_code}")
             print(f"   ❌ Error Code: {error_resp.get('code')}")
             print(f"   ❌ Message: {error_resp.get('message')}")
-            print(f"   ➜ This means you don't have EDIT privileges")
+            print("   ➜ This means you don't have EDIT privileges")
             test3_pass = False
         else:
             print(f"   ❌ STATUS: {response.status_code}")
             print(f"   ❌ Response: {response.text[:200]}")
             test3_pass = False
-    
+
     except Exception as e:
         print(f"   ❌ Exception: {str(e)}")
         test3_pass = False
-    
+
     print()
     print("=" * 70)
     print("DIAGNOSIS")
     print("=" * 70)
     print()
-    
+
     if test1_pass:
         print("✅ Your credentials ARE properly authenticated!")
         print()
@@ -192,6 +191,7 @@ def test_authentication():
         print("  7. Run this test again")
         print()
         return False
+
 
 if __name__ == "__main__":
     success = test_authentication()

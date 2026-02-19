@@ -1,6 +1,7 @@
 """Pytest configuration and fixtures for all tests."""
 
 import pytest
+
 from scripts.logger import reset_logger
 
 

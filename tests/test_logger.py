@@ -1,15 +1,13 @@
 """Tests for structured logging system."""
 
 import json
-import logging
-import os
-import pytest
 import tempfile
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+
+import pytest
 
 # Import the logger we'll create
-from scripts.logger import PipelineLogger, get_logger, PipelineMetrics, reset_logger
+from scripts.logger import PipelineLogger, PipelineMetrics, get_logger, reset_logger
 
 
 class TestPipelineMetrics:
@@ -23,7 +21,7 @@ class TestPipelineMetrics:
         metrics.add_skipped_duplicates(5)
         metrics.add_uploaded(40)
         metrics.add_error("test error")
-        
+
         assert metrics.scraped == 50
         assert metrics.classified == 45
         assert metrics.skipped_duplicates == 5
@@ -37,7 +35,7 @@ class TestPipelineMetrics:
         metrics.add_scraped(100)
         metrics.add_classified(95)
         metrics.add_uploaded(90)
-        
+
         summary = metrics.get_summary()
         assert "100 events scraped" in summary
         assert "95 events classified" in summary
@@ -49,7 +47,7 @@ class TestPipelineMetrics:
         metrics.add_scraped(100)
         metrics.add_error("Network timeout on Perdido Chamber")
         metrics.add_error("Missing image config")
-        
+
         summary = metrics.get_summary()
         assert "Errors: 2" in summary
         assert "Network timeout" in summary
@@ -71,6 +69,7 @@ class TestPipelineLogger:
         finally:
             # Cleanup
             import shutil
+
             shutil.rmtree(tmpdir, ignore_errors=True)
 
     def test_log_file_created(self):
@@ -84,6 +83,7 @@ class TestPipelineLogger:
             logger.__exit__(None, None, None)
         finally:
             import shutil
+
             shutil.rmtree(tmpdir, ignore_errors=True)
 
     def test_info_logging(self):
@@ -93,7 +93,7 @@ class TestPipelineLogger:
             logger = PipelineLogger(log_dir=tmpdir)
             logger.info("Test info message")
             logger.file_handler.flush()  # Ensure write
-            
+
             # Read the log file
             log_file = list(Path(tmpdir).glob("pipeline_*.log"))[0]
             content = log_file.read_text()
@@ -101,6 +101,7 @@ class TestPipelineLogger:
             logger.__exit__(None, None, None)
         finally:
             import shutil
+
             shutil.rmtree(tmpdir, ignore_errors=True)
 
     def test_warning_logging(self):
@@ -110,13 +111,14 @@ class TestPipelineLogger:
             logger = PipelineLogger(log_dir=tmpdir)
             logger.warning("Test warning message")
             logger.file_handler.flush()
-            
+
             log_file = list(Path(tmpdir).glob("pipeline_*.log"))[0]
             content = log_file.read_text()
             assert "Test warning message" in content
             logger.__exit__(None, None, None)
         finally:
             import shutil
+
             shutil.rmtree(tmpdir, ignore_errors=True)
 
     def test_error_logging(self):
@@ -126,13 +128,14 @@ class TestPipelineLogger:
             logger = PipelineLogger(log_dir=tmpdir)
             logger.error("Test error message")
             logger.file_handler.flush()
-            
+
             log_file = list(Path(tmpdir).glob("pipeline_*.log"))[0]
             content = log_file.read_text()
             assert "Test error message" in content
             logger.__exit__(None, None, None)
         finally:
             import shutil
+
             shutil.rmtree(tmpdir, ignore_errors=True)
 
     def test_json_log_format(self):
@@ -142,26 +145,27 @@ class TestPipelineLogger:
             logger = PipelineLogger(log_dir=tmpdir)
             logger.info("Test message with JSON")
             logger.file_handler.flush()
-            
+
             log_file = list(Path(tmpdir).glob("pipeline_*.log"))[0]
-            lines = log_file.read_text().strip().split('\n')
-            
+            lines = log_file.read_text().strip().split("\n")
+
             # At least one line should be valid JSON
             json_lines = [l for l in lines if l.strip()]
             assert len(json_lines) > 0
-            
+
             # Try to parse as JSON
             try:
                 parsed = json.loads(json_lines[0])
-                assert 'message' in parsed
-                assert 'level' in parsed
-                assert 'timestamp' in parsed
+                assert "message" in parsed
+                assert "level" in parsed
+                assert "timestamp" in parsed
             except json.JSONDecodeError:
                 pytest.fail("Log line is not valid JSON")
-            
+
             logger.__exit__(None, None, None)
         finally:
             import shutil
+
             shutil.rmtree(tmpdir, ignore_errors=True)
 
     def test_console_output_human_readable(self, capsys):
@@ -170,16 +174,17 @@ class TestPipelineLogger:
         try:
             logger = PipelineLogger(log_dir=tmpdir)
             logger.info("Human readable test")
-            
+
             captured = capsys.readouterr()
             # Console should not have raw JSON (should have timestamp format)
             assert "Human readable test" in captured.out
             # Should have timestamp like [2026-01-14 HH:MM:SS]
             assert "[" in captured.out and "]" in captured.out
-            
+
             logger.__exit__(None, None, None)
         finally:
             import shutil
+
             shutil.rmtree(tmpdir, ignore_errors=True)
 
     def test_logger_context_manager(self):
@@ -189,12 +194,13 @@ class TestPipelineLogger:
             with PipelineLogger(log_dir=tmpdir) as logger:
                 logger.info("Test within context")
                 assert logger is not None
-            
+
             # After context, logger should be cleaned up
             log_file = list(Path(tmpdir).glob("pipeline_*.log"))[0]
             assert "Test within context" in log_file.read_text()
         finally:
             import shutil
+
             shutil.rmtree(tmpdir, ignore_errors=True)
 
     def test_logger_methods_exist(self):
@@ -202,22 +208,23 @@ class TestPipelineLogger:
         tmpdir = tempfile.mkdtemp()
         try:
             logger = PipelineLogger(log_dir=tmpdir)
-            
+
             # Check methods exist and are callable
-            assert hasattr(logger, 'info')
+            assert hasattr(logger, "info")
             assert callable(logger.info)
-            assert hasattr(logger, 'warning')
+            assert hasattr(logger, "warning")
             assert callable(logger.warning)
-            assert hasattr(logger, 'error')
+            assert hasattr(logger, "error")
             assert callable(logger.error)
-            assert hasattr(logger, 'critical')
+            assert hasattr(logger, "critical")
             assert callable(logger.critical)
-            assert hasattr(logger, 'debug')
+            assert hasattr(logger, "debug")
             assert callable(logger.debug)
-            
+
             logger.__exit__(None, None, None)
         finally:
             import shutil
+
             shutil.rmtree(tmpdir, ignore_errors=True)
 
     def test_get_logger_singleton(self):
@@ -229,10 +236,10 @@ class TestPipelineLogger:
             # Create another with same dir - should be same instance
             logger2 = get_logger(log_dir=tmpdir)
             assert logger1 is logger2
-            
+
             logger1.__exit__(None, None, None)
             reset_logger()
         finally:
             import shutil
-            shutil.rmtree(tmpdir, ignore_errors=True)
 
+            shutil.rmtree(tmpdir, ignore_errors=True)

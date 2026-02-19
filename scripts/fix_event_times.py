@@ -17,6 +17,7 @@ Requires env vars: WP_SITE_URL, WP_USERNAME, WP_APP_PASSWORD
 import os
 from datetime import datetime
 from zoneinfo import ZoneInfo
+
 import requests
 from requests.auth import HTTPBasicAuth
 
@@ -50,7 +51,13 @@ def _compose_dt(date_str: str, hour_str: str, min_str: str, ampm: str) -> dateti
 def fetch_events(page: int = 1, per_page: int = 100):
     r = requests.get(
         f"{API}/ajde_events",
-        params={"per_page": per_page, "page": page, "status": "any", "orderby": "id", "order": "desc"},
+        params={
+            "per_page": per_page,
+            "page": page,
+            "status": "any",
+            "orderby": "id",
+            "order": "desc",
+        },
         auth=AUTH,
         timeout=30,
     )
@@ -74,7 +81,11 @@ def fix_event(event: dict) -> bool:
     changed = False
 
     # Reconstruct start
-    start_local = _compose_dt(s_date, s_hour, s_min, s_ampm) if s_date and s_hour and s_min and s_ampm else None
+    start_local = (
+        _compose_dt(s_date, s_hour, s_min, s_ampm)
+        if s_date and s_hour and s_min and s_ampm
+        else None
+    )
     if start_local:
         start_utc = start_local.astimezone(UTC)
         new_srow = str(int(start_utc.timestamp()))
@@ -83,7 +94,11 @@ def fix_event(event: dict) -> bool:
             changed = True
 
     # Reconstruct end
-    end_local = _compose_dt(e_date, e_hour, e_min, e_ampm) if e_date and e_hour and e_min and e_ampm else None
+    end_local = (
+        _compose_dt(e_date, e_hour, e_min, e_ampm)
+        if e_date and e_hour and e_min and e_ampm
+        else None
+    )
     if end_local:
         end_utc = end_local.astimezone(UTC)
         new_erow = str(int(end_utc.timestamp()))
