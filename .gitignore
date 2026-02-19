@@ -38,6 +38,7 @@ output/pipeline/*.json
 
 # Ignore ad-hoc debug scripts (contain creds; do not commit)
 check_*.py
+!scripts/check_evcal_srow.py
 compare_events.py
 fix_eventon_metadata.py
 
