@@ -9,5 +9,5 @@ tqdm
 numpy
 pandas
 scipy
-scikit-learn==1.7.2
+scikit-learn==1.8.0
 joblib
