@@ -19,7 +19,7 @@ export WP_APP_PASSWORD="xxxx xxxx xxxx xxxx xxxx xxxx"
 Run the cross-platform Python deleter:
 
 ```zsh
-python scripts/delete_all_events.py
+python scripts/maintenance/delete_all_events.py
 ```
 
 This will prompt for an explicit confirmation string `DELETE ALL` before performing destructive deletion.

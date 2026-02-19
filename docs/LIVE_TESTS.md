@@ -36,11 +36,11 @@ export WP_USERNAME="user"
 export WP_APP_PASSWORD="app-password"
 
 # 2) Run the test (this will perform a GET and a POST on the site)
-RUN_LIVE_SITE_TESTS=1 ~/.virtualenvs/envisionperdido/bin/python scripts/test_hour_format.py
+RUN_LIVE_SITE_TESTS=1 ~/.virtualenvs/envisionperdido/bin/python scripts/dev/test_hour_format.py
 
 Alternative: use a local secrets file
 -------------------------------------
 # create ~/.secrets/envision_env.ps1 with PowerShell lines as shown above
-RUN_LIVE_SITE_TESTS=1 ~/.virtualenvs/envisionperdido/bin/python scripts/test_hour_format.py
+RUN_LIVE_SITE_TESTS=1 ~/.virtualenvs/envisionperdido/bin/python scripts/dev/test_hour_format.py
 
 If you want me to add a `pytest` marker (e.g., @pytest.mark.live) instead of the module-level skip, I can implement that and update CI accordingly.
