@@ -133,7 +133,7 @@ git pull origin main
 
 # Run tests/health checks
 python -m pytest
-./scripts/check_evcal_srow.py
+./scripts/dev/check_evcal_srow.py
 
 # Merge dev into main (no fast-forward recommended)
 git merge --no-ff dev

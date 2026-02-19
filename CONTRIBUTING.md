@@ -118,7 +118,7 @@ git pull origin dev
 
 # 2. Verify tests and healthchecks pass
 python -m pytest
-./scripts/check_evcal_srow.py
+./scripts/dev/check_evcal_srow.py
 
 # 3. Merge dev into main
 git checkout main
