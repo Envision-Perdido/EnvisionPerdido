@@ -341,49 +341,23 @@ To keep an issue/PR open:
 
 The **Health Check Monitoring** agent requires GitHub Secrets to be configured.
 
-### Setting up secrets
+For the complete list of required secrets, optional variables, step-by-step credential
+generation instructions, and security notes, see the dedicated guide:
 
-1. Navigate to your repository on GitHub
-2. Click **Settings** (top navigation)
-3. In left sidebar, click **Secrets and variables** → **Actions**
-4. Click **New repository secret** button
-5. Add each secret below
+**→ [docs/GITHUB_SECRETS.md](GITHUB_SECRETS.md)**
 
-### Required secrets
+### Quick reference
 
-| Secret Name | Description | Example |
-|------------|-------------|---------|
-| `WP_SITE_URL` | WordPress site URL | `https://envisionperdido.org` |
-| `WP_USERNAME` | WordPress username | `admin` or your username |
-| `WP_APP_PASSWORD` | WordPress application password | `xxxx xxxx xxxx xxxx xxxx xxxx` |
-| `SMTP_SERVER` | Email server hostname | `smtp.gmail.com` |
-| `SMTP_PORT` | Email server port | `587` |
-| `SENDER_EMAIL` | Email address for sending | `your-email@gmail.com` |
-| `EMAIL_PASSWORD` | Email app password | `abcd efgh ijkl mnop` |
-| `RECIPIENT_EMAIL` | Email address for alerts | `your-email@gmail.com` |
-
-### Generating WordPress app password
-
-1. Log into WordPress admin dashboard
-2. Navigate to **Users** → **Profile**
-3. Scroll to **Application Passwords** section
-4. Enter name: "GitHub Actions Health Check"
-5. Click **Add New Application Password**
-6. Copy the generated password (includes spaces)
-7. Add to GitHub as `WP_APP_PASSWORD` secret
-
-### Generating Gmail app password
-
-1. Enable 2-Factor Authentication on your Google Account
-2. Go to Google Account → **Security**
-3. Under "2-Step Verification", click **App passwords**
-4. Select app: **Mail**
-5. Select device: **Other** (enter "GitHub Actions")
-6. Click **Generate**
-7. Copy the 16-character password
-8. Add to GitHub as `EMAIL_PASSWORD` secret
-
-**Note:** Regular Gmail password will NOT work. You must use an App Password.
+| Secret Name | Description |
+|------------|-------------|
+| `WP_SITE_URL` | WordPress site URL |
+| `WP_USERNAME` | WordPress username |
+| `WP_APP_PASSWORD` | WordPress Application Password |
+| `SMTP_SERVER` | Email server hostname |
+| `SMTP_PORT` | Email server port |
+| `SENDER_EMAIL` | Email address for sending |
+| `EMAIL_PASSWORD` | Email App Password |
+| `RECIPIENT_EMAIL` | Email address for alerts |
 
 ### Verifying secrets
 
