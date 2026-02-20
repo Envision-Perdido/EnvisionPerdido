@@ -104,14 +104,11 @@ def test_authentication():
             events = response.json()
             print(f"   ✅ STATUS: {response.status_code} OK")
             print(f"   ✅ Found {len(events)} published events")
-            test2_pass = True
         else:
             print(f"   ❌ STATUS: {response.status_code}")
-            test2_pass = False
 
     except Exception as e:
         print(f"   ❌ Exception: {str(e)}")
-        test2_pass = False
 
     print()
 
