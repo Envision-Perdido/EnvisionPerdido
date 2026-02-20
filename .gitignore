@@ -36,6 +36,9 @@ scripts/macos/env.sh
 output/pipeline/*.csv
 output/pipeline/*.json
 
+# Runtime cache (generated, not source)
+data/cache/media_hash_cache.json
+
 # Ignore ad-hoc debug scripts (contain creds; do not commit)
 check_*.py
 !scripts/dev/check_evcal_srow.py

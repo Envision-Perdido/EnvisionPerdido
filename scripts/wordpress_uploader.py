@@ -7,6 +7,8 @@ using the WordPress REST API.
 EventON uses a custom post type called 'ajde_events'.
 """
 
+import hashlib
+import json
 import mimetypes
 import os
 import sys
@@ -83,6 +85,7 @@ class WordPressEventUploader:
         self.session = _create_session_with_retries()
         self.session.auth = self.auth
         self.max_workers = max_workers
+        self._hash_cache_path = Path(__file__).parent.parent / "data" / "cache" / "media_hash_cache.json"
 
     def test_connection(self) -> bool:
         """Test WordPress API connection and authentication.
@@ -286,8 +289,129 @@ class WordPressEventUploader:
 
         return metadata
 
+    # ------------------------------------------------------------------
+    # Image deduplication helpers
+    # ------------------------------------------------------------------
+
+    def _get_image_hash(self, image_data: bytes) -> str:
+        """Compute SHA-256 hex digest of image bytes.
+
+        Args:
+            image_data: Raw bytes of the image.
+
+        Returns:
+            Lowercase hex SHA-256 string.
+        """
+        return hashlib.sha256(image_data).hexdigest()
+
+    def _load_hash_cache(self) -> dict:
+        """Load the local hash → WP media ID cache from disk.
+
+        Returns:
+            Dict mapping SHA-256 hex string to WordPress media ID (int).
+        """
+        if self._hash_cache_path.exists():
+            try:
+                with open(self._hash_cache_path) as f:
+                    return json.load(f)
+            except Exception:  # pylint: disable=broad-except
+                return {}
+        return {}
+
+    def _save_hash_cache(self, cache: dict) -> None:
+        """Persist the hash → media ID cache to disk.
+
+        Args:
+            cache: Dict mapping SHA-256 hex strings to WordPress media IDs.
+        """
+        try:
+            self._hash_cache_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(self._hash_cache_path, "w") as f:
+                json.dump(cache, f, indent=2)
+        except OSError as e:
+            log(f"   Warning: Could not save media hash cache: {e}")
+
+    def find_existing_media_by_hash(self, image_hash: str) -> int | None:
+        """Look up an existing WP media attachment by SHA-256 hash.
+
+        Checks the local cache first, then searches the WP REST API for
+        the structured token ``ep_hash=SHA256:<hash>`` embedded in the
+        attachment's description field.
+
+        Args:
+            image_hash: SHA-256 hex digest of the image bytes.
+
+        Returns:
+            WordPress media ID if a match is found, None otherwise.
+        """
+        # Layer 1: local cache
+        cache = self._load_hash_cache()
+        if image_hash in cache:
+            return int(cache[image_hash])
+
+        # Layer 2: WP REST API full-text search for the hash token
+        hash_token = f"ep_hash=SHA256:{image_hash}"
+        try:
+            response = self.session.get(
+                f"{self.api_base}/media",
+                auth=self.auth,
+                params={"search": hash_token, "per_page": 1},
+            )
+            if response.status_code == 200:
+                results = response.json()
+                if isinstance(results, list) and results:
+                    media_id = int(results[0]["id"])
+                    cache[image_hash] = media_id
+                    self._save_hash_cache(cache)
+                    return media_id
+        except requests.RequestException as e:
+            log(f"   Warning: Could not search media by hash: {e}")
+
+        return None
+
+    def find_existing_media_by_filename(self, filename: str) -> int | None:
+        """Look up an existing WP media attachment by filename (fallback).
+
+        Searches the WP REST API using the base filename (without extension)
+        and verifies the result by comparing the filename in the source URL
+        or attachment slug.
+
+        Args:
+            filename: The image filename (e.g. ``event_image.jpg``).
+
+        Returns:
+            WordPress media ID if a match is found, None otherwise.
+        """
+        try:
+            slug = filename.rsplit(".", 1)[0]
+            response = self.session.get(
+                f"{self.api_base}/media",
+                auth=self.auth,
+                params={"search": slug, "per_page": 10},
+            )
+            if response.status_code == 200:
+                results = response.json()
+                if isinstance(results, list):
+                    for item in results:
+                        source_url = item.get("source_url", "")
+                        item_slug = item.get("slug", "")
+                        if filename in source_url or slug == item_slug:
+                            return int(item["id"])
+        except requests.RequestException as e:
+            log(f"   Warning: Could not search media by filename: {e}")
+
+        return None
+
     def upload_image(self, image_path_or_url: str, title: str | None = None) -> int | None:
-        """Upload an image to WordPress media library.
+        """Upload an image to WordPress media library, reusing existing media when possible.
+
+        Before uploading, checks for a matching existing attachment using two layers:
+        1. SHA-256 hash (exact content match) via local cache and WP API search.
+        2. Filename/slug fallback via WP REST API search.
+
+        If a match is found the existing media ID is returned immediately (no upload).
+        On a fresh upload the hash token ``ep_hash=SHA256:<hash>`` is stored in the
+        attachment description so future runs can find it, and the local cache is updated.
 
         Args:
             image_path_or_url: Local file path or URL to image.
@@ -316,12 +440,30 @@ class WordPressEventUploader:
                     image_data = f.read()
                 filename = os.path.basename(image_path_or_url)
 
-            # Determine MIME type
+            # --- Deduplication: prefer reuse over upload ---
+
+            # Layer A: strong match via SHA-256 hash
+            image_hash = self._get_image_hash(image_data)
+            existing_id = self.find_existing_media_by_hash(image_hash)
+            if existing_id:
+                log(f"   Reusing existing media ID {existing_id} (hash match: {filename})")
+                return existing_id
+
+            # Layer B: fallback match via filename/slug
+            existing_id = self.find_existing_media_by_filename(filename)
+            if existing_id:
+                log(f"   Reusing existing media ID {existing_id} (filename match: {filename})")
+                # Populate local cache so future runs skip the WP query
+                cache = self._load_hash_cache()
+                cache[image_hash] = existing_id
+                self._save_hash_cache(cache)
+                return existing_id
+
+            # No existing match — upload to WordPress media library
             mime_type, _ = mimetypes.guess_type(filename)
             if not mime_type:
                 mime_type = "image/jpeg"  # Default fallback
 
-            # Upload to WordPress media library
             headers = {
                 "Content-Disposition": f'attachment; filename="{filename}"',
                 "Content-Type": mime_type,
@@ -335,11 +477,20 @@ class WordPressEventUploader:
                 media_data = response.json()
                 media_id = media_data["id"]
 
-                # Optionally update title
+                # Embed hash token in description so future runs can match without re-uploading.
+                # The token format is: ep_hash=SHA256:<hex>
+                hash_token = f"ep_hash=SHA256:{image_hash}"
+                update_payload = {"description": hash_token}
                 if title:
-                    self.session.post(
-                        f"{self.api_base}/media/{media_id}", auth=self.auth, json={"title": title}
-                    )
+                    update_payload["title"] = title
+                self.session.post(
+                    f"{self.api_base}/media/{media_id}", auth=self.auth, json=update_payload
+                )
+
+                # Persist to local cache
+                cache = self._load_hash_cache()
+                cache[image_hash] = media_id
+                self._save_hash_cache(cache)
 
                 log(f"   Uploaded image: {filename} (Media ID: {media_id})")
                 return media_id
