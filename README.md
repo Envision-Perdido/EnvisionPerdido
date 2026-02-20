@@ -49,7 +49,7 @@ EnvisionPerdido/
 ├── output/         # Pipeline outputs and logs
 ├── plugins/        # WordPress plugins
 ├── notebooks/      # Jupyter notebooks
-└── tests/          # Test files
+└── tests/          # Test files (unit/, integration/, smoke/)
 ```
 
 See [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md) for the complete structure.
@@ -113,3 +113,28 @@ This repository uses GitHub Actions for automated testing, security scanning, an
 - ** Stale Management:** Auto-closes inactive issues
 
 See `.github/workflows/` for configuration and [docs/CI_CD_GUIDE.md](docs/CI_CD_GUIDE.md) for details.
+
+## Running Tests Locally
+
+Install dependencies and run the unit test suite from the project root:
+
+```bash
+pip install -r requirements.txt pytest
+python -m pytest tests/unit -v --tb=short
+```
+
+Tests are organized under `tests/`:
+
+| Directory | Purpose | Runs in CI? |
+|---|---|---|
+| `tests/unit/` | Fast, isolated unit tests — no network or external deps | ✅ Yes |
+| `tests/integration/` | Integration tests requiring external services | ❌ Manual only |
+| `tests/smoke/` | Lightweight smoke tests for module imports and config | ❌ Manual only |
+
+Use pytest markers to skip slow or network-dependent tests:
+
+```bash
+# Run only tests that are not slow/network/integration
+python -m pytest tests/unit -v --tb=short -m "not slow and not network and not integration"
+```
+

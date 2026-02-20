@@ -4,17 +4,12 @@ Unit tests for event deduplication logic.
 Tests that duplicate events (same UID) are not created twice.
 """
 
-import sys
 import unittest
-from pathlib import Path
 from unittest.mock import Mock
 
 import pandas as pd
 
-# Add scripts directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
-
-from wordpress_uploader import WordPressEventUploader
+from scripts.wordpress_uploader import WordPressEventUploader
 
 
 class DummyResponse:
