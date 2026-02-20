@@ -36,7 +36,7 @@ def test_authentication():
     app_password = os.environ.get("WP_APP_PASSWORD", "")
 
     if not all([site_url, username, app_password]):
-        print("❌ Missing credentials in environment!")
+        print(" Missing credentials in environment!")
         return False
 
     # Create Basic Auth header
@@ -53,7 +53,7 @@ def test_authentication():
     print()
 
     # Test 1: /users/me (requires proper authentication with Basic Auth)
-    print("🔑 TEST 1: /wp-json/wp/v2/users/me")
+    print(" TEST 1: /wp-json/wp/v2/users/me")
     print("   (Verifies Basic Auth is working)")
     print("   " + "-" * 60)
 
@@ -64,25 +64,25 @@ def test_authentication():
 
         if response.status_code == 200:
             user = response.json()
-            print(f"   ✅ STATUS: {response.status_code} OK")
-            print(f"   ✅ Authenticated as: {user.get('name', 'Unknown')}")
-            print(f"   ✅ User ID: {user.get('id')}")
-            print(f"   ✅ Email: {user.get('email')}")
+            print(f"    STATUS: {response.status_code} OK")
+            print(f"    Authenticated as: {user.get('name', 'Unknown')}")
+            print(f"    User ID: {user.get('id')}")
+            print(f"    Email: {user.get('email')}")
 
             # Check capabilities
             caps = user.get("capabilities", {})
             has_edit = "edit_posts" in caps or "edit_ajde_events" in caps
-            print(f"   ✅ Has EDIT capability: {has_edit}")
+            print(f"    Has EDIT capability: {has_edit}")
             test1_pass = True
         else:
-            print(f"   ❌ STATUS: {response.status_code}")
+            print(f"    STATUS: {response.status_code}")
             error_resp = response.json()
-            print(f"   ❌ Error: {error_resp.get('code', 'UNKNOWN')}")
-            print(f"   ❌ Message: {error_resp.get('message', 'No message')}")
+            print(f"    Error: {error_resp.get('code', 'UNKNOWN')}")
+            print(f"    Message: {error_resp.get('message', 'No message')}")
             test1_pass = False
 
     except Exception as e:
-        print(f"   ❌ Exception: {str(e)}")
+        print(f"    Exception: {str(e)}")
         test1_pass = False
 
     print()
@@ -102,21 +102,21 @@ def test_authentication():
 
         if response.status_code == 200:
             events = response.json()
-            print(f"   ✅ STATUS: {response.status_code} OK")
-            print(f"   ✅ Found {len(events)} published events")
+            print(f"    STATUS: {response.status_code} OK")
+            print(f"    Found {len(events)} published events")
             test2_pass = True
         else:
-            print(f"   ❌ STATUS: {response.status_code}")
+            print(f"    STATUS: {response.status_code}")
             test2_pass = False
 
     except Exception as e:
-        print(f"   ❌ Exception: {str(e)}")
-        test2_pass = False
+        print(f"    Exception: {str(e)}")
+        #test2_pass = False
 
     print()
 
     # Test 3: GET with status=any (requires EDIT privileges)
-    print("🔒 TEST 3: GET /wp-json/wp/v2/ajde_events?status=any")
+    print(" TEST 3: GET /wp-json/wp/v2/ajde_events?status=any")
     print("   (Requires EDIT privileges - this is where it likely fails)")
     print("   " + "-" * 60)
 
@@ -130,24 +130,24 @@ def test_authentication():
 
         if response.status_code == 200:
             events = response.json()
-            print(f"   ✅ STATUS: {response.status_code} OK")
-            print("   ✅ Can access ALL statuses (drafts, published, etc)")
-            print(f"   ✅ Found {len(events)} events")
+            print(f"   STATUS: {response.status_code} OK")
+            print("    Can access ALL statuses (drafts, published, etc)")
+            print(f"   Found {len(events)} events")
             test3_pass = True
         elif response.status_code == 400:
             error_resp = response.json()
-            print(f"   ❌ STATUS: {response.status_code}")
-            print(f"   ❌ Error Code: {error_resp.get('code')}")
-            print(f"   ❌ Message: {error_resp.get('message')}")
+            print(f"    STATUS: {response.status_code}")
+            print(f"    Error Code: {error_resp.get('code')}")
+            print(f"    Message: {error_resp.get('message')}")
             print("   ➜ This means you don't have EDIT privileges")
             test3_pass = False
         else:
-            print(f"   ❌ STATUS: {response.status_code}")
-            print(f"   ❌ Response: {response.text[:200]}")
+            print(f"    STATUS: {response.status_code}")
+            print(f"    Response: {response.text[:200]}")
             test3_pass = False
 
     except Exception as e:
-        print(f"   ❌ Exception: {str(e)}")
+        print(f"    Exception: {str(e)}")
         test3_pass = False
 
     print()
@@ -157,14 +157,14 @@ def test_authentication():
     print()
 
     if test1_pass:
-        print("✅ Your credentials ARE properly authenticated!")
+        print(" Your credentials ARE properly authenticated!")
         print()
         if test3_pass:
-            print("✅ You have EDIT privileges - can see all statuses")
-            print("✅ You should be able to DELETE events")
+            print(" You have EDIT privileges - can see all statuses")
+            print(" You should be able to DELETE events")
             return True
         else:
-            print("⚠️  But you DON'T have EDIT privileges for EventON events")
+            print("  But you DON'T have EDIT privileges for EventON events")
             print()
             print("POSSIBLE CAUSES:")
             print("  1. Your user doesn't have 'edit_ajde_events' capability")
@@ -177,7 +177,7 @@ def test_authentication():
             print("  3. Verify EventON plugin is activated")
             return False
     else:
-        print("❌ Your credentials are NOT properly authenticated!")
+        print(" Your credentials are NOT properly authenticated!")
         print()
         print("Your user/app password combination is invalid.")
         print()
