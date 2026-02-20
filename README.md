@@ -36,6 +36,7 @@ All detailed documentation is in the `docs/` folder. See **[docs/INDEX.md](docs/
 - **[Quick Start Guide](docs/QUICKSTART.md)** - Get started in 5 minutes
 - **[Project Structure](docs/PROJECT_STRUCTURE.md)** - Folder organization and file locations
 - **[WordPress Integration](docs/WORDPRESS_INTEGRATION_GUIDE.md)** - Calendar upload workflow
+- **[GitHub Secrets Setup](docs/GITHUB_SECRETS.md)** - Required secrets and variables before going public
 - **[Contributing](CONTRIBUTING.md)** - Development workflow and branching strategy
 - **[Critical Issues](CRITICAL_ISSUES.md)** - Known blockers and production issues
 

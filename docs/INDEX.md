@@ -14,6 +14,7 @@ Start here if you're new to the project:
 - **[QUICK_REFERENCE](QUICK_REFERENCE.md)** - TL;DR version of setup instructions
 - **[AUTOMATION_SETUP](AUTOMATION_SETUP.md)** - Scheduling the pipeline with Task Scheduler
 - **[COMMANDS](COMMANDS.md)** - Common commands reference
+- **[GITHUB_SECRETS](GITHUB_SECRETS.md)** - All GitHub secrets and variables required before making the repo public
 
 ## 🔌 WordPress Integration
 
