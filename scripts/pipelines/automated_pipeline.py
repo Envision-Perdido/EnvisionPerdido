@@ -13,6 +13,7 @@ Run this script on a schedule (weekly/monthly) for hands-off operation.
 
 import sys
 import os
+import hashlib
 from pathlib import Path
 from datetime import datetime
 import pandas as pd
@@ -39,7 +40,7 @@ load_env()
 # Import logger and metrics
 from logger import get_logger, PipelineMetrics
 # Import scraper and normalizer modules
-from Envision_Perdido_DataCollection import scrape_month, parse_calendar_to_events
+import Envision_Perdido_DataCollection
 from event_normalizer import enrich_events_dataframe, filter_events_dataframe
 
 # Configuration
@@ -50,6 +51,21 @@ IMAGES_DIR = BASE_DIR / "data" / "event_images"
 # Organized output path
 OUTPUT_DIR = BASE_DIR / "output" / "pipeline"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+# ---------------------------------------------------------------------------
+# Scraping configuration (overridable via environment variables)
+# ---------------------------------------------------------------------------
+# SCRAPE_MODE: "ALL" (default) | "LEGACY_2_MONTH" | "CUSTOM"
+#   ALL           — roll forward month-by-month until K consecutive empty windows.
+#   LEGACY_2_MONTH — original behaviour: scrape only the starting month + next.
+#   CUSTOM         — future extension point; behaves like ALL today.
+# MAX_WINDOWS: maximum number of monthly windows to visit (safety cap).
+# EMPTY_WINDOW_STREAK_TO_STOP: consecutive windows with no new unique events
+#   before scraping stops.
+SCRAPE_BASE_URL = "https://business.perdidochamber.com/events/calendar"
+_DEFAULT_SCRAPE_MODE = "ALL"
+_DEFAULT_MAX_WINDOWS = 52        # ~4 years forward; prevents infinite loops
+_DEFAULT_EMPTY_STREAK = 2        # stop after 2 consecutive empty months
 
 # Model caching for performance
 _MODEL_CACHE = {'model': None, 'vectorizer': None}
@@ -98,6 +114,34 @@ def log(message):
         logger.warning(message)
     else:
         logger.info(message)
+
+
+def _event_hash(event: dict) -> str:
+    """Return a stable deduplication key for an event dict.
+
+    Prefers the ICS UID when present.  Falls back to a deterministic SHA-256
+    hash of the canonical (title, start, end, location, url) tuple so that
+    duplicate events scraped across overlapping windows are reliably skipped.
+
+    Args:
+        event: Event dictionary with optional fields: uid, title, start,
+            end, location, url.
+
+    Returns:
+        Stable string identifier for the event.
+    """
+    uid = str(event.get("uid") or "").strip()
+    if uid:
+        return uid
+    canonical = "\x00".join([
+        str(event.get("title") or "").strip().lower(),
+        str(event.get("start") or "").strip(),
+        str(event.get("end") or "").strip(),
+        str(event.get("location") or "").strip().lower(),
+        str(event.get("url") or "").strip().lower(),
+    ])
+    digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    return "hash:" + digest
 
 def build_features(df: pd.DataFrame) -> list[str]:
     """Build text features from event data using vectorized operations.
@@ -155,29 +199,168 @@ def scrape_events(
     errors = []
     source_counts = {}  # Track event count per source for output
     
+def scrape_events(
+    year: int | None = None,
+    month: int | None = None,
+    include_sources: list[str] | None = None,
+    scrape_mode: str | None = None,
+) -> tuple[list[dict], list]:
+    """Scrape events from all configured sources.
+
+    By default (``SCRAPE_MODE=ALL``) the Perdido Chamber source is iterated
+    month-by-month from *month/year* forward until either:
+
+    * ``EMPTY_WINDOW_STREAK_TO_STOP`` consecutive windows yield no new unique
+      events (default 2), OR
+    * ``MAX_WINDOWS`` windows have been visited (default 52, safety cap).
+
+    Set the environment variable ``SCRAPE_MODE=LEGACY_2_MONTH`` to revert to
+    the original two-month window for backward compatibility.
+
+    Args:
+        year: Year to start scraping (default current year).
+        month: Month to start scraping (default current month).
+        include_sources: List of source names to include.  Options:
+            ``'perdido_chamber'``, ``'wren_haven'``, ``'google_sheets'``.
+            Defaults to ``['perdido_chamber']``.
+        scrape_mode: Override ``SCRAPE_MODE`` env var.  One of ``"ALL"``,
+            ``"LEGACY_2_MONTH"``, or ``"CUSTOM"``.
+
+    Returns:
+        Tuple of ``(events_list, errors_list)``:
+
+        * ``events_list``: deduplicated list of event dicts from all sources.
+        * ``errors_list``: error strings collected during scraping.
+    """
+    log("Starting event scraping...")
+
+    if include_sources is None:
+        include_sources = ['perdido_chamber']
+
+    if year is None:
+        year = datetime.now().year
+    if month is None:
+        month = datetime.now().month
+
+    # Resolve scrape_mode: caller > env var > default
+    if scrape_mode is None:
+        scrape_mode = os.getenv("SCRAPE_MODE", _DEFAULT_SCRAPE_MODE).upper()
+
+    max_windows = int(os.getenv("MAX_WINDOWS", str(_DEFAULT_MAX_WINDOWS)))
+    empty_streak_to_stop = int(
+        os.getenv("EMPTY_WINDOW_STREAK_TO_STOP", str(_DEFAULT_EMPTY_STREAK))
+    )
+
+    all_events = []
+    errors = []
+    source_counts = {}  # Track event count per source for output
+
+    # ------------------------------------------------------------------
     # Scrape Perdido Chamber (original source)
+    # ------------------------------------------------------------------
     if 'perdido_chamber' in include_sources:
-        log("Scraping Perdido Chamber...")
+        log(
+            f"Scraping Perdido Chamber (mode={scrape_mode}, "
+            f"max_windows={max_windows}, "
+            f"empty_streak_to_stop={empty_streak_to_stop})..."
+        )
         chamber_count = 0
-        for m in range(month, min(month + 2, 13)):
-            month_str = f"{year}-{m:02d}-01"
-            base_url = "https://business.perdidochamber.com/events/calendar"
-            month_url = f"{base_url}/{month_str}"
-            log(f"Scraping {month_url}...")
-            
-            try:
-                events = Envision_Perdido_DataCollection.scrape_month(
-                    month_url
+
+        if scrape_mode == "LEGACY_2_MONTH":
+            # Original behaviour: scrape only current month + next within year.
+            for m in range(month, min(month + 2, 13)):
+                month_str = f"{year}-{m:02d}-01"
+                month_url = f"{SCRAPE_BASE_URL}/{month_str}"
+                log(f"Scraping {month_url}...")
+                try:
+                    events = Envision_Perdido_DataCollection.scrape_month(
+                        month_url
+                    )
+                    log(f"Scraped {len(events)} events from {month_url}")
+                    chamber_count += len(events)
+                    all_events.extend(events)
+                except Exception as e:  # pylint: disable=broad-except
+                    error_msg = (
+                        f"Error scraping Perdido Chamber {month_url}: {e}"
+                    )
+                    log(f"ERROR: {error_msg}")
+                    errors.append(error_msg)
+        else:
+            # ALL / CUSTOM: rolling windows with deduplication.
+            seen_ids: set[str] = set()
+            empty_streak = 0
+            windows_scraped = 0
+            cur_year, cur_month = year, month
+
+            while windows_scraped < max_windows:
+                month_str = f"{cur_year}-{cur_month:02d}-01"
+                month_url = f"{SCRAPE_BASE_URL}/{month_str}"
+                log(
+                    f"Scraping window {windows_scraped + 1}/{max_windows}: "
+                    f"{month_url} ..."
                 )
-                log(f"Scraped {len(events)} events from {month_url}")
-                chamber_count += len(events)
-                all_events.extend(events)
-            except Exception as e:  # pylint: disable=broad-except
-                error_msg = f"Error scraping Perdido Chamber {month_url}: {e}"
-                log(f"ERROR: {error_msg}")
-                errors.append(error_msg)
+
+                try:
+                    raw_events = Envision_Perdido_DataCollection.scrape_month(
+                        month_url
+                    )
+                    # Deduplicate across windows
+                    new_events = []
+                    for evt in raw_events:
+                        eid = _event_hash(evt)
+                        if eid not in seen_ids:
+                            seen_ids.add(eid)
+                            new_events.append(evt)
+
+                    all_events.extend(new_events)
+                    chamber_count += len(new_events)
+
+                    log(
+                        f"Window {month_str}: {len(raw_events)} raw, "
+                        f"{len(new_events)} new unique events "
+                        f"(total unique so far: {len(seen_ids)})"
+                    )
+
+                    if len(new_events) == 0:
+                        empty_streak += 1
+                        log(
+                            f"Empty-window streak: {empty_streak}/"
+                            f"{empty_streak_to_stop}"
+                        )
+                        if empty_streak >= empty_streak_to_stop:
+                            log(
+                                f"Stopping Perdido Chamber scrape: "
+                                f"{empty_streak} consecutive windows with no "
+                                f"new events (streak_limit="
+                                f"{empty_streak_to_stop})"
+                            )
+                            break
+                    else:
+                        empty_streak = 0
+
+                except Exception as e:  # pylint: disable=broad-except
+                    error_msg = (
+                        f"Error scraping Perdido Chamber {month_url}: {e}"
+                    )
+                    log(f"ERROR: {error_msg}")
+                    errors.append(error_msg)
+
+                windows_scraped += 1
+                # Advance to next calendar month
+                cur_month += 1
+                if cur_month > 12:
+                    cur_month = 1
+                    cur_year += 1
+
+            if windows_scraped >= max_windows:
+                log(
+                    f"Stopping Perdido Chamber scrape: reached MAX_WINDOWS "
+                    f"limit ({max_windows})"
+                )
+
         source_counts['perdido_chamber'] = chamber_count
-    
+
+
     # Scrape Wren Haven (if enabled)
     if 'wren_haven' in include_sources:
         log("Scraping Wren Haven Homestead...")

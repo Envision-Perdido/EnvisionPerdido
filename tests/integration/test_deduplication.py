@@ -11,7 +11,7 @@ from unittest.mock import Mock, MagicMock, patch
 import pandas as pd
 
 # Add scripts directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent / 'scripts'))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'scripts'))
 
 from wordpress_uploader import WordPressEventUploader
 

@@ -11,5 +11,11 @@
     "GOOGLE_DRIVE_FOLDER_ID": "your_folder_id_here",
     "SITE_TIMEZONE": "America/Chicago"
   },
-  "NOTES": "All STORE_IN_MAKE_SECRETS values should be configured in Make.com Secrets module"
+  "OPTIONAL_SCRAPING_VARS": {
+    "SCRAPE_MODE": "ALL",
+    "MAX_WINDOWS": "52",
+    "EMPTY_WINDOW_STREAK_TO_STOP": "2",
+    "AUTO_UPLOAD": "false"
+  },
+  "NOTES": "All STORE_IN_MAKE_SECRETS values should be configured in Make.com Secrets module. SCRAPE_MODE options: ALL (default, rolls forward until no new events), LEGACY_2_MONTH (original 2-month window), CUSTOM (same as ALL today)."
 }

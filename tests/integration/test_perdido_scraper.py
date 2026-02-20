@@ -5,7 +5,12 @@ from pathlib import Path
 import pytest
 
 # --- Load the scraper module directly from its file path ---
-SCRAPER_PATH = Path(__file__).resolve().parents[1] / "Envision_Perdido_DataCollection.py"
+SCRAPER_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "scripts"
+    / "scrapers"
+    / "Envision_Perdido_DataCollection.py"
+)
 spec = importlib.util.spec_from_file_location("envision_scraper", SCRAPER_PATH)
 scraper = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(scraper)

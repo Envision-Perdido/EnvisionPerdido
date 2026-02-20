@@ -1,13 +1,13 @@
 """
 Compatibility shim for tests that expect Envision_Perdido_DataCollection.py to live under the
 top-level `tests/` directory. This file simply executes the real script located in
-`scripts/Envision_Perdido_DataCollection.py` so tests can import it by path.
+`scripts/scrapers/Envision_Perdido_DataCollection.py` so tests can import it by path.
 
 This is intentionally minimal and avoids modifying the original script.
 """
 from pathlib import Path
-ROOT = Path(__file__).resolve().parent.parent
-REAL_SCRIPT = ROOT / 'scripts' / 'Envision_Perdido_DataCollection.py'
+ROOT = Path(__file__).resolve().parent.parent.parent
+REAL_SCRIPT = ROOT / 'scripts' / 'scrapers' / 'Envision_Perdido_DataCollection.py'
 if not REAL_SCRIPT.exists():
     raise FileNotFoundError(f"Expected script at {REAL_SCRIPT}")
 

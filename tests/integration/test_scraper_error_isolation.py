@@ -99,18 +99,19 @@ class TestScraperErrorIsolation:
             assert len(errors) >= 1
 
     def test_scrape_events_multiple_months(self):
-        """Test error handling across multiple months."""
+        """Test error handling across multiple months (LEGACY_2_MONTH mode)."""
         with patch('scripts.Envision_Perdido_DataCollection.scrape_month') as mock_scrape:
             # First month succeeds, second fails
             mock_scrape.side_effect = [
                 [{'title': 'Jan Event', 'source': 'perdido_chamber'}],
                 ConnectionError("Network timeout"),
             ]
-            
+
             events, errors = scrape_events(
-                year=2026, month=1, include_sources=['perdido_chamber']
+                year=2026, month=1, include_sources=['perdido_chamber'],
+                scrape_mode='LEGACY_2_MONTH',
             )
-            
+
             # Should have 1 event and 1 error
             assert len(events) == 1
             assert len(errors) == 1
