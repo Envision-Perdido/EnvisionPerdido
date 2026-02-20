@@ -4,14 +4,10 @@ Unit tests for Wren Haven Homestead scraper (HTML parsing approach).
 All network calls and Playwright interactions are mocked.
 """
 
-import sys
 from datetime import datetime
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from scripts.wren_haven_scraper import (
     CACHE_DIR,

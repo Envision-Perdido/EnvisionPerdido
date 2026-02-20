@@ -4,14 +4,9 @@ Unit Tests for Venue Registry
 Tests venue resolution, normalization, and alias matching.
 """
 
-import sys
 import unittest
-from pathlib import Path
 
-# Add scripts directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
-
-from venue_registry import (
+from scripts.venue_registry import (
     Venue,
     get_all_venues,
     get_venue_by_id,

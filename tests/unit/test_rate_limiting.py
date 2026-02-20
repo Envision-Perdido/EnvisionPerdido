@@ -163,10 +163,10 @@ class TestRateLimitingNonRetryableErrors:
         retry = adapter.max_retries
 
         # These should NOT be in the forcelist for retrying
-        assert 400 not in retry.status_forcelist or 400 not in retry.status_forcelist
-        assert 401 not in retry.status_forcelist or 401 not in retry.status_forcelist
-        assert 403 not in retry.status_forcelist or 403 not in retry.status_forcelist
-        assert 404 not in retry.status_forcelist or 404 not in retry.status_forcelist
+        assert 400 not in retry.status_forcelist
+        assert 401 not in retry.status_forcelist
+        assert 403 not in retry.status_forcelist
+        assert 404 not in retry.status_forcelist
 
 
 class TestRateLimitingConnectionErrors:
