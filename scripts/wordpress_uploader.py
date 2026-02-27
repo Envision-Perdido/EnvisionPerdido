@@ -253,6 +253,10 @@ class WordPressEventUploader:
             metadata["evcal_end_time_min"] = end_local.strftime("%M")
             metadata["evcal_end_time_ampm"] = end_local.strftime("%p").lower()
 
+        # Store UID for deduplication (prevents duplicate event uploads)
+        if pd.notna(event_row.get("uid")):
+            metadata["_event_uid"] = str(event_row["uid"])
+
         # Location - use normalized location if available
         location_text = event_row.get("normalized_location") or event_row.get("location")
         if pd.notna(location_text):

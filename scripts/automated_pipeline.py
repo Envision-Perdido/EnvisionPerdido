@@ -21,6 +21,7 @@ from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
+from typing import Tuple
 
 import joblib
 import numpy as np
@@ -121,6 +122,63 @@ def build_features(df: pd.DataFrame) -> list[str]:
         (title + " " + description + " " + location + " " + category).str.split().str.join(" ")
     )
     return features.tolist()
+
+
+def classify_events_batch(
+    events_df: pd.DataFrame,
+    model: object,
+    vectorizer: object,
+    batch_size: int = 500,
+    verbose: bool = True,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Classify events in batches for better memory efficiency.
+
+    Uses batch processing to vectorize and classify events, reducing peak memory
+    usage and enabling progress reporting.
+
+    Args:
+        events_df: DataFrame with event data.
+        model: Trained classifier.
+        vectorizer: TfidfVectorizer.
+        batch_size: Number of events per batch (default: 500).
+        verbose: Whether to log progress (default: True).
+
+    Returns:
+        Tuple of (predictions, confidence_scores) arrays.
+    """
+    n_events = len(events_df)
+    all_predictions = np.zeros(n_events, dtype=int)
+    all_confidences = np.zeros(n_events, dtype=float)
+
+    for i in range(0, n_events, batch_size):
+        end_idx = min(i + batch_size, n_events)
+        batch = events_df.iloc[i:end_idx]
+
+        # Build features for batch
+        X_text = build_features(batch)
+        X = vectorizer.transform(X_text)
+
+        # Predict on batch
+        batch_predictions = model.predict(X)
+        all_predictions[i:end_idx] = batch_predictions
+
+        # Get confidence scores (use decision_function for SVM)
+        if hasattr(model, "decision_function"):
+            decision_scores = model.decision_function(X)
+            # Convert decision function to confidence-like score (sigmoid transform)
+            # For binary classification, values range approximately [-inf, +inf]
+            # Normalize to [0, 1] using sigmoid
+            batch_confidences = 1 / (1 + np.exp(-decision_scores))
+        else:
+            # Fallback if decision_function not available
+            batch_confidences = np.ones(len(batch_predictions)) * 0.5
+
+        all_confidences[i:end_idx] = batch_confidences
+
+        if verbose and (i + batch_size) % (batch_size * 5) == 0:
+            log(f"  Progress: {min(i + batch_size, n_events)}/{n_events} events classified")
+
+    return all_predictions, all_confidences
 
 
 def scrape_events(
@@ -282,8 +340,8 @@ def assign_event_images(events_df: pd.DataFrame) -> pd.DataFrame:
 def classify_events(events_df: pd.DataFrame) -> pd.DataFrame | None:
     """Classify events using trained SVM model.
 
-    Uses cached model loading for efficiency. Adds confidence scores and
-    review flags.
+    Uses cached model loading and batch processing for efficiency.
+    Adds confidence scores and review flags.
 
     Args:
         events_df: DataFrame with event data.
@@ -297,15 +355,12 @@ def classify_events(events_df: pd.DataFrame) -> pd.DataFrame | None:
     if model is None or vectorizer is None:
         return None
 
-    log(f"Classifying {len(events_df)} events...")
+    log(f"Classifying {len(events_df)} events (using batch processing)...")
 
-    # Build features and classify
-    X_text = build_features(events_df)
-    X = vectorizer.transform(X_text)
-
-    predictions = model.predict(X)
-    probabilities = model.predict_proba(X)
-    confidence = np.max(probabilities, axis=1)
+    # Use batch classification for better memory efficiency
+    predictions, confidence = classify_events_batch(
+        events_df, model, vectorizer, batch_size=500, verbose=True
+    )
 
     events_df["is_community_event"] = predictions
     events_df["confidence"] = confidence
