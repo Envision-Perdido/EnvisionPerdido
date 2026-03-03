@@ -41,6 +41,12 @@ from logger import PipelineMetrics, get_logger
 # Import scraper and normalizer modules
 from scripts import Envision_Perdido_DataCollection, event_normalizer
 
+# Import description enhancement (optional)
+try:
+    from regenerate_descriptions import enhance_event_descriptions
+except ImportError:
+    enhance_event_descriptions = None
+
 # Configuration
 BASE_DIR = Path(__file__).parent.parent
 MODEL_PATH = BASE_DIR / "data" / "artifacts" / "event_classifier_model.pkl"
@@ -838,7 +844,35 @@ def main():
 
         metrics.add_classified(len(classified_df))
 
-        # Step 3: Filter community events and remove unreasonably long events
+        # Step 3: Enhance descriptions with OpenAI (optional)
+        log("\nStep 3: Enhancing event descriptions with OpenAI...")
+        if os.getenv('OPENAI_API_KEY') and enhance_event_descriptions:
+            try:
+                openai_dry_run = os.getenv('OPENAI_DRY_RUN', 'false').lower() == 'true'
+                openai_model = os.getenv('OPENAI_MODEL', 'gpt-4o-mini')
+                
+                # Convert DataFrame to list of dicts for enhancement
+                events_list = classified_df.to_dict('records')
+                enhanced_events = enhance_event_descriptions(
+                    events_list,
+                    dry_run=openai_dry_run,
+                    model=openai_model
+                )
+                # Convert back to DataFrame
+                classified_df = pd.DataFrame(enhanced_events)
+                log(f"✓ Enhanced {len(enhanced_events)} event descriptions")
+                metrics.add_enhanced(len(enhanced_events))
+            except Exception as e:
+                log(f"Warning: Description enhancement failed: {e}")
+                logger.warning(f"OpenAI enhancement error: {e}")
+                # Continue with original descriptions
+        else:
+            if not os.getenv('OPENAI_API_KEY'):
+                log("⊘ OPENAI_API_KEY not set; skipping description enhancement")
+            if not enhance_event_descriptions:
+                log("⊘ regenerate_descriptions module not available")
+
+        # Step 4: Filter community events and remove unreasonably long events
         community_events = classified_df[classified_df["is_community_event"] == 1].copy()
 
         # Track events needing review (confidence < 0.75)
@@ -872,17 +906,17 @@ def main():
 
         log(f"Found {len(community_events)} community events")
 
-        # Step 4: Export for calendar
+        # Step 5: Export for calendar
         calendar_csv = export_for_calendar(community_events, format="csv")
 
-        # Step 5: Send email notification
+        # Step 6: Send email notification
         if EMAIL_CONFIG["sender_email"] != "your_email@example.com":
             send_email_notification(community_events, classified_df, calendar_csv)
         else:
             log("Email not configured. Skipping email notification.")
             log(f"Review file manually at: {calendar_csv}")
 
-        # Step 6: Auto-upload to WordPress (if enabled)
+        # Step 7: Auto-upload to WordPress (if enabled)
         auto_upload = os.getenv("AUTO_UPLOAD", "true").lower() in {"true", "1", "yes"}
 
         if auto_upload and len(community_events) > 0:

@@ -1,4 +1,4 @@
-.PHONY: setup install test lint run-pipeline run-uploader dry-run verify help
+.PHONY: setup install test lint run-pipeline run-uploader dry-run verify help regenerate-descriptions regenerate-descriptions-dry-run
 
 # Default target
 .DEFAULT_GOAL := help
@@ -29,6 +29,10 @@ help:
 	@echo "  make dry-run            Run pipeline with AUTO_UPLOAD=false (SAFE)"
 	@echo "  make run-pipeline       Execute full pipeline (scrape → classify → upload)"
 	@echo "  make run-uploader       Interactive WordPress uploader (dry-run first)"
+	@echo ""
+	@echo "OpenAI Description Enhancement:"
+	@echo "  make regenerate-descriptions-dry-run   Preview description enhancement"
+	@echo "  make regenerate-descriptions          Enhance descriptions with OpenAI"
 	@echo ""
 	@echo "Examples:"
 	@echo "  make setup && make verify && make dry-run"
@@ -109,5 +113,23 @@ run-uploader: verify
 	@echo "[INFO] Starting interactive WordPress uploader..."
 	@echo "[INFO] Uploader will run in dry-run mode first. Review before uploading."
 	$(ACTIVATE) && python scripts/wordpress_uploader.py
+
+# Regenerate descriptions with OpenAI (dry-run preview)
+regenerate-descriptions-dry-run:
+	@if [ ! -d .venvEnvisionPerdido ]; then \
+		echo "[ERROR] Virtual environment not found. Run 'make setup' first."; \
+		exit 1; \
+	fi
+	@echo "[INFO] DRY RUN: Previewing description regeneration (no API calls)..."
+	$(ACTIVATE) && python scripts/regenerate_descriptions.py --dry-run --model gpt-4o-mini
+
+# Regenerate descriptions with OpenAI (full enhancement)
+regenerate-descriptions: verify
+	@if [ -z "$$OPENAI_API_KEY" ]; then \
+		echo "[ERROR] OPENAI_API_KEY environment variable not set"; \
+		exit 1; \
+	fi
+	@echo "[INFO] Regenerating event descriptions with OpenAI..."
+	$(ACTIVATE) && python scripts/regenerate_descriptions.py --model gpt-4o-mini
 
 .SILENT: help
