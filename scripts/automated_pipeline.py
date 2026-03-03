@@ -201,7 +201,7 @@ def scrape_events(
     log("Starting event scraping...")
 
     if include_sources is None:
-        include_sources = ["perdido_chamber"]
+        include_sources = ["perdido_chamber", "wren_haven"]
 
     if year is None:
         year = datetime.now().year
