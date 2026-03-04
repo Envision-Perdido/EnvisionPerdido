@@ -1,4 +1,4 @@
-.PHONY: setup install test lint run-pipeline run-uploader dry-run verify help regenerate-descriptions regenerate-descriptions-dry-run
+.PHONY: setup install test lint run-pipeline run-uploader dry-run verify help regenerate-descriptions regenerate-descriptions-dry-run regenerate-descriptions-sync
 
 # Default target
 .DEFAULT_GOAL := help
@@ -31,8 +31,9 @@ help:
 	@echo "  make run-uploader       Interactive WordPress uploader (dry-run first)"
 	@echo ""
 	@echo "OpenAI Description Enhancement:"
-	@echo "  make regenerate-descriptions-dry-run   Preview description enhancement"
-	@echo "  make regenerate-descriptions          Enhance descriptions with OpenAI"
+	@echo "  make regenerate-descriptions-dry-run   Preview enhancement (batch API, cached)"
+	@echo "  make regenerate-descriptions-sync      Sync API with immediate results"
+	@echo "  make regenerate-descriptions          Batch API (async, cheaper, slower)"
 	@echo ""
 	@echo "Examples:"
 	@echo "  make setup && make verify && make dry-run"
@@ -121,15 +122,25 @@ regenerate-descriptions-dry-run:
 		exit 1; \
 	fi
 	@echo "[INFO] DRY RUN: Previewing description regeneration (no API calls)..."
-	$(ACTIVATE) && python scripts/regenerate_descriptions.py --dry-run --model gpt-4o-mini
+	$(ACTIVATE) && python scripts/regenerate_descriptions.py --dry-run --sync --model gpt-4o-mini
 
-# Regenerate descriptions with OpenAI (full enhancement)
+# Regenerate descriptions with OpenAI (full enhancement, batch API for cost savings)
 regenerate-descriptions: verify
 	@if [ -z "$$OPENAI_API_KEY" ]; then \
 		echo "[ERROR] OPENAI_API_KEY environment variable not set"; \
 		exit 1; \
 	fi
-	@echo "[INFO] Regenerating event descriptions with OpenAI..."
-	$(ACTIVATE) && python scripts/regenerate_descriptions.py --model gpt-4o-mini
+	@echo "[INFO] Regenerating event descriptions with OpenAI (Batch API, cached)..."
+	@echo "[INFO] Configuration: top-n=100, min-confidence=0.75, use-cache=true"
+	$(ACTIVATE) && python scripts/regenerate_descriptions.py --batch --top-n 100 --min-confidence 0.75 --model gpt-4o-mini
+
+# Regenerate descriptions with sync API (immediate results, no caching)
+regenerate-descriptions-sync: verify
+	@if [ -z "$$OPENAI_API_KEY" ]; then \
+		echo "[ERROR] OPENAI_API_KEY environment variable not set"; \
+		exit 1; \
+	fi
+	@echo "[INFO] Regenerating event descriptions with OpenAI (Sync API, immediate)..."
+	$(ACTIVATE) && python scripts/regenerate_descriptions.py --sync --top-n 100 --min-confidence 0.75 --model gpt-4o-mini
 
 .SILENT: help

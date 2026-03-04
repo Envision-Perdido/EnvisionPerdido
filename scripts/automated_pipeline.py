@@ -850,13 +850,21 @@ def main():
             try:
                 openai_dry_run = os.getenv('OPENAI_DRY_RUN', 'false').lower() == 'true'
                 openai_model = os.getenv('OPENAI_MODEL', 'gpt-4o-mini')
+                openai_use_batch = os.getenv('OPENAI_USE_BATCH', 'false').lower() == 'true'
+                openai_top_n = int(os.getenv('OPENAI_TOP_N', '100'))
+                openai_min_confidence = float(os.getenv('OPENAI_MIN_CONFIDENCE', '0.75'))
                 
                 # Convert DataFrame to list of dicts for enhancement
                 events_list = classified_df.to_dict('records')
                 enhanced_events = enhance_event_descriptions(
                     events_list,
                     dry_run=openai_dry_run,
-                    model=openai_model
+                    model=openai_model,
+                    use_batch=openai_use_batch,
+                    top_n=openai_top_n,
+                    min_confidence=openai_min_confidence,
+                    use_cache=True,
+                    save_cache=True
                 )
                 # Convert back to DataFrame
                 classified_df = pd.DataFrame(enhanced_events)
