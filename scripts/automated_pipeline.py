@@ -405,11 +405,30 @@ def classify_events(events_df: pd.DataFrame) -> pd.DataFrame | None:
     events_df["confidence"] = confidence
 
     # Add review flag for low confidence predictions
+    # Note: Threshold at 0.75 may be conservative if model is well-trained
     events_df["needs_review"] = events_df["confidence"] < 0.75
 
     community_count = predictions.sum()
     log(
         f"Classification complete: {community_count} community events, {len(events_df) - community_count} non-community events"
+    )
+
+    # Show confidence distribution for diagnostic purposes
+    confidence_stats = {
+        "mean": events_df["confidence"].mean(),
+        "median": events_df["confidence"].median(),
+        "min": events_df["confidence"].min(),
+        "max": events_df["confidence"].max(),
+        "std": events_df["confidence"].std(),
+    }
+    needs_review_count = events_df["needs_review"].sum()
+    log(
+        f"Confidence distribution: mean={confidence_stats['mean']:.3f}, "
+        f"median={confidence_stats['median']:.3f}, std={confidence_stats['std']:.3f}"
+    )
+    log(
+        f"Events flagged for review (confidence < 0.75): {needs_review_count}/{len(events_df)} "
+        f"({100*needs_review_count/len(events_df):.1f}%)"
     )
 
     # Enrich events with tags, paid/free status, venue resolution
