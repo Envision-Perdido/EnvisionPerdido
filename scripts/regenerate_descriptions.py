@@ -209,6 +209,7 @@ def _retrieve_batch_results(client: OpenAI, batch_id: str) -> Dict[str, str]:
         raise
 
 
+def generate_single_description(
     client: OpenAI,
     event: Dict,
     model: str = "gpt-4o-mini",
