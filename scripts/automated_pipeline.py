@@ -15,6 +15,8 @@ import json
 import os
 import smtplib
 import sys
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from email import encoders
 from email.mime.base import MIMEBase
@@ -190,7 +192,7 @@ def classify_events_batch(
 def scrape_events(
     year: int | None = None, month: int | None = None, include_sources: list[str] | None = None
 ) -> tuple[list[dict], list]:
-    """Scrape events from all configured sources.
+    """Scrape events from all configured sources in parallel.
 
     Args:
         year: Year to scrape (default current year).
@@ -204,10 +206,11 @@ def scrape_events(
             - events_list: List of event dictionaries from all sources
             - errors_list: List of errors encountered during scraping
     """
-    log("Starting event scraping...")
+    start_time = time.time()
+    log("Starting event scraping (parallel mode)...")
 
     if include_sources is None:
-        include_sources = ["perdido_chamber", "wren_haven"]
+        include_sources = ["perdido_chamber"]
 
     if year is None:
         year = datetime.now().year
@@ -217,49 +220,79 @@ def scrape_events(
     all_events = []
     errors = []
 
-    # Scrape Perdido Chamber (original source)
+    # Define scraping tasks to run in parallel
+    scraping_tasks = []
+
+    # Task 1: Scrape Perdido Chamber (multiple months in parallel)
+    perdido_urls = []
     if "perdido_chamber" in include_sources:
-        log("Scraping Perdido Chamber...")
+        base_url = "https://business.perdidochamber.com/events/calendar"
         for m in range(month, min(month + 2, 13)):
             month_str = f"{year}-{m:02d}-01"
-            base_url = "https://business.perdidochamber.com/events/calendar"
             month_url = f"{base_url}/{month_str}"
-            log(f"Scraping {month_url}...")
+            perdido_urls.append(month_url)
+        scraping_tasks.extend(("perdido", url) for url in perdido_urls)
 
+    # Task 2: Scrape Wren Haven (in parallel with Perdido)
+    if "wren_haven" in include_sources:
+        scraping_tasks.append(("wren_haven", None))
+
+    # Execute all scraping tasks in parallel
+    log(f"Running {len(scraping_tasks)} scraping tasks in parallel...")
+    
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        futures = {
+            executor.submit(_scrape_single_source, source, url): (source, url)
+            for source, url in scraping_tasks
+        }
+
+        for i, future in enumerate(as_completed(futures), 1):
+            source, url = futures[future]
             try:
-                events = Envision_Perdido_DataCollection.scrape_month(month_url)
-                log(f"Scraped {len(events)} events from {month_url}")
+                events, error = future.result()
                 all_events.extend(events)
+                if error:
+                    errors.append(error)
+                elapsed = time.time() - start_time
+                log(f"  [{i}/{len(scraping_tasks)}] {source} completed: {len(events)} events in {elapsed:.1f}s elapsed")
             except Exception as e:  # pylint: disable=broad-except
-                error_msg = f"Error scraping Perdido Chamber {month_url}: {e}"
+                error_msg = f"Error scraping {source} {url or ''}: {e}"
                 log(f"ERROR: {error_msg}")
                 errors.append(error_msg)
 
-    # Scrape Wren Haven (if enabled)
-    if "wren_haven" in include_sources:
-        log("Scraping Wren Haven Homestead...")
-        try:
-            from scripts import wren_haven_scraper
-
-            events = wren_haven_scraper.scrape_wren_haven()
-            log(f"Scraped {len(events)} events from Wren Haven")
-            all_events.extend(events)
-        except ImportError as e:
-            error_msg = (
-                f"Warning: wren_haven_scraper not available (Playwright not installed?): {e}"
-            )
-            log(error_msg)
-            errors.append(error_msg)
-        except Exception as e:  # pylint: disable=broad-except
-            error_msg = f"Error scraping Wren Haven: {e}"
-            log(f"ERROR: {error_msg}")
-            errors.append(error_msg)
-
-    log(f"Total events scraped from all sources: {len(all_events)}")
+    elapsed = time.time() - start_time
+    log(f"Total events scraped: {len(all_events)} from all sources in {elapsed:.1f}s")
     if errors:
         log(f"Encountered {len(errors)} scraper error(s)")
 
     return all_events, errors
+
+
+def _scrape_single_source(source: str, url: str | None) -> tuple[list[dict], str | None]:
+    """Scrape a single source (runs in thread pool for parallelization).
+    
+    Args:
+        source: Source name ('perdido' or 'wren_haven')
+        url: URL to scrape (None for wren_haven)
+    
+    Returns:
+        Tuple of (events_list, error_message)
+    """
+    try:
+        if source == "perdido":
+            events = Envision_Perdido_DataCollection.scrape_month(url)
+            return events, None
+        elif source == "wren_haven":
+            try:
+                from scripts import wren_haven_scraper
+                events = wren_haven_scraper.scrape_wren_haven()
+                return events, None
+            except ImportError as e:
+                return [], f"wren_haven_scraper not available (Playwright not installed?): {e}"
+    except Exception as e:
+        error_msg = f"Error scraping {source}: {e}"
+        return [], error_msg
+
 
 
 def assign_event_images(events_df: pd.DataFrame) -> pd.DataFrame:
@@ -808,10 +841,15 @@ def main():
     log("=" * 80)
     log("AUTOMATED COMMUNITY EVENT CLASSIFICATION PIPELINE")
     log("=" * 80)
+    
+    pipeline_start_time = time.time()
 
     try:
         # Step 1: Scrape events
+        step_start = time.time()
         events, scrape_errors = scrape_events(include_sources=["perdido_chamber", "wren_haven"])
+        step_time = time.time() - step_start
+        log(f"\n✓ Step 1 (Scraping) completed in {step_time:.1f}s")
 
         # Log scraper errors and add to metrics
         for error in scrape_errors:
@@ -836,7 +874,12 @@ def main():
         log(f"Raw data saved to {raw_csv}")
 
         # Step 2: Classify events
+        step_start = time.time()
+        log("\nStep 2: Classifying events...")
         classified_df = classify_events(events_df)
+        step_time = time.time() - step_start
+        log(f"✓ Step 2 (Classification) completed in {step_time:.1f}s")
+        
         if classified_df is None:
             metrics.add_error("Classification step failed")
             logger.info(metrics.get_summary())
@@ -845,6 +888,7 @@ def main():
         metrics.add_classified(len(classified_df))
 
         # Step 3: Enhance descriptions with OpenAI (optional)
+        step_start = time.time()
         log("\nStep 3: Enhancing event descriptions with OpenAI...")
         if os.getenv('OPENAI_API_KEY') and enhance_event_descriptions:
             try:
@@ -868,10 +912,12 @@ def main():
                 )
                 # Convert back to DataFrame
                 classified_df = pd.DataFrame(enhanced_events)
-                log(f"✓ Enhanced {len(enhanced_events)} event descriptions")
+                step_time = time.time() - step_start
+                log(f"✓ Enhanced {len(enhanced_events)} event descriptions in {step_time:.1f}s")
                 metrics.add_enhanced(len(enhanced_events))
             except Exception as e:
-                log(f"Warning: Description enhancement failed: {e}")
+                step_time = time.time() - step_start
+                log(f"Warning: Description enhancement failed after {step_time:.1f}s: {e}")
                 logger.warning(f"OpenAI enhancement error: {e}")
                 # Continue with original descriptions
         else:
@@ -879,8 +925,11 @@ def main():
                 log("⊘ OPENAI_API_KEY not set; skipping description enhancement")
             if not enhance_event_descriptions:
                 log("⊘ regenerate_descriptions module not available")
+            log("✓ Step 3 (Enhancement) skipped: no API key or module")
 
         # Step 4: Filter community events and remove unreasonably long events
+        step_start = time.time()
+        log("\nStep 4: Filtering community events...")
         community_events = classified_df[classified_df["is_community_event"] == 1].copy()
 
         # Track events needing review (confidence < 0.75)
@@ -912,14 +961,24 @@ def main():
             if filtered_out > 0:
                 log(f"Filtered out {filtered_out} events with duration > 60 days")
 
+        step_time = time.time() - step_start
+        log(f"✓ Step 4 (Filtering) completed in {step_time:.1f}s")
         log(f"Found {len(community_events)} community events")
 
         # Step 5: Export for calendar
+        step_start = time.time()
+        log("\nStep 5: Exporting events for calendar...")
         calendar_csv = export_for_calendar(community_events, format="csv")
+        step_time = time.time() - step_start
+        log(f"✓ Step 5 (Export) completed in {step_time:.1f}s")
 
         # Step 6: Send email notification
+        step_start = time.time()
         if EMAIL_CONFIG["sender_email"] != "your_email@example.com":
+            log("\nStep 6: Sending email notification...")
             send_email_notification(community_events, classified_df, calendar_csv)
+            step_time = time.time() - step_start
+            log(f"✓ Step 6 (Email) completed in {step_time:.1f}s")
         else:
             log("Email not configured. Skipping email notification.")
             log(f"Review file manually at: {calendar_csv}")
@@ -928,11 +987,14 @@ def main():
         auto_upload = os.getenv("AUTO_UPLOAD", "true").lower() in {"true", "1", "yes"}
 
         if auto_upload and len(community_events) > 0:
+            step_start = time.time()
             log("\n" + "=" * 80)
-            log("AUTO-UPLOAD ENABLED - Uploading to WordPress...")
+            log("Step 7: AUTO-UPLOAD ENABLED - Uploading to WordPress...")
             log("=" * 80)
 
             created_ids, published_count = upload_to_wordpress(calendar_csv)
+            step_time = time.time() - step_start
+            log(f"✓ Step 7 (Upload) completed in {step_time:.1f}s")
 
             if created_ids and published_count:
                 log(f"Successfully published {published_count} events to calendar")
@@ -950,8 +1012,11 @@ def main():
             log(f"Use: python scripts/wordpress_uploader.py {calendar_csv}")
             log("=" * 80)
 
+        # Final summary with total time
+        total_time = time.time() - pipeline_start_time
         log("\n" + "=" * 80)
         log("PIPELINE COMPLETE!")
+        log(f"Total execution time: {total_time:.1f}s ({total_time/60:.1f} minutes)")
         log("=" * 80)
 
         # Log final metrics summary

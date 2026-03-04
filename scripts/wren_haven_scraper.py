@@ -63,9 +63,12 @@ def _load_cached_html(force_refresh: bool = False) -> str | None:
         if age_hours < CACHE_TTL_HOURS:
             try:
                 with open(cache_file, encoding="utf-8") as f:
+                    print(f"[Wren Haven] Using cached HTML ({age_hours:.1f}h old) - skipping Playwright")
                     return f.read()
             except Exception:
                 pass
+        else:
+            print(f"[Wren Haven] Cache expired ({age_hours:.1f}h > {CACHE_TTL_HOURS}h TTL) - fetching fresh")
 
     return None
 
