@@ -16,33 +16,7 @@ import json
 import re
 import time
 from urllib.parse import urljoin, urlparse
-
-try:
-    from zoneinfo import ZoneInfo
-except ImportError:
-    # Try dynamic imports to avoid static analyzer errors for optional
-    # packages
-    try:
-        import importlib
-
-        _bz = importlib.import_module("backports.zoneinfo")
-        ZoneInfo = getattr(_bz, "ZoneInfo")
-    except (ImportError, AttributeError):
-        try:
-            import importlib
-
-            _dt = importlib.import_module("dateutil.tz")
-            # dateutil.tz.gettz returns a tzinfo-like object when called
-            # with a name
-            ZoneInfo = getattr(_dt, "gettz")
-        except (ImportError, AttributeError):
-            ZoneInfo = None
-            print(
-                "Warning: no ZoneInfo implementation available; install "
-                "Python 3.9+, backports.zoneinfo, or python-dateutil to "
-                "enable timezone support."
-            )
-
+from zoneinfo import ZoneInfo
 import importlib
 from typing import TYPE_CHECKING
 
@@ -205,32 +179,31 @@ def get_ics_url_from_event(event_url: str) -> str | None:
     Returns:
         str | None: The URL of the ICS file, or None if it cannot be found.
     """
+    match = re.search(r"/events/details/([^/]+)", urlparse(event_url).path)
+    if match:
+        event_slug = match.group(1)
+        ics_url = urljoin(BASE, f"/events/ical/{event_slug}.ics")
+        
+        try:
+            resp = sess.head(ics_url, timeout=15, allow_redirects=True)
+            if resp.status_code == 200:
+                return ics_url
+        except requests.RequestException:
+            pass
+        
     try:
-        time.sleep(1)  # be polite and avoid overwhelming the server
         response = sess.get(event_url, timeout=30)
         response.raise_for_status()
     except requests.RequestException as e:
         print(f"Error fetching event page {event_url}: {e}")
         return None
-
+    
     if BeautifulSoup is None:
-        print("Cannot parse event page HTML because BeautifulSoup is not installed.")
+        print("Cannot parse event page HTML due to BeautifulSoup installation.")
         return None
-
+    
     soup = BeautifulSoup(response.text, "html.parser")
-
-    # Look for the "Add to Calendar -> iCal" link
-    ics_link = find_ics_links(soup)
-    if ics_link:
-        return ics_link
-
-    # Fallback: Construct the ICS URL from the event detail slug
-    match = re.search(r"/events/details/([^/]+)", urlparse(event_url).path)
-    if match:
-        event_slug = match.group(1)
-        return urljoin(BASE, f"/events/ical/{event_slug}.ics")
-    else:
-        return None
+    return find_ics_links(soup)
 
 
 # ics fetching and parsing
@@ -242,7 +215,6 @@ def fetch_calendar(ics_url: str) -> object | None:
 
     # download and parse the ics file into an icalendar object
     try:
-        time.sleep(1)  # be polite and avoid overwhelming the server
         response = sess.get(ics_url, timeout=30)
         response.raise_for_status()
         # use Calendar.from_ical when available
@@ -362,9 +334,7 @@ def scrape_month(month_url: str, pause_seconds: float = 0.4) -> list[dict]:
             all_events.extend(events)
         except Exception as e:
             errors.append(f"Error processing event page {page_url}: {e}")
-        finally:
-            time.sleep(pause_seconds)  # be polite and avoid overwhelming the server
-
+        
     print(f"Scraped {len(all_events)} events with {len(errors)} errors.")
     if errors:
         for msg in errors[:5]:
