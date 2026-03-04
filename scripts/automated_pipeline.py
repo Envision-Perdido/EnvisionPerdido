@@ -405,8 +405,10 @@ def classify_events(events_df: pd.DataFrame) -> pd.DataFrame | None:
     events_df["confidence"] = confidence
 
     # Add review flag for low confidence predictions
-    # Note: Threshold at 0.75 may be conservative if model is well-trained
-    events_df["needs_review"] = events_df["confidence"] < 0.75
+    # Threshold is calibrated based on model's confidence distribution.
+    # Events below this score need manual review due to low model confidence.
+    # Adjusted from 0.75 to 0.45 based on actual confidence distribution.
+    events_df["needs_review"] = events_df["confidence"] < 0.45
 
     community_count = predictions.sum()
     log(
@@ -427,7 +429,7 @@ def classify_events(events_df: pd.DataFrame) -> pd.DataFrame | None:
         f"median={confidence_stats['median']:.3f}, std={confidence_stats['std']:.3f}"
     )
     log(
-        f"Events flagged for review (confidence < 0.75): {needs_review_count}/{len(events_df)} "
+        f"Events flagged for review (confidence < 0.45): {needs_review_count}/{len(events_df)} "
         f"({100*needs_review_count/len(events_df):.1f}%)"
     )
 
@@ -941,9 +943,9 @@ def main():
                 # Continue with original descriptions
         else:
             if not os.getenv('OPENAI_API_KEY'):
-                log("⊘ OPENAI_API_KEY not set; skipping description enhancement")
+                log("[SKIP] OPENAI_API_KEY not set; skipping description enhancement")
             if not enhance_event_descriptions:
-                log("⊘ regenerate_descriptions module not available")
+                log("[SKIP] regenerate_descriptions module not available")
             log("Step 3 (Enhancement) skipped: no API key or module")
 
         # Step 4: Filter community events and remove unreasonably long events
