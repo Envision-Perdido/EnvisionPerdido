@@ -849,7 +849,7 @@ def main():
         step_start = time.time()
         events, scrape_errors = scrape_events(include_sources=["perdido_chamber", "wren_haven"])
         step_time = time.time() - step_start
-        log(f"\n✓ Step 1 (Scraping) completed in {step_time:.1f}s")
+        log(f"\nStep 1 (Scraping) completed in {step_time:.1f}s")
 
         # Log scraper errors and add to metrics
         for error in scrape_errors:
@@ -878,7 +878,7 @@ def main():
         log("\nStep 2: Classifying events...")
         classified_df = classify_events(events_df)
         step_time = time.time() - step_start
-        log(f"✓ Step 2 (Classification) completed in {step_time:.1f}s")
+        log(f"Step 2 (Classification) completed in {step_time:.1f}s")
         
         if classified_df is None:
             metrics.add_error("Classification step failed")
@@ -913,7 +913,7 @@ def main():
                 # Convert back to DataFrame
                 classified_df = pd.DataFrame(enhanced_events)
                 step_time = time.time() - step_start
-                log(f"✓ Enhanced {len(enhanced_events)} event descriptions in {step_time:.1f}s")
+                log(f"Enhanced {len(enhanced_events)} event descriptions in {step_time:.1f}s")
                 metrics.add_enhanced(len(enhanced_events))
             except Exception as e:
                 step_time = time.time() - step_start
@@ -925,7 +925,7 @@ def main():
                 log("⊘ OPENAI_API_KEY not set; skipping description enhancement")
             if not enhance_event_descriptions:
                 log("⊘ regenerate_descriptions module not available")
-            log("✓ Step 3 (Enhancement) skipped: no API key or module")
+            log("Step 3 (Enhancement) skipped: no API key or module")
 
         # Step 4: Filter community events and remove unreasonably long events
         step_start = time.time()
@@ -962,7 +962,7 @@ def main():
                 log(f"Filtered out {filtered_out} events with duration > 60 days")
 
         step_time = time.time() - step_start
-        log(f"✓ Step 4 (Filtering) completed in {step_time:.1f}s")
+        log(f"Step 4 (Filtering) completed in {step_time:.1f}s")
         log(f"Found {len(community_events)} community events")
 
         # Step 5: Export for calendar
@@ -970,7 +970,7 @@ def main():
         log("\nStep 5: Exporting events for calendar...")
         calendar_csv = export_for_calendar(community_events, format="csv")
         step_time = time.time() - step_start
-        log(f"✓ Step 5 (Export) completed in {step_time:.1f}s")
+        log(f"Step 5 (Export) completed in {step_time:.1f}s")
 
         # Step 6: Send email notification
         step_start = time.time()
@@ -978,7 +978,7 @@ def main():
             log("\nStep 6: Sending email notification...")
             send_email_notification(community_events, classified_df, calendar_csv)
             step_time = time.time() - step_start
-            log(f"✓ Step 6 (Email) completed in {step_time:.1f}s")
+            log(f"Step 6 (Email) completed in {step_time:.1f}s")
         else:
             log("Email not configured. Skipping email notification.")
             log(f"Review file manually at: {calendar_csv}")
@@ -994,7 +994,7 @@ def main():
 
             created_ids, published_count = upload_to_wordpress(calendar_csv)
             step_time = time.time() - step_start
-            log(f"✓ Step 7 (Upload) completed in {step_time:.1f}s")
+            log(f"Step 7 (Upload) completed in {step_time:.1f}s")
 
             if created_ids and published_count:
                 log(f"Successfully published {published_count} events to calendar")

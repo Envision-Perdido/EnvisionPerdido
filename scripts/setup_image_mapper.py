@@ -25,7 +25,7 @@ MAPPING_FILE = BASE_DIR / "data" / "event_image_mapping.csv"
 def init_directories():
     """Create directories for image storage"""
     IMAGES_DIR.mkdir(parents=True, exist_ok=True)
-    print(f"✓ Created images directory: {IMAGES_DIR}")
+    print(f"Created images directory: {IMAGES_DIR}")
 
     # Create a README
     readme = IMAGES_DIR / "README.txt"
@@ -51,7 +51,7 @@ The pipeline will automatically:
 
 For help, see: docs/IMAGE_UPLOAD_GUIDE.md
 """)
-        print("✓ Created README in images directory")
+        print("Created README in images directory")
 
 
 def create_mapping_template(latest_csv=None):
@@ -79,7 +79,7 @@ def create_mapping_template(latest_csv=None):
     )
 
     mapping_df.to_csv(MAPPING_FILE, index=False)
-    print(f"✓ Created mapping template: {MAPPING_FILE}")
+    print(f"Created mapping template: {MAPPING_FILE}")
     print(f"  Found {len(unique_titles)} unique events")
     print()
     print("Next steps:")
@@ -134,7 +134,7 @@ def show_stats():
             for _, row in mapped.iterrows():
                 img_file = row["image_filename"]
                 img_path = IMAGES_DIR / img_file
-                exists = "✓" if img_path.exists() else "✗"
+                exists = "[OK]" if img_path.exists() else "[MISSING]"
                 print(f"  {exists} {row['event_title'][:40]}")
                 print(f"    → {img_file}")
     else:
@@ -171,9 +171,9 @@ def verify_mappings():
             missing.append((row["event_title"], img_file))
 
     if found:
-        print(f"✓ Found {len(found)} images:")
+        print(f"Found {len(found)} images:")
         for title, filename in found[:5]:
-            print(f"  ✓ {title[:40]}")
+            print(f"  [OK] {title[:40]}")
             print(f"    {filename}")
         if len(found) > 5:
             print(f"  ... and {len(found) - 5} more")
@@ -187,7 +187,7 @@ def verify_mappings():
         print()
         print("ACTION: Copy missing images to data/event_images/")
     else:
-        print("✓ All mapped images found!")
+        print("All mapped images found!")
     print()
 
 

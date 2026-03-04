@@ -158,7 +158,7 @@ def _poll_batch_status(client: OpenAI, batch_id: str, max_wait: int = 3600, poll
             logger.info(f"  Processed: {batch.request_counts.completed}/{batch.request_counts.total}")
             
             if status == "completed":
-                logger.info(f"✓ Batch completed!")
+                logger.info(f"Batch completed!")
                 return True
             elif status == "failed":
                 logger.error(f"✗ Batch failed")
@@ -260,7 +260,7 @@ Provide ONLY the improved description text, no labels or formatting."""
             messages=[{"role": "user", "content": prompt}]
         )
         enhanced = response.content[0].text.strip()
-        logger.info(f"✓ Enhanced: {title}")
+        logger.info(f"Enhanced: {title}")
         logger.debug(f"  Original: {original_desc[:80]}...")
         logger.debug(f"  Enhanced: {enhanced[:80]}...")
         return enhanced
@@ -398,7 +398,7 @@ def enhance_event_descriptions(
     if save_cache:
         _save_cache(cache)
     
-    logger.info(f"✓ Enhancement complete (cache entries: {len(cache)})")
+    logger.info(f"Enhancement complete (cache entries: {len(cache)})")
     return events
 
 
@@ -474,7 +474,7 @@ def main():
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
             writer.writerows(enhanced_events)
-        logger.info(f"✓ Wrote enhanced CSV: {output_path}")
+        logger.info(f"Wrote enhanced CSV: {output_path}")
         print(output_path)
         sys.exit(0)
     except Exception as e:
