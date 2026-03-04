@@ -179,19 +179,25 @@ def get_ics_url_from_event(event_url: str) -> str | None:
     Returns:
         str | None: The URL of the ICS file, or None if it cannot be found.
     """
+    # Try to extract slug and construct ICS URL directly (faster, avoids extra request)
     match = re.search(r"/events/details/([^/]+)", urlparse(event_url).path)
     if match:
         event_slug = match.group(1)
         ics_url = urljoin(BASE, f"/events/ical/{event_slug}.ics")
         
         try:
+            # Small delay to avoid rate limiting on HEAD request
+            time.sleep(0.1)
             resp = sess.head(ics_url, timeout=15, allow_redirects=True)
             if resp.status_code == 200:
                 return ics_url
         except requests.RequestException:
             pass
-        
+    
+    # Fallback: fetch the event page and search for ICS link
     try:
+        # Small delay before fetching event page
+        time.sleep(0.1)
         response = sess.get(event_url, timeout=30)
         response.raise_for_status()
     except requests.RequestException as e:
@@ -323,9 +329,11 @@ def scrape_month(month_url: str, pause_seconds: float = 0.4) -> list[dict]:
             ics = get_ics_url_from_event(page_url)
             if not ics:
                 errors.append(f"No ICS link found on event page {page_url}")
+                time.sleep(pause_seconds)  # Rate limiting: wait before trying next event
                 continue
 
             if ics in seen_ics:
+                time.sleep(pause_seconds)
                 continue
             seen_ics.add(ics)
 
@@ -334,6 +342,9 @@ def scrape_month(month_url: str, pause_seconds: float = 0.4) -> list[dict]:
             all_events.extend(events)
         except Exception as e:
             errors.append(f"Error processing event page {page_url}: {e}")
+        finally:
+            # Rate limiting: always wait between requests to be polite to the server
+            time.sleep(pause_seconds)
         
     print(f"Scraped {len(all_events)} events with {len(errors)} errors.")
     if errors:
