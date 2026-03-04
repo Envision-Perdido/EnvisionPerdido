@@ -149,16 +149,29 @@ def get_event_url(month_url: str) -> list[str]:
 def find_ics_links(soup) -> str | None:
     """Find iCalendar download link on an event detail page.
 
+    Handles both old and new GrowthZone link formats:
+    - New format: /events/addtocalendar/{slug}?format=ICal
+    - Old format: /events/ical/{slug}.ics
+
     Args:
         soup: BeautifulSoup parsed HTML object.
 
     Returns:
         URL to ICS file, or None if not found.
     """
+    # Try new format first: "Add to iCal Calendar" link in modal
+    # Look for href with "addtocalendar" and "format=ICal"
+    ical_link = soup.select_one('a[href*="addtocalendar"][href*="format=ICal"]')
+    if ical_link and ical_link.get("href"):
+        return urljoin(BASE, ical_link["href"])
+    
+    # Fallback to old format: direct .ics link
+    # Look for "Add to Calendar - iCal" text link
     anchor = soup.find("a", string=re.compile(r"Add to Calendar\s*-\s*iCal", re.IGNORECASE))
     if anchor and anchor.get("href"):
         return urljoin(BASE, anchor["href"])
 
+    # Fallback to any direct .ics link
     generic = soup.select_one('a[href$=".ics"]')
     if generic and generic.get("href"):
         return urljoin(BASE, generic["href"])
@@ -169,9 +182,11 @@ def find_ics_links(soup) -> str | None:
 def get_ics_url_from_event(event_url: str) -> str | None:
     """Fetches the ICS URL from the event page.
 
-    GrowthZone event detail pages include an "Add to Calendar -> iCal" link
-    that points to an ICS file. If that link cannot be found, this function
-    falls back to constructing the .ics URL from the event detil slug.
+    GrowthZone event detail pages include calendar download links. This function
+    tries multiple approaches:
+    1. New format (GrowthZone 2025+): /events/addtocalendar/{slug}?format=ICal
+    2. Old format (legacy): /events/ical/{slug}.ics
+    3. HTML parsing: Search page for any available ICS link
 
     Args:
         event_url (str): The URL of the event detail page.
@@ -179,25 +194,37 @@ def get_ics_url_from_event(event_url: str) -> str | None:
     Returns:
         str | None: The URL of the ICS file, or None if it cannot be found.
     """
-    # Try to extract slug and construct ICS URL directly (faster, avoids extra request)
+    # Extract slug from event URL: /events/details/[slug]
     match = re.search(r"/events/details/([^/]+)", urlparse(event_url).path)
-    if match:
-        event_slug = match.group(1)
-        ics_url = urljoin(BASE, f"/events/ical/{event_slug}.ics")
-        
-        try:
-            # Small delay to avoid rate limiting on HEAD request
-            time.sleep(0.1)
-            resp = sess.head(ics_url, timeout=15, allow_redirects=True)
-            if resp.status_code == 200:
-                return ics_url
-        except requests.RequestException:
-            pass
+    if not match:
+        print(f"Could not extract event slug from {event_url}")
+        return None
     
-    # Fallback: fetch the event page and search for ICS link
+    event_slug = match.group(1)
+    
+    # Try new format first: /events/addtocalendar/{slug}?format=ICal
+    new_format_url = urljoin(BASE, f"/events/addtocalendar/{event_slug}?format=ICal")
     try:
-        # Small delay before fetching event page
-        time.sleep(0.1)
+        time.sleep(0.1)  # Rate limiting
+        resp = sess.head(new_format_url, timeout=15, allow_redirects=True)
+        if resp.status_code == 200:
+            return new_format_url
+    except requests.RequestException:
+        pass
+    
+    # Try old format: /events/ical/{slug}.ics
+    old_format_url = urljoin(BASE, f"/events/ical/{event_slug}.ics")
+    try:
+        time.sleep(0.1)  # Rate limiting
+        resp = sess.head(old_format_url, timeout=15, allow_redirects=True)
+        if resp.status_code == 200:
+            return old_format_url
+    except requests.RequestException:
+        pass
+    
+    # Fallback: fetch the event page and search for ICS link in HTML
+    try:
+        time.sleep(0.1)  # Rate limiting before fetching event page
         response = sess.get(event_url, timeout=30)
         response.raise_for_status()
     except requests.RequestException as e:
