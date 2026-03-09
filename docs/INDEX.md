@@ -5,6 +5,7 @@
 Start here if you're new to the project:
 
 - **[README](../README.md)** - Project overview and quick setup
+- **[README: Using Codex In This Repo](../README.md)** - Local Codex skills and example prompts for build, setup, upload, health checks, and shell access
 - **[QUICKSTART](QUICKSTART.md)** - Step-by-step guide to run the pipeline
 - **[PROJECT_STRUCTURE](PROJECT_STRUCTURE.md)** - Folder organization and file locations
 

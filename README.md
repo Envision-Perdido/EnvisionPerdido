@@ -28,6 +28,66 @@ python scripts\wordpress_uploader.py
 python scripts\health_check.py
 ```
 
+## Docker Workflow
+
+Build the containerized runtime:
+
+```bash
+docker compose build
+```
+
+Run the documented commands inside the container:
+
+```bash
+docker compose run --rm app python scripts/automated_pipeline.py
+docker compose run --rm app python scripts/wordpress_uploader.py
+docker compose run --rm app python scripts/health_check.py
+```
+
+Open an interactive shell if you want to run other repo commands manually:
+
+```bash
+docker compose run --rm app
+```
+
+Generated files persist on the host under `container-data/`:
+
+- `container-data/output/` maps to the app's `output/`
+- `container-data/data-cache/` maps to the app's `data/cache/`
+
+## Using Codex In This Repo
+
+If you run `codex` from this repository, there are local reusable skills under `skills/` that map to the main project workflows.
+
+For a novice user, the simplest prompts are:
+
+- "Set up the environment" -> uses `calendar-env-setup`
+- "Build the Docker image" -> uses `calendar-docker-build`
+- "Run the pipeline" -> uses `calendar-run-pipeline`
+- "Upload events to WordPress" -> uses `calendar-wordpress-upload`
+- "Run a health check" -> uses `calendar-health-check`
+- "Open a shell in the container" -> uses `calendar-shell`
+
+These skills are stored in this repository for portability:
+
+- `skills/calendar-env-setup/`
+- `skills/calendar-docker-build/`
+- `skills/calendar-run-pipeline/`
+- `skills/calendar-wordpress-upload/`
+- `skills/calendar-health-check/`
+- `skills/calendar-shell/`
+
+If you are not sure what to ask for, start with one of these exact prompts:
+
+```text
+Set up the environment for this repo
+Build the Docker image
+Run the pipeline in Docker
+Upload events to WordPress
+Run a health check
+Open a bash shell in the container
+```
+
 ## Documentation
 
 All detailed documentation is in the `docs/` folder. See **[docs/INDEX.md](docs/INDEX.md)** for a complete navigation guide.
@@ -73,6 +133,8 @@ See [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md) for the complete stru
 See `requirements.txt` for Python dependencies.
 
 ## Configuration
+
+This repo currently loads local credentials from `scripts/windows/env.ps1`, `scripts/macos/env.sh`, or `~/.secrets/envision_env.*` via `scripts/env_loader.py`. A root `.env` file is gitignored, but it is not automatically loaded by the current code.
 
 Set these environment variables:
 

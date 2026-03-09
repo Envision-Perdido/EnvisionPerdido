@@ -1,0 +1,16 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    working_dir: /app
+    stdin_open: true
+    tty: true
+    environment:
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - ./container-data/output:/app/output
+      - ./container-data/data-cache:/app/data/cache
+      - ./scripts/macos:/app/scripts/macos:ro
+    command: bash
