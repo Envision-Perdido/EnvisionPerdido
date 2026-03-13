@@ -46,7 +46,7 @@ from scripts import Envision_Perdido_DataCollection, event_normalizer
 # Import description enhancement (optional)
 try:
     from regenerate_descriptions import enhance_event_descriptions
-except ImportError:
+except (ImportError, SystemExit):
     enhance_event_descriptions = None
 
 # Configuration
