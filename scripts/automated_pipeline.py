@@ -29,6 +29,9 @@ import joblib
 import numpy as np
 import pandas as pd
 
+# Global configuration for classification thresholds
+CONFIDENCE_THRESHOLD = 0.75
+
 # Add scripts directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent))
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -458,10 +461,9 @@ def classify_events(events_df: pd.DataFrame) -> pd.DataFrame | None:
     events_df["confidence"] = confidence
 
     # Add review flag for low confidence predictions
-    # Threshold is calibrated based on model's confidence distribution.
     # Events below this score need manual review due to low model confidence.
-    # Adjusted from 0.75 to 0.45 based on actual confidence distribution.
-    events_df["needs_review"] = events_df["confidence"] < 0.45
+    # Use a single shared threshold across metrics, UI, and review logic.
+    events_df["needs_review"] = events_df["confidence"] < CONFIDENCE_THRESHOLD
 
     community_count = predictions.sum()
     log(
