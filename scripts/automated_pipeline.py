@@ -229,10 +229,16 @@ def classify_events_batch(
         # Get confidence scores (use decision_function for SVM)
         if hasattr(model, "decision_function"):
             decision_scores = model.decision_function(X)
-            # Convert decision function to confidence-like score (sigmoid transform)
-            # For binary classification, values range approximately [-inf, +inf]
-            # Normalize to [0, 1] using sigmoid
-            batch_confidences = 1 / (1 + np.exp(-decision_scores))
+            # Convert decision function to confidence-like score using sigmoid of
+            # the absolute value.  For binary LinearSVC the sign of the raw score
+            # indicates the predicted class (positive → class 1, negative → class 0),
+            # so applying sigmoid to the raw score would give values < 0.5 for every
+            # class-0 prediction and cause them all to be flagged for review.
+            # Using the absolute value means confidence reflects distance from the
+            # decision boundary regardless of predicted class:
+            #   |score| ≈ 0  →  confidence ≈ 0.5  (uncertain / near boundary)
+            #   |score| ≫ 0  →  confidence → 1.0  (certain, far from boundary)
+            batch_confidences = 1 / (1 + np.exp(-np.abs(decision_scores)))
         else:
             # Fallback if decision_function not available
             batch_confidences = np.ones(len(batch_predictions)) * 0.5
@@ -484,7 +490,7 @@ def classify_events(events_df: pd.DataFrame) -> pd.DataFrame | None:
         f"median={confidence_stats['median']:.3f}, std={confidence_stats['std']:.3f}"
     )
     log(
-        f"Events flagged for review (confidence < 0.45): {needs_review_count}/{len(events_df)} "
+        f"Events flagged for review (confidence < {CONFIDENCE_THRESHOLD}): {needs_review_count}/{len(events_df)} "
         f"({100*needs_review_count/len(events_df):.1f}%)"
     )
 

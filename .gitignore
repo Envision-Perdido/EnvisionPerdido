@@ -40,6 +40,10 @@ output/pipeline/*.json
 
 # Runtime cache (generated, not source)
 data/cache/media_hash_cache.json
+data/cache/**/*.html
+
+# Pipeline logs (generated at runtime)
+regenerate_descriptions/*.log
 
 # Ignore ad-hoc debug scripts (contain creds; do not commit)
 check_*.py
