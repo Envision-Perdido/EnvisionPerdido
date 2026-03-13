@@ -3,7 +3,7 @@
 **Date:** March 4, 2026  
 **Issue:** SVM model flagging too many events for review  
 **Root Cause:** Training dataset label column was empty/null  
-**Status:** ✅ RESOLVED
+**Status:**  RESOLVED
 
 ## Problem Analysis
 
