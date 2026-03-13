@@ -4,7 +4,6 @@
 Tests verify that visualization and profiling tools work correctly.
 """
 
-import json
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
