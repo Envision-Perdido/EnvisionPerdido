@@ -13,7 +13,6 @@ which caused *every* non-community event to be flagged for manual review.
 """
 import numpy as np
 import pandas as pd
-import pytest
 from unittest.mock import MagicMock
 
 
