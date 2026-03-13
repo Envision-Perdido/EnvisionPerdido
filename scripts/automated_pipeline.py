@@ -66,19 +66,42 @@ _MODEL_CACHE = {"model": None, "vectorizer": None}
 def load_model_and_vectorizer():
     """Load model and vectorizer with caching.
 
+    Supports both old (separate model/vectorizer) and new (unified pipeline) formats.
+
     Returns:
         Tuple[object | None, object | None]: Tuple of (model,
             vectorizer), or (None, None) if files not found.
     """
+    from sklearn.pipeline import Pipeline
     global _MODEL_CACHE
 
     if _MODEL_CACHE["model"] is None or _MODEL_CACHE["vectorizer"] is None:
-        if not MODEL_PATH.exists() or not VECTORIZER_PATH.exists():
-            log("ERROR: Model files not found! Please train the model first.")
+        if not MODEL_PATH.exists():
+            log("ERROR: Model file not found! Please train the model first.")
             return None, None
 
-        _MODEL_CACHE["model"] = joblib.load(MODEL_PATH)
-        _MODEL_CACHE["vectorizer"] = joblib.load(VECTORIZER_PATH)
+        model_data = joblib.load(MODEL_PATH)
+        
+        # Check if this is the new unified pipeline format
+        if isinstance(model_data, dict) and "pipe" in model_data:
+            # New format: unified pipeline with integrated features
+            pipeline = model_data["pipe"]
+            _MODEL_CACHE["model"] = pipeline
+            _MODEL_CACHE["vectorizer"] = "UNIFIED_PIPELINE"  # Marker for unified format
+            log("Loaded new unified pipeline model")
+        elif isinstance(model_data, Pipeline):
+            # New format but directly stored as Pipeline
+            _MODEL_CACHE["model"] = model_data
+            _MODEL_CACHE["vectorizer"] = "UNIFIED_PIPELINE"
+            log("Loaded unified pipeline model (direct)")
+        else:
+            # Old format: legacy model structure
+            if not VECTORIZER_PATH.exists():
+                log("ERROR: Vectorizer file not found! Please train the model first.")
+                return None, None
+            _MODEL_CACHE["model"] = model_data
+            _MODEL_CACHE["vectorizer"] = joblib.load(VECTORIZER_PATH)
+            log("Loaded legacy separate model and vectorizer")
 
     return _MODEL_CACHE["model"], _MODEL_CACHE["vectorizer"]
 
@@ -142,12 +165,13 @@ def classify_events_batch(
     """Classify events in batches for better memory efficiency.
 
     Uses batch processing to vectorize and classify events, reducing peak memory
-    usage and enabling progress reporting.
+    usage and enabling progress reporting. Supports both old (separate vectorizer)
+    and new (unified pipeline) model formats.
 
     Args:
         events_df: DataFrame with event data.
         model: Trained classifier.
-        vectorizer: TfidfVectorizer.
+        vectorizer: TfidfVectorizer (or "UNIFIED_PIPELINE" marker for new format).
         batch_size: Number of events per batch (default: 500).
         verbose: Whether to log progress (default: True).
 
@@ -157,14 +181,43 @@ def classify_events_batch(
     n_events = len(events_df)
     all_predictions = np.zeros(n_events, dtype=int)
     all_confidences = np.zeros(n_events, dtype=float)
+    
+    # Check if using new unified pipeline format
+    use_unified_pipeline = vectorizer == "UNIFIED_PIPELINE"
 
     for i in range(0, n_events, batch_size):
         end_idx = min(i + batch_size, n_events)
-        batch = events_df.iloc[i:end_idx]
+        batch = events_df.iloc[i:end_idx].copy()
 
-        # Build features for batch
-        X_text = build_features(batch)
-        X = vectorizer.transform(X_text)
+        if use_unified_pipeline:
+            # New unified pipeline format: build all required features
+            # The pipeline expects: text, hour, is_weekend, venue_library, venue_park, venue_church, venue_museum
+            text = batch.get("title", pd.Series()).fillna("") + " " + batch.get("description", pd.Series()).fillna("")
+            
+            dt = pd.to_datetime(batch.get("start", pd.Series()), errors="coerce", utc=True)
+            hour = dt.dt.hour.fillna(-1).astype(int)
+            dow = dt.dt.dayofweek.fillna(-1).astype(int)
+            is_weekend = dow.between(5, 6).astype(int)
+            
+            loc = batch.get("location", pd.Series()).fillna("").str.lower()
+            venue_library = loc.str.contains(r"\blibrary\b", na=False).astype(int)
+            venue_park = loc.str.contains(r"\bpark\b", na=False).astype(int)
+            venue_church = loc.str.contains(r"\bchurch\b", na=False).astype(int)
+            venue_museum = loc.str.contains(r"\bmuseum\b|gallery", na=False).astype(int)
+            
+            X = pd.DataFrame({
+                "text": text,
+                "hour": hour,
+                "is_weekend": is_weekend,
+                "venue_library": venue_library,
+                "venue_park": venue_park,
+                "venue_church": venue_church,
+                "venue_museum": venue_museum,
+            })
+        else:
+            # Old format: manually build text features and vectorize
+            X_text = build_features(batch)
+            X = vectorizer.transform(X_text)
 
         # Predict on batch
         batch_predictions = model.predict(X)
