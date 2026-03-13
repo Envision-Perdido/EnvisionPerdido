@@ -15,7 +15,7 @@ import pstats
 import time
 from io import StringIO
 from pathlib import Path
-from typing import List, Tuple
+from typing import List
 
 import joblib
 import pandas as pd
