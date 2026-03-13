@@ -103,7 +103,7 @@ def profile_vectorization(vectorizer, texts: List[str], n_runs: int = 10) -> dic
     times = []
     for _ in range(n_runs):
         start = time.perf_counter()
-        X = vectorizer.transform(texts)
+        vectorizer.transform(texts)
         end = time.perf_counter()
         times.append(end - start)
 
