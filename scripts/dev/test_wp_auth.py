@@ -106,7 +106,6 @@ def test_authentication():
             print(f"    Found {len(events)} published events")
         else:
             print(f"    STATUS: {response.status_code}")
-            pass
 
     except Exception as e:
         print(f"    Exception: {str(e)}")
