@@ -18,7 +18,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY scripts/ scripts/
 COPY data/ data/
 COPY plugins/ plugins/
-COPY Envision_Perdido_DataCollection.py .
 
 # Create output directories with proper permissions
 RUN mkdir -p output/pipeline output/logs && chmod -R 777 output
