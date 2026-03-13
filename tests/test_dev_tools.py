@@ -230,9 +230,7 @@ class TestBatchClassification:
         mock_model.decision_function.return_value = np.array([2.0, -2.0, -0.1])
         mock_vectorizer.transform.return_value = MagicMock(shape=(3, 10))
 
-        _, confidences = classify_events_batch(
-            df_test, mock_model, mock_vectorizer, batch_size=10
-        )
+        _, confidences = classify_events_batch(df_test, mock_model, mock_vectorizer, batch_size=10)
 
         # A confident class-0 prediction must have confidence >= 0.5
         assert confidences[1] >= 0.5, (

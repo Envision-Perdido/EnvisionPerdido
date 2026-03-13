@@ -71,11 +71,13 @@ def test_get_ics_url_from_event_finds_direct_link(restore_session):
 def test_get_ics_url_from_event_fallback_slug(restore_session):
     # When old format URL exists but no direct link in HTML, return the old format URL
     event_url = "https://business.perdidochamber.com/events/details/networking-night-august-99999"
-    old_format_url = "https://business.perdidochamber.com/events/ical/networking-night-august-99999.ics"
+    old_format_url = (
+        "https://business.perdidochamber.com/events/ical/networking-night-august-99999.ics"
+    )
     html = "<html><body><p>No calendar link here</p></body></html>"
     scraper.sess = DummySession(
         {event_url: (html, 200)},
-        {old_format_url: 200}  # HEAD request to old format URL succeeds
+        {old_format_url: 200},  # HEAD request to old format URL succeeds
     )
 
     out = scraper.get_ics_url_from_event(event_url)

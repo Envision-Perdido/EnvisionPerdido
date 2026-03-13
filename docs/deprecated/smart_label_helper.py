@@ -172,7 +172,7 @@ def main():
 
     # Show sample of flagged events for review
     if "needs_review" in df_output.columns:
-        flagged = df_output[df_output["needs_review"] == True]
+        flagged = df_output[df_output["needs_review"]]
         if len(flagged) > 0:
             print(f"\n{'=' * 80}")
             print("EVENTS FLAGGED FOR MANUAL REVIEW (low confidence):")

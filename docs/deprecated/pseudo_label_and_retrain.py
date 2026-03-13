@@ -10,18 +10,20 @@ This approach:
 5. Results in better calibration and coverage
 """
 
-import pandas as pd
-import joblib
 from pathlib import Path
-from sklearn.svm import SVC
-from sklearn.metrics import accuracy_score, classification_report
+
+import joblib
 import numpy as np
+import pandas as pd
+from sklearn.metrics import accuracy_score, classification_report
+from sklearn.svm import SVC
 
 BASE_DIR = Path(__file__).parent.parent
 CONSOLIDATED_FILE = BASE_DIR / "data" / "processed" / "consolidated_training_data.csv"
 MODEL_PATH = BASE_DIR / "data" / "artifacts" / "event_classifier_model.pkl"
 VECTORIZER_PATH = BASE_DIR / "data" / "artifacts" / "event_vectorizer.pkl"
 OUTPUT_FILE = BASE_DIR / "data" / "labeled" / "consolidated_events_labeled.csv"
+
 
 def build_text_features(df):
     """Build text features from event data."""
@@ -36,6 +38,7 @@ def build_text_features(df):
             parts.append(str(row["location"]))
         features.append(" ".join(parts))
     return features
+
 
 def main():
     print("=" * 80)
@@ -79,10 +82,12 @@ def main():
     print(f"  Non-community events: {num_non_community}/{len(consolidated_df)}")
     print(f"  High confidence (>0.7): {high_conf_count}/{len(consolidated_df)}")
     print(f"  Decision scores - Min: {decision_scores.min():.3f}, Max: {decision_scores.max():.3f}")
-    print(f"  Confidences - Mean: {confidences_proba.mean():.3f}, Std: {confidences_proba.std():.3f}")
+    print(
+        f"  Confidences - Mean: {confidences_proba.mean():.3f}, Std: {confidences_proba.std():.3f}"
+    )
 
     # Save labeled data
-    print(f"\n[Saving] Labeled consolidation...")
+    print("\n[Saving] Labeled consolidation...")
     consolidated_df.to_csv(OUTPUT_FILE, index=False)
     print(f"  Saved: {OUTPUT_FILE}")
     print(f"  Total: {len(consolidated_df)} events with labels")
@@ -135,8 +140,9 @@ def main():
     print(f"\nDataset expanded:    424 → {len(consolidated_df)} total events")
     print(f"Training events:     {len(training_df)} for retraining")
     print(f"Model accuracy:      {accuracy:.2%} on training data")
-    print(f"\nNext: Run pipeline to test new model calibration")
+    print("\nNext: Run pipeline to test new model calibration")
     print()
+
 
 if __name__ == "__main__":
     main()

@@ -109,7 +109,7 @@ def test_authentication():
 
     except Exception as e:
         print(f"    Exception: {str(e)}")
-        #test2_pass = False
+        # test2_pass = False
 
     print()
 

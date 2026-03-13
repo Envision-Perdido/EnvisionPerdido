@@ -22,10 +22,10 @@ import pandas as pd
 # Add scripts to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
-from env_loader import validate_env_config
-from logger import get_logger, PipelineMetrics
-from wordpress_uploader import WordPressEventUploader
 from automated_pipeline import scrape_events
+from env_loader import validate_env_config
+from logger import PipelineMetrics, get_logger
+from wordpress_uploader import WordPressEventUploader
 
 
 class TestIssue1Deduplication(unittest.TestCase):
@@ -41,12 +41,14 @@ class TestIssue1Deduplication(unittest.TestCase):
         """Verify UID is stored in event metadata."""
         uploader = WordPressEventUploader("https://example.com", "user", "pass")
 
-        event_row = pd.Series({
-            "uid": "event-123-456",
-            "title": "Test Event",
-            "start": "2025-09-15 10:00:00",
-            "end": "2025-09-15 11:00:00",
-        })
+        event_row = pd.Series(
+            {
+                "uid": "event-123-456",
+                "title": "Test Event",
+                "start": "2025-09-15 10:00:00",
+                "end": "2025-09-15 11:00:00",
+            }
+        )
 
         metadata = uploader.parse_event_metadata(event_row)
         self.assertIn("_event_uid", metadata)
@@ -193,9 +195,7 @@ class TestIssue4ErrorIsolation(unittest.TestCase):
                 # Wren Haven succeeds
                 mock_wren.return_value = [{"title": "Wren Event"}]
 
-                events, errors = scrape_events(
-                    include_sources=["perdido_chamber", "wren_haven"]
-                )
+                events, errors = scrape_events(include_sources=["perdido_chamber", "wren_haven"])
 
                 # Should have 1 event from Wren Haven
                 self.assertEqual(len(events), 1)
@@ -223,10 +223,11 @@ class TestIssue5RateLimiting(unittest.TestCase):
 
     def test_timeout_parameter_respected(self):
         """Verify timeout is used in HTTP requests."""
-        from scripts.Envision_Perdido_DataCollection import scrape_month
-
         # Check function signature/code includes timeout references
         import inspect
+
+        from scripts.Envision_Perdido_DataCollection import scrape_month
+
         source = inspect.getsource(scrape_month)
         # The scraper should have timeout in calls
         self.assertIn("timeout", source)

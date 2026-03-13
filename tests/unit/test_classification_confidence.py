@@ -11,9 +11,11 @@ For binary LinearSVC:
 Without np.abs(), sigmoid(negative_score) < 0.5 < CONFIDENCE_THRESHOLD (0.75),
 which caused *every* non-community event to be flagged for manual review.
 """
+
+from unittest.mock import MagicMock
+
 import numpy as np
 import pandas as pd
-from unittest.mock import MagicMock
 
 
 def _make_df(n=3):
@@ -81,9 +83,7 @@ class TestConfidenceCalculation:
         lower confidence than a prediction far from it."""
         from scripts.automated_pipeline import classify_events_batch
 
-        mock_model = self._make_mock_model(
-            predictions=[0, 0], decision_scores=[-2.0, -0.1]
-        )
+        mock_model = self._make_mock_model(predictions=[0, 0], decision_scores=[-2.0, -0.1])
         mock_vec = MagicMock()
         mock_vec.transform.return_value = MagicMock(shape=(2, 10))
 
@@ -101,7 +101,7 @@ class TestConfidenceCalculation:
         events must *not* exceed the CONFIDENCE_THRESHOLD check that triggers
         the needs_review flag (i.e. confidence must be >= CONFIDENCE_THRESHOLD).
         """
-        from scripts.automated_pipeline import classify_events_batch, CONFIDENCE_THRESHOLD
+        from scripts.automated_pipeline import CONFIDENCE_THRESHOLD, classify_events_batch
 
         # Simulate a batch of confidently non-community events
         n = 5

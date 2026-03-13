@@ -85,7 +85,9 @@ class WordPressEventUploader:
         self.session = _create_session_with_retries()
         self.session.auth = self.auth
         self.max_workers = max_workers
-        self._hash_cache_path = Path(__file__).parent.parent / "data" / "cache" / "media_hash_cache.json"
+        self._hash_cache_path = (
+            Path(__file__).parent.parent / "data" / "cache" / "media_hash_cache.json"
+        )
 
     def test_connection(self) -> bool:
         """Test WordPress API connection and authentication.

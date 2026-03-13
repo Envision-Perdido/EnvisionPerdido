@@ -16,9 +16,9 @@ import importlib
 import json
 import re
 import time
+from typing import TYPE_CHECKING
 from urllib.parse import urljoin, urlparse
 from zoneinfo import ZoneInfo
-from typing import TYPE_CHECKING
 
 import requests
 from requests.adapters import HTTPAdapter
