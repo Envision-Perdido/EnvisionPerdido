@@ -29,6 +29,7 @@ coverage/
 plugins/builds/
 *.zip
 output/logs/
+container-data/
 
 # Credentials (NEVER commit these!)
 scripts/windows/env.ps1

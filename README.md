@@ -119,6 +119,8 @@ See `requirements.txt` for Python dependencies.
 
 ## Configuration
 
+This repo currently loads local credentials from `scripts/windows/env.ps1`, `scripts/macos/env.sh`, or `~/.secrets/envision_env.*` via `scripts/env_loader.py`. A root `.env` file is gitignored, but it is not automatically loaded by the current code.
+
 Set these environment variables:
 
 ```powershell
