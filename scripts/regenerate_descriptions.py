@@ -89,7 +89,7 @@ def _get_cache_key(event: Dict) -> str:
     title = event.get('Title', '')
     description = event.get('Description', '')
     location = event.get('Location', '')
-    
+
     # Hash the original description to detect if it changed
     combined = f"{title}|{description}|{location}"
     return hashlib.md5(combined.encode()).hexdigest()
@@ -101,7 +101,7 @@ def _build_batch_request(event: Dict, request_id: str, model: str = "gpt-4o-mini
     original_desc = event.get('Description', 'No description provided')
     location = event.get('Location', 'TBD')
     start_date = event.get('Start Date', 'TBD')
-    
+
     prompt = f"""You are a professional event marketing copywriter. 
 Improve the following event description to be more engaging, informative, and compelling.
 Keep it concise (2-3 sentences, max 150 words). Maintain factual accuracy.
@@ -113,7 +113,7 @@ Event Details:
 - Original Description: {original_desc}
 
 Provide ONLY the improved description text, no labels or formatting."""
-    
+
     return {
         "custom_id": request_id,
         "method": "POST",
@@ -129,7 +129,7 @@ Provide ONLY the improved description text, no labels or formatting."""
 def _submit_batch(client: OpenAI, requests: List[Dict]) -> str:
     """Submit batch to OpenAI Batch API and return batch ID."""
     logger.info(f"Submitting batch with {len(requests)} requests to OpenAI...")
-    
+
     try:
         # OpenAI SDK handles JSONL conversion
         batch_response = client.beta.batch.create(
@@ -147,35 +147,35 @@ def _submit_batch(client: OpenAI, requests: List[Dict]) -> str:
 def _poll_batch_status(client: OpenAI, batch_id: str, max_wait: int = 3600, poll_interval: int = 30) -> bool:
     """Poll batch status until complete. Returns True if successful."""
     logger.info(f"Polling batch {batch_id} for completion (max wait: {max_wait}s)...")
-    
+
     start_time = time.time()
     while time.time() - start_time < max_wait:
         try:
             batch = client.beta.batch.retrieve(batch_id)
             status = batch.status
-            
+
             logger.info(f"Batch status: {status}")
             logger.info(f"  Processed: {batch.request_counts.completed}/{batch.request_counts.total}")
-            
+
             if status == "completed":
-                logger.info(f"Batch completed!")
+                logger.info("Batch completed!")
                 return True
             elif status == "failed":
-                logger.error(f"✗ Batch failed")
+                logger.error("✗ Batch failed")
                 if hasattr(batch, 'errors') and batch.errors:
                     for error in batch.errors:
                         logger.error(f"  Error: {error}")
                 return False
             elif status == "expired":
-                logger.error(f"✗ Batch expired")
+                logger.error("✗ Batch expired")
                 return False
-            
+
             logger.debug(f"Batch still processing... waiting {poll_interval}s before next check")
             time.sleep(poll_interval)
         except Exception as e:
             logger.error(f"Failed to check batch status: {e}")
             raise
-    
+
     logger.error(f"Batch did not complete within {max_wait} seconds")
     logger.info(f"Batch ID for manual checking: {batch_id}")
     return False
@@ -184,12 +184,12 @@ def _poll_batch_status(client: OpenAI, batch_id: str, max_wait: int = 3600, poll
 def _retrieve_batch_results(client: OpenAI, batch_id: str) -> Dict[str, str]:
     """Retrieve results from completed batch. Returns dict of custom_id -> enhanced_description."""
     logger.info(f"Retrieving results from batch {batch_id}...")
-    
+
     results = {}
     try:
         # Get all results from the batch
         result_lines = client.beta.batch.results(batch_id)
-        
+
         for line in result_lines:
             if line.result.status == "succeeded":
                 custom_id = line.custom_id
@@ -201,7 +201,7 @@ def _retrieve_batch_results(client: OpenAI, batch_id: str) -> Dict[str, str]:
             else:
                 custom_id = line.custom_id
                 logger.warning(f"Request {custom_id} failed: {line.result.error}")
-        
+
         logger.info(f"Retrieved {len(results)} successful results")
         return results
     except Exception as e:
@@ -230,17 +230,17 @@ def generate_single_description(
     if dry_run:
         logger.debug(f"[DRY-RUN] Would enhance: {event.get('Title', 'Unknown')}")
         return event.get('Description', 'No description')
-    
+
     title = event.get('Title', 'Unknown Event')
     original_desc = event.get('Description', 'No description provided')
     location = event.get('Location', 'TBD')
     start_date = event.get('Start Date', 'TBD')
-    
+
     # Skip if no description
     if not original_desc or original_desc.strip() == '':
         logger.debug(f"Skipping (no description): {title}")
         return original_desc
-    
+
     prompt = f"""You are a professional event marketing copywriter. 
 Improve the following event description to be more engaging, informative, and compelling.
 Keep it concise (2-3 sentences, max 150 words). Maintain factual accuracy.
@@ -252,7 +252,7 @@ Event Details:
 - Original Description: {original_desc}
 
 Provide ONLY the improved description text, no labels or formatting."""
-    
+
     try:
         response = client.messages.create(
             model=model,
@@ -299,32 +299,32 @@ def enhance_event_descriptions(
     if not api_key:
         logger.warning("OPENAI_API_KEY not set. Skipping description enhancement.")
         return events
-    
+
     if not events:
         logger.warning("No events to enhance")
         return events
-    
+
     # Load cache
     cache = _load_cache() if use_cache else {}
-    
+
     # Filter events by confidence (top-N)
     events_to_enhance = []
     for event in events:
         original_desc = event.get('Description', '')
         if not original_desc or original_desc.strip() == '':
             continue
-        
+
         confidence = event.get('confidence', 1.0)
         if confidence >= min_confidence:
             events_to_enhance.append(event)
-    
+
     # Sort by confidence descending, take top N
     events_to_enhance.sort(key=lambda e: e.get('confidence', 0), reverse=True)
     if top_n:
         events_to_enhance = events_to_enhance[:top_n]
-    
+
     logger.info(f"Will enhance {len(events_to_enhance)}/{len(events)} events (top_n={top_n}, min_confidence={min_confidence})")
-    
+
     # Check cache and filter out already-enhanced
     cache_hits = 0
     still_to_enhance = []
@@ -335,39 +335,39 @@ def enhance_event_descriptions(
             cache_hits += 1
         else:
             still_to_enhance.append(event)
-    
+
     logger.info(f"Cache hits: {cache_hits}, still need to enhance: {len(still_to_enhance)}")
-    
+
     # If nothing left to enhance, return events with cached enhancements
     if not still_to_enhance:
         logger.info("All events already in cache!")
         return events
-    
+
     # Initialize OpenAI client
     client = OpenAI(api_key=api_key)
-    
+
     if dry_run:
         logger.info("[DRY-RUN] Would enhance descriptions (no API calls)")
         return events
-    
+
     # Use Batch API or sync
     if use_batch:
         logger.info("Using OpenAI Batch API (async processing)...")
-        
+
         # Build batch requests
         batch_requests = []
         for i, event in enumerate(still_to_enhance):
             request_id = f"event_{i}_{_get_cache_key(event)}"
             batch_requests.append(_build_batch_request(event, request_id, model))
-        
+
         # Submit batch
         batch_id = _submit_batch(client, batch_requests)
-        
+
         # Poll for completion
         if _poll_batch_status(client, batch_id):
             # Retrieve results
             batch_results = _retrieve_batch_results(client, batch_id)
-            
+
             # Apply results and update cache
             for event in still_to_enhance:
                 cache_key = _get_cache_key(event)
@@ -386,18 +386,18 @@ def enhance_event_descriptions(
         for i, event in enumerate(still_to_enhance, 1):
             title = event.get('Title', f'Event {i}')
             logger.info(f"[{i}/{len(still_to_enhance)}] {title}")
-            
+
             enhanced_desc = generate_single_description(client, event, model, dry_run=False)
             event['Description'] = enhanced_desc
-            
+
             # Update cache
             cache_key = _get_cache_key(event)
             cache[cache_key] = enhanced_desc
-    
+
     # Save cache
     if save_cache:
         _save_cache(cache)
-    
+
     logger.info(f"Enhancement complete (cache entries: {len(cache)})")
     return events
 
@@ -406,7 +406,7 @@ def main():
     """Standalone CLI usage"""
     import argparse
     import csv
-    
+
     parser = argparse.ArgumentParser(description="Regenerate event descriptions using OpenAI")
     parser.add_argument('--batch', action='store_true', help="Use OpenAI Batch API (async, cheaper)")
     parser.add_argument('--sync', action='store_true', help="Use sync API (default, immediate results)")
@@ -418,7 +418,7 @@ def main():
     parser.add_argument('--model', default='gpt-4o-mini', help='OpenAI model')
     parser.add_argument('--csv', type=Path, help='Specific CSV file to process')
     args = parser.parse_args()
-    
+
     # Find CSV
     if args.csv:
         csv_path = args.csv
@@ -427,16 +427,16 @@ def main():
         if not pipeline_dir.exists():
             logger.error(f"Pipeline directory not found: {pipeline_dir}")
             sys.exit(1)
-        
+
         csv_files = sorted(pipeline_dir.glob("calendar_upload_*.csv"), key=os.path.getmtime, reverse=True)
         if not csv_files:
             logger.error(f"No calendar_upload_*.csv files found in {pipeline_dir}")
             sys.exit(1)
-        
+
         csv_path = csv_files[0]
-    
+
     logger.info(f"Processing: {csv_path}")
-    
+
     # Read CSV
     events = []
     try:
@@ -447,7 +447,7 @@ def main():
     except Exception as e:
         logger.error(f"Failed to read CSV: {e}")
         sys.exit(1)
-    
+
     # Enhance
     use_batch = args.batch or not args.sync  # Default to batch if neither specified
     enhanced_events = enhance_event_descriptions(
@@ -460,14 +460,14 @@ def main():
         use_cache=not args.no_cache,
         save_cache=not args.skip_cache
     )
-    
+
     # Write output
     output_dir = Path("output/pipeline")
     output_dir.mkdir(parents=True, exist_ok=True)
-    
+
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_path = output_dir / f"calendar_upload_enhanced_{timestamp}.csv"
-    
+
     try:
         fieldnames = enhanced_events[0].keys()
         with open(output_path, 'w', newline='', encoding='utf-8') as f:

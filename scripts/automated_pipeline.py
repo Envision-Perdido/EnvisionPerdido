@@ -84,7 +84,7 @@ def load_model_and_vectorizer():
             return None, None
 
         model_data = joblib.load(MODEL_PATH)
-        
+
         # Check if this is the new unified pipeline format
         if isinstance(model_data, dict) and "pipe" in model_data:
             # New format: unified pipeline with integrated features
@@ -184,7 +184,7 @@ def classify_events_batch(
     n_events = len(events_df)
     all_predictions = np.zeros(n_events, dtype=int)
     all_confidences = np.zeros(n_events, dtype=float)
-    
+
     # Check if using new unified pipeline format
     use_unified_pipeline = vectorizer == "UNIFIED_PIPELINE"
 
@@ -196,18 +196,18 @@ def classify_events_batch(
             # New unified pipeline format: build all required features
             # The pipeline expects: text, hour, is_weekend, venue_library, venue_park, venue_church, venue_museum
             text = batch.get("title", pd.Series()).fillna("") + " " + batch.get("description", pd.Series()).fillna("")
-            
+
             dt = pd.to_datetime(batch.get("start", pd.Series()), errors="coerce", utc=True)
             hour = dt.dt.hour.fillna(-1).astype(int)
             dow = dt.dt.dayofweek.fillna(-1).astype(int)
             is_weekend = dow.between(5, 6).astype(int)
-            
+
             loc = batch.get("location", pd.Series()).fillna("").str.lower()
             venue_library = loc.str.contains(r"\blibrary\b", na=False).astype(int)
             venue_park = loc.str.contains(r"\bpark\b", na=False).astype(int)
             venue_church = loc.str.contains(r"\bchurch\b", na=False).astype(int)
             venue_museum = loc.str.contains(r"\bmuseum\b|gallery", na=False).astype(int)
-            
+
             X = pd.DataFrame({
                 "text": text,
                 "hour": hour,
@@ -295,7 +295,7 @@ def scrape_events(
 
     # Execute all scraping tasks in parallel
     log(f"Running {len(scraping_tasks)} scraping tasks in parallel...")
-    
+
     with ThreadPoolExecutor(max_workers=3) as executor:
         futures = {
             executor.submit(_scrape_single_source, source, url): (source, url)
@@ -917,7 +917,7 @@ def main():
     log("=" * 80)
     log("AUTOMATED COMMUNITY EVENT CLASSIFICATION PIPELINE")
     log("=" * 80)
-    
+
     pipeline_start_time = time.time()
 
     try:
@@ -955,7 +955,7 @@ def main():
         classified_df = classify_events(events_df)
         step_time = time.time() - step_start
         log(f"Step 2 (Classification) completed in {step_time:.1f}s")
-        
+
         if classified_df is None:
             metrics.add_error("Classification step failed")
             logger.info(metrics.get_summary())
