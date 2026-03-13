@@ -197,6 +197,59 @@ class TestBatchClassification:
         assert predictions.dtype in [int, np.int64, np.int32]
         assert confidences.dtype in [float, np.float64, np.float32]
 
+    def test_confidence_uses_absolute_decision_scores(self):
+        """Confidence must be based on |decision_score| so class-0 predictions
+        are not incorrectly penalised.
+
+        For binary LinearSVC the raw decision function returns positive values
+        for class-1 predictions and negative values for class-0 predictions.
+        A confident class-0 prediction (e.g. score = -2.0) must yield a
+        confidence that is *higher* than a borderline class-0 prediction
+        (score = -0.1), and must also be >= 0.5 (since the model is sure).
+        Previously the code applied sigmoid to the raw score, making every
+        class-0 confidence < 0.5 and causing them all to be flagged for review.
+        """
+        from scripts.automated_pipeline import classify_events_batch
+
+        mock_model = MagicMock()
+        mock_vectorizer = MagicMock()
+
+        df_test = pd.DataFrame(
+            {
+                "title": ["Community Fest", "Private Meeting", "Club Social"],
+                "description": ["Fun for all", "Closed session", "Members only"],
+                "location": ["Park", "Office", "Clubhouse"],
+                "category": ["Festival", "Meeting", "Social"],
+            }
+        )
+
+        # class 1 = community (positive score), class 0 = non-community (negative score)
+        mock_model.predict.return_value = np.array([1, 0, 0])
+        # Event 0: confident class-1 (+2.0), Event 1: confident class-0 (-2.0),
+        # Event 2: borderline class-0 (-0.1)
+        mock_model.decision_function.return_value = np.array([2.0, -2.0, -0.1])
+        mock_vectorizer.transform.return_value = MagicMock(shape=(3, 10))
+
+        _, confidences = classify_events_batch(
+            df_test, mock_model, mock_vectorizer, batch_size=10
+        )
+
+        # A confident class-0 prediction must have confidence >= 0.5
+        assert confidences[1] >= 0.5, (
+            f"Confident class-0 prediction has confidence {confidences[1]:.3f} < 0.5; "
+            "did you forget np.abs() on the decision score?"
+        )
+        # A borderline prediction must be less confident than a clear prediction
+        assert confidences[1] > confidences[2], (
+            "Confident class-0 (score=-2) should have higher confidence than "
+            f"borderline class-0 (score=-0.1): {confidences[1]:.3f} vs {confidences[2]:.3f}"
+        )
+        # Symmetric: same |score| → same confidence regardless of class
+        assert abs(confidences[0] - confidences[1]) < 1e-6, (
+            f"Symmetric scores (+2 and -2) should yield equal confidence: "
+            f"{confidences[0]:.6f} vs {confidences[1]:.6f}"
+        )
+
 
 class TestIntegration:
     """Integration tests for the full workflow"""

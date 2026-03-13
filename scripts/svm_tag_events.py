@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 import joblib
+import numpy as np
 import pandas as pd
 
 
@@ -106,10 +107,12 @@ def main():
     if args.confidence:
         # Get decision function scores (distance from hyperplane)
         decision_scores = pipe.decision_function(X)
-        # Convert to pseudo-probabilities (0-1 range)
-        # Positive = community event, negative = non-community
-        confidence = 1 / (1 + pd.Series(decision_scores).abs())
-        df["prediction_confidence"] = confidence.values
+        # Confidence = sigmoid of |score|: near the boundary (|score|≈0) → 0.5
+        # (uncertain), far from boundary (|score|≫0) → 1.0 (certain).
+        # The absolute value is used so that class-0 predictions (negative raw
+        # scores) yield high confidence when the model is sure, not low.
+        confidence = 1 / (1 + np.exp(-np.abs(decision_scores)))
+        df["prediction_confidence"] = confidence
 
     # Count predictions
     community_count = int(predictions.sum())
