@@ -973,9 +973,27 @@ def main():
                 openai_use_batch = os.getenv('OPENAI_USE_BATCH', 'false').lower() == 'true'
                 openai_top_n = int(os.getenv('OPENAI_TOP_N', '100'))
                 openai_min_confidence = float(os.getenv('OPENAI_MIN_CONFIDENCE', '0.75'))
-                
+
                 # Convert DataFrame to list of dicts for enhancement
                 events_list = classified_df.to_dict('records')
+
+                # Normalize keys for the enhancer: ensure Title/Description exist
+                for event in events_list:
+                    # Prefer existing Title/Description; fall back to lowercase keys
+                    if 'Title' not in event and 'title' in event:
+                        event['Title'] = event['title']
+                    if 'Description' not in event and 'description' in event:
+                        event['Description'] = event['description']
+
+                # Track original descriptions to detect actual changes
+                original_descriptions = []
+                for event in events_list:
+                    # Use lowercase description if present, else fall back to Description
+                    if 'description' in event and event['description'] is not None:
+                        original_descriptions.append(event['description'])
+                    else:
+                        original_descriptions.append(event.get('Description'))
+
                 enhanced_events = enhance_event_descriptions(
                     events_list,
                     dry_run=openai_dry_run,
@@ -986,11 +1004,38 @@ def main():
                     use_cache=True,
                     save_cache=True
                 )
-                # Convert back to DataFrame
+
+                # Post-process enhanced events: propagate enhanced Title/Description
+                # back into lowercase fields and count actual description changes.
+                changed_count = 0
+                for idx, event in enumerate(enhanced_events):
+                    # Normalize title casing
+                    if 'Title' in event and (not event.get('title')):
+                        event['title'] = event['Title']
+
+                    # Determine the new description value, preferring Description
+                    new_desc = None
+                    if 'Description' in event and event['Description'] is not None:
+                        new_desc = event['Description']
+                    elif 'description' in event and event['description'] is not None:
+                        new_desc = event['description']
+
+                    # Original description for this index (may be None)
+                    orig_desc = original_descriptions[idx] if idx < len(original_descriptions) else None
+
+                    # If we have a new non-empty description and it actually changed, count it
+                    if new_desc is not None and new_desc != orig_desc:
+                        changed_count += 1
+
+                    # Ensure lowercase description reflects the latest value
+                    if new_desc is not None:
+                        event['description'] = new_desc
+
+                # Convert back to DataFrame with normalized lowercase fields
                 classified_df = pd.DataFrame(enhanced_events)
                 step_time = time.time() - step_start
-                log(f"Enhanced {len(enhanced_events)} event descriptions in {step_time:.1f}s")
-                metrics.add_enhanced(len(enhanced_events))
+                log(f"Enhanced {changed_count} event descriptions in {step_time:.1f}s")
+                metrics.add_enhanced(changed_count)
             except Exception as e:
                 step_time = time.time() - step_start
                 log(f"Warning: Description enhancement failed after {step_time:.1f}s: {e}")
