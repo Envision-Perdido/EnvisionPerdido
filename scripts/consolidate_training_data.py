@@ -12,7 +12,6 @@ This script:
 
 import pandas as pd
 from pathlib import Path
-import hashlib
 from datetime import datetime
 
 BASE_DIR = Path(__file__).parent.parent
