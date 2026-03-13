@@ -19,14 +19,14 @@ print("\nPROCESSED DATA FILES:")
 for f in sorted(base.glob("data/processed/*.csv")):
     df = pd.read_csv(f)
     has_label = "is_community_event" in df.columns
-    label_info = f" [labeled]" if has_label else ""
+    label_info = " [labeled]" if has_label else ""
     print(f"  {f.name:40s} {len(df):5d} rows{label_info}")
 
 print("\nLABELED DATA FILES:")
 for f in sorted(base.glob("data/labeled/*.csv")):
     df = pd.read_csv(f)
     has_label = "is_community_event" in df.columns
-    label_info = f" [labeled]" if has_label else ""
+    label_info = " [labeled]" if has_label else ""
     print(f"  {f.name:40s} {len(df):5d} rows{label_info}")
 
 print("\n" + "=" * 80)
@@ -37,25 +37,25 @@ print("=" * 80)
 try:
     combined = pd.read_csv(base / "data/processed/combined_events_auto.csv")
     labeled = pd.read_csv(base / "data/labeled/perdido_events_2025_labeled.csv")
-    
-    print(f"\nCurrent training data:")
+
+    print("\nCurrent training data:")
     print(f"  combined_events_auto.csv: {len(combined)} events")
     print(f"  perdido_events_2025_labeled.csv: {len(labeled)} labeled events")
-    
+
     # Check if we have additional events to consolidate
     raw_2025 = pd.read_csv(base / "data/raw/perdido_events_2025.csv")
-    print(f"\nAdditional data available:")
+    print("\nAdditional data available:")
     print(f"  perdido_events_2025.csv: {len(raw_2025)} events (potentially more data)")
-    
+
     total_potential = len(combined) + len(raw_2025) - len(labeled)
-    print(f"\nConsolidation opportunity:")
+    print("\nConsolidation opportunity:")
     print(f"  Total potential events: ~{total_potential} (before dedup)")
-    print(f"\nTo improve model:")
-    print(f"  1. Run pipeline monthly and save to data/raw/")
-    print(f"  2. Consolidate all CSVs from Sept-Mar into one dataset")
-    print(f"  3. Manually label ~50-100 uncertain events (confidence 0.4-0.6)")
-    print(f"  4. Retrain with 600+ diverse events for better calibration")
-    
+    print("\nTo improve model:")
+    print("  1. Run pipeline monthly and save to data/raw/")
+    print("  2. Consolidate all CSVs from Sept-Mar into one dataset")
+    print("  3. Manually label ~50-100 uncertain events (confidence 0.4-0.6)")
+    print("  4. Retrain with 600+ diverse events for better calibration")
+
 except Exception as e:
     print(f"Error reading files: {e}")
 

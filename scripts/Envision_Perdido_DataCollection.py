@@ -164,7 +164,7 @@ def find_ics_links(soup) -> str | None:
     ical_link = soup.select_one('a[href*="addtocalendar"][href*="format=ICal"]')
     if ical_link and ical_link.get("href"):
         return urljoin(BASE, ical_link["href"])
-    
+
     # Fallback to old format: direct .ics link
     # Look for "Add to Calendar - iCal" text link
     anchor = soup.find("a", string=re.compile(r"Add to Calendar\s*-\s*iCal", re.IGNORECASE))
@@ -199,9 +199,9 @@ def get_ics_url_from_event(event_url: str) -> str | None:
     if not match:
         print(f"Could not extract event slug from {event_url}")
         return None
-    
+
     event_slug = match.group(1)
-    
+
     # Try new format first: /events/addtocalendar/{slug}?format=ICal
     new_format_url = urljoin(BASE, f"/events/addtocalendar/{event_slug}?format=ICal")
     try:
@@ -211,7 +211,7 @@ def get_ics_url_from_event(event_url: str) -> str | None:
             return new_format_url
     except requests.RequestException:
         pass
-    
+
     # Try old format: /events/ical/{slug}.ics
     old_format_url = urljoin(BASE, f"/events/ical/{event_slug}.ics")
     try:
@@ -221,7 +221,7 @@ def get_ics_url_from_event(event_url: str) -> str | None:
             return old_format_url
     except requests.RequestException:
         pass
-    
+
     # Fallback: fetch the event page and search for ICS link in HTML
     try:
         time.sleep(0.1)  # Rate limiting before fetching event page
@@ -230,11 +230,11 @@ def get_ics_url_from_event(event_url: str) -> str | None:
     except requests.RequestException as e:
         print(f"Error fetching event page {event_url}: {e}")
         return None
-    
+
     if BeautifulSoup is None:
         print("Cannot parse event page HTML due to BeautifulSoup installation.")
         return None
-    
+
     soup = BeautifulSoup(response.text, "html.parser")
     return find_ics_links(soup)
 
@@ -372,7 +372,7 @@ def scrape_month(month_url: str, pause_seconds: float = 0.4) -> list[dict]:
         finally:
             # Rate limiting: always wait between requests to be polite to the server
             time.sleep(pause_seconds)
-        
+
     print(f"Scraped {len(all_events)} events with {len(errors)} errors.")
     if errors:
         for msg in errors[:5]:
