@@ -23,7 +23,6 @@ from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
-from typing import Tuple
 
 import joblib
 import numpy as np
@@ -72,7 +71,7 @@ def load_model_and_vectorizer():
     Supports both old (separate model/vectorizer) and new (unified pipeline) formats.
 
     Returns:
-        Tuple[object | None, object | None]: Tuple of (model,
+        tuple[object | None, object | None]: Tuple of (model,
             vectorizer), or (None, None) if files not found.
     """
     from sklearn.pipeline import Pipeline
@@ -164,7 +163,7 @@ def classify_events_batch(
     vectorizer: object,
     batch_size: int = 500,
     verbose: bool = True,
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray]:
     """Classify events in batches for better memory efficiency.
 
     Uses batch processing to vectorize and classify events, reducing peak memory
@@ -332,11 +331,11 @@ def scrape_events(
 
 def _scrape_single_source(source: str, url: str | None) -> tuple[list[dict], str | None]:
     """Scrape a single source (runs in thread pool for parallelization).
-    
+
     Args:
         source: Source name ('perdido' or 'wren_haven')
         url: URL to scrape (None for wren_haven)
-    
+
     Returns:
         Tuple of (events_list, error_message)
     """

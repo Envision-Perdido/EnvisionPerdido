@@ -40,14 +40,14 @@ class TestIssue1Deduplication(unittest.TestCase):
     def test_uid_stored_in_metadata(self):
         """Verify UID is stored in event metadata."""
         uploader = WordPressEventUploader("https://example.com", "user", "pass")
-        
+
         event_row = pd.Series({
             "uid": "event-123-456",
             "title": "Test Event",
             "start": "2025-09-15 10:00:00",
             "end": "2025-09-15 11:00:00",
         })
-        
+
         metadata = uploader.parse_event_metadata(event_row)
         self.assertIn("_event_uid", metadata)
         self.assertEqual(metadata["_event_uid"], "event-123-456")
@@ -121,10 +121,10 @@ class TestIssue3Logging(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             logger = get_logger("test_logging", log_dir=tmpdir)
             logger.info("Test message")
-            
+
             log_file = Path(tmpdir) / "test_logging.log"
             self.assertTrue(log_file.exists())
-            
+
             with open(log_file) as f:
                 first_line = f.readline()
                 log_data = json.loads(first_line)
@@ -137,7 +137,7 @@ class TestIssue3Logging(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             logger = get_logger("test_errors", log_dir=tmpdir)
             logger.error("Test error message")
-            
+
             log_file = Path(tmpdir) / "test_errors.log"
             with open(log_file) as f:
                 line = f.readline()
@@ -151,7 +151,7 @@ class TestIssue3Logging(unittest.TestCase):
         metrics.add_classified(80)
         metrics.add_needs_review(5)
         metrics.add_uploaded(75)
-        
+
         summary = metrics.get_summary()
         self.assertIn("scraped=100", summary)
         self.assertIn("classified=80", summary)
@@ -164,9 +164,9 @@ class TestIssue4ErrorIsolation(unittest.TestCase):
         """Verify scrape_events() returns (events, errors) tuple."""
         with patch("scripts.Envision_Perdido_DataCollection.scrape_month") as mock_scrape:
             mock_scrape.return_value = [{"title": "Event 1"}]
-            
+
             result = scrape_events(include_sources=["perdido_chamber"])
-            
+
             self.assertIsInstance(result, tuple)
             self.assertEqual(len(result), 2)
             events, errors = result
@@ -177,9 +177,9 @@ class TestIssue4ErrorIsolation(unittest.TestCase):
         """Verify scraper errors are collected, not silently ignored."""
         with patch("scripts.Envision_Perdido_DataCollection.scrape_month") as mock_scrape:
             mock_scrape.side_effect = Exception("Connection timeout")
-            
+
             events, errors = scrape_events(include_sources=["perdido_chamber"])
-            
+
             self.assertEqual(len(events), 0)  # No events scraped
             self.assertGreater(len(errors), 0)  # But errors collected
             self.assertIn("Connection timeout", errors[0])
@@ -192,11 +192,11 @@ class TestIssue4ErrorIsolation(unittest.TestCase):
                 mock_perdido.side_effect = Exception("Perdido error")
                 # Wren Haven succeeds
                 mock_wren.return_value = [{"title": "Wren Event"}]
-                
+
                 events, errors = scrape_events(
                     include_sources=["perdido_chamber", "wren_haven"]
                 )
-                
+
                 # Should have 1 event from Wren Haven
                 self.assertEqual(len(events), 1)
                 # Should have 1 error from Perdido
@@ -209,14 +209,14 @@ class TestIssue5RateLimiting(unittest.TestCase):
     def test_retry_session_created(self):
         """Verify create_session_with_retries() creates session."""
         from scripts.Envision_Perdido_DataCollection import create_session_with_retries
-        
+
         session = create_session_with_retries()
         self.assertIsNotNone(session)
 
     def test_retry_session_mounts_adapters(self):
         """Verify session has HTTP adapters mounted."""
         from scripts.Envision_Perdido_DataCollection import create_session_with_retries
-        
+
         session = create_session_with_retries()
         self.assertIn("http://", session.adapters)
         self.assertIn("https://", session.adapters)
@@ -224,7 +224,7 @@ class TestIssue5RateLimiting(unittest.TestCase):
     def test_timeout_parameter_respected(self):
         """Verify timeout is used in HTTP requests."""
         from scripts.Envision_Perdido_DataCollection import scrape_month
-        
+
         # Check function signature/code includes timeout references
         import inspect
         source = inspect.getsource(scrape_month)
@@ -239,10 +239,10 @@ class TestIntegration(unittest.TestCase):
         """Test that pipeline handles errors gracefully."""
         with patch("scripts.Envision_Perdido_DataCollection.scrape_month") as mock_scrape:
             mock_scrape.return_value = [{"title": "Event"}]
-            
+
             # Call scrape_events - should return tuple
             events, errors = scrape_events(include_sources=["perdido_chamber"])
-            
+
             # Should have events
             self.assertGreater(len(events), 0)
             # May or may not have errors (depending on mock)

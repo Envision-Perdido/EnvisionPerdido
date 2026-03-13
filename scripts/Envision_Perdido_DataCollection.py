@@ -12,12 +12,12 @@ The module gracefully handles missing optional dependencies:
 """
 
 import csv
+import importlib
 import json
 import re
 import time
 from urllib.parse import urljoin, urlparse
 from zoneinfo import ZoneInfo
-import importlib
 from typing import TYPE_CHECKING
 
 import requests

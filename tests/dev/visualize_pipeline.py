@@ -17,7 +17,6 @@ import argparse
 import json
 from pathlib import Path
 
-
 import joblib
 import matplotlib.pyplot as plt
 import numpy as np
@@ -89,7 +88,7 @@ def plot_feature_importance(
         DataFrame with feature importance statistics.
     """
     print(f"\n📊 Computing permutation importance for top {top_n} features...")
-    
+
     try:
         result = permutation_importance(
             model, X_test, y_test, n_repeats=10, random_state=42, n_jobs=-1

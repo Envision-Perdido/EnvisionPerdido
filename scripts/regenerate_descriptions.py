@@ -10,7 +10,7 @@ Features:
 
 Usage (standalone):
     python scripts/regenerate_descriptions.py [OPTIONS]
-    
+
 Options:
     --batch              Use OpenAI Batch API (async, cheaper)
     --sync               Use sync API (default, immediate results)
@@ -33,11 +33,11 @@ Usage (imported):
     )
 """
 
+import hashlib
 import json
 import os
 import sys
 import time
-import hashlib
 from datetime import datetime
 from pathlib import Path
 
@@ -101,7 +101,7 @@ def _build_batch_request(event: dict, request_id: str, model: str = "gpt-4o-mini
     location = event.get('Location', 'TBD')
     start_date = event.get('Start Date', 'TBD')
 
-    prompt = f"""You are a professional event marketing copywriter. 
+    prompt = f"""You are a professional event marketing copywriter.
 Improve the following event description to be more engaging, informative, and compelling.
 Keep it concise (2-3 sentences, max 150 words). Maintain factual accuracy.
 
@@ -216,13 +216,13 @@ def generate_single_description(
 ) -> str:
     """
     Generate improved description for a single event.
-    
+
     Args:
         client: OpenAI client
         event: Event dict with keys: Title, Description, Start Date, Location
         model: Model name
         dry_run: If True, return placeholder
-    
+
     Returns:
         Enhanced description (or original if dry_run or error)
     """
@@ -240,7 +240,7 @@ def generate_single_description(
         logger.debug(f"Skipping (no description): {title}")
         return original_desc
 
-    prompt = f"""You are a professional event marketing copywriter. 
+    prompt = f"""You are a professional event marketing copywriter.
 Improve the following event description to be more engaging, informative, and compelling.
 Keep it concise (2-3 sentences, max 150 words). Maintain factual accuracy.
 
@@ -280,7 +280,7 @@ def enhance_event_descriptions(
 ) -> list[dict]:
     """
     Enhance descriptions for events using OpenAI.
-    
+
     Args:
         events: List of event dictionaries
         dry_run: If True, don't call API
@@ -290,7 +290,7 @@ def enhance_event_descriptions(
         min_confidence: Only enhance events with confidence >= this threshold
         use_cache: Load cached enhancements
         save_cache: Save enhancements to cache
-    
+
     Returns:
         List of events with enhanced descriptions
     """
