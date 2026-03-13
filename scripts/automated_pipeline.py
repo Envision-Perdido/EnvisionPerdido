@@ -15,16 +15,22 @@ import json
 import os
 import smtplib
 import sys
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from email import encoders
 from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
+from typing import Tuple
 
 import joblib
 import numpy as np
 import pandas as pd
+
+# Global configuration for classification thresholds
+CONFIDENCE_THRESHOLD = 0.75
 
 # Add scripts directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent))
@@ -39,6 +45,12 @@ from logger import PipelineMetrics, get_logger
 
 # Import scraper and normalizer modules
 from scripts import Envision_Perdido_DataCollection, event_normalizer
+
+# Import description enhancement (optional)
+try:
+    from regenerate_descriptions import enhance_event_descriptions
+except (ImportError, SystemExit):
+    enhance_event_descriptions = None
 
 # Configuration
 BASE_DIR = Path(__file__).parent.parent
@@ -57,19 +69,42 @@ _MODEL_CACHE = {"model": None, "vectorizer": None}
 def load_model_and_vectorizer():
     """Load model and vectorizer with caching.
 
+    Supports both old (separate model/vectorizer) and new (unified pipeline) formats.
+
     Returns:
         Tuple[object | None, object | None]: Tuple of (model,
             vectorizer), or (None, None) if files not found.
     """
+    from sklearn.pipeline import Pipeline
     global _MODEL_CACHE
 
     if _MODEL_CACHE["model"] is None or _MODEL_CACHE["vectorizer"] is None:
-        if not MODEL_PATH.exists() or not VECTORIZER_PATH.exists():
-            log("ERROR: Model files not found! Please train the model first.")
+        if not MODEL_PATH.exists():
+            log("ERROR: Model file not found! Please train the model first.")
             return None, None
 
-        _MODEL_CACHE["model"] = joblib.load(MODEL_PATH)
-        _MODEL_CACHE["vectorizer"] = joblib.load(VECTORIZER_PATH)
+        model_data = joblib.load(MODEL_PATH)
+        
+        # Check if this is the new unified pipeline format
+        if isinstance(model_data, dict) and "pipe" in model_data:
+            # New format: unified pipeline with integrated features
+            pipeline = model_data["pipe"]
+            _MODEL_CACHE["model"] = pipeline
+            _MODEL_CACHE["vectorizer"] = "UNIFIED_PIPELINE"  # Marker for unified format
+            log("Loaded new unified pipeline model")
+        elif isinstance(model_data, Pipeline):
+            # New format but directly stored as Pipeline
+            _MODEL_CACHE["model"] = model_data
+            _MODEL_CACHE["vectorizer"] = "UNIFIED_PIPELINE"
+            log("Loaded unified pipeline model (direct)")
+        else:
+            # Old format: legacy model structure
+            if not VECTORIZER_PATH.exists():
+                log("ERROR: Vectorizer file not found! Please train the model first.")
+                return None, None
+            _MODEL_CACHE["model"] = model_data
+            _MODEL_CACHE["vectorizer"] = joblib.load(VECTORIZER_PATH)
+            log("Loaded legacy separate model and vectorizer")
 
     return _MODEL_CACHE["model"], _MODEL_CACHE["vectorizer"]
 
@@ -123,10 +158,97 @@ def build_features(df: pd.DataFrame) -> list[str]:
     return features.tolist()
 
 
+def classify_events_batch(
+    events_df: pd.DataFrame,
+    model: object,
+    vectorizer: object,
+    batch_size: int = 500,
+    verbose: bool = True,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Classify events in batches for better memory efficiency.
+
+    Uses batch processing to vectorize and classify events, reducing peak memory
+    usage and enabling progress reporting. Supports both old (separate vectorizer)
+    and new (unified pipeline) model formats.
+
+    Args:
+        events_df: DataFrame with event data.
+        model: Trained classifier.
+        vectorizer: TfidfVectorizer (or "UNIFIED_PIPELINE" marker for new format).
+        batch_size: Number of events per batch (default: 500).
+        verbose: Whether to log progress (default: True).
+
+    Returns:
+        Tuple of (predictions, confidence_scores) arrays.
+    """
+    n_events = len(events_df)
+    all_predictions = np.zeros(n_events, dtype=int)
+    all_confidences = np.zeros(n_events, dtype=float)
+    
+    # Check if using new unified pipeline format
+    use_unified_pipeline = vectorizer == "UNIFIED_PIPELINE"
+
+    for i in range(0, n_events, batch_size):
+        end_idx = min(i + batch_size, n_events)
+        batch = events_df.iloc[i:end_idx].copy()
+
+        if use_unified_pipeline:
+            # New unified pipeline format: build all required features
+            # The pipeline expects: text, hour, is_weekend, venue_library, venue_park, venue_church, venue_museum
+            text = batch.get("title", pd.Series()).fillna("") + " " + batch.get("description", pd.Series()).fillna("")
+            
+            dt = pd.to_datetime(batch.get("start", pd.Series()), errors="coerce", utc=True)
+            hour = dt.dt.hour.fillna(-1).astype(int)
+            dow = dt.dt.dayofweek.fillna(-1).astype(int)
+            is_weekend = dow.between(5, 6).astype(int)
+            
+            loc = batch.get("location", pd.Series()).fillna("").str.lower()
+            venue_library = loc.str.contains(r"\blibrary\b", na=False).astype(int)
+            venue_park = loc.str.contains(r"\bpark\b", na=False).astype(int)
+            venue_church = loc.str.contains(r"\bchurch\b", na=False).astype(int)
+            venue_museum = loc.str.contains(r"\bmuseum\b|gallery", na=False).astype(int)
+            
+            X = pd.DataFrame({
+                "text": text,
+                "hour": hour,
+                "is_weekend": is_weekend,
+                "venue_library": venue_library,
+                "venue_park": venue_park,
+                "venue_church": venue_church,
+                "venue_museum": venue_museum,
+            })
+        else:
+            # Old format: manually build text features and vectorize
+            X_text = build_features(batch)
+            X = vectorizer.transform(X_text)
+
+        # Predict on batch
+        batch_predictions = model.predict(X)
+        all_predictions[i:end_idx] = batch_predictions
+
+        # Get confidence scores (use decision_function for SVM)
+        if hasattr(model, "decision_function"):
+            decision_scores = model.decision_function(X)
+            # Convert decision function to confidence-like score (sigmoid transform)
+            # For binary classification, values range approximately [-inf, +inf]
+            # Normalize to [0, 1] using sigmoid
+            batch_confidences = 1 / (1 + np.exp(-decision_scores))
+        else:
+            # Fallback if decision_function not available
+            batch_confidences = np.ones(len(batch_predictions)) * 0.5
+
+        all_confidences[i:end_idx] = batch_confidences
+
+        if verbose and (i + batch_size) % (batch_size * 5) == 0:
+            log(f"  Progress: {min(i + batch_size, n_events)}/{n_events} events classified")
+
+    return all_predictions, all_confidences
+
+
 def scrape_events(
     year: int | None = None, month: int | None = None, include_sources: list[str] | None = None
 ) -> tuple[list[dict], list]:
-    """Scrape events from all configured sources.
+    """Scrape events from all configured sources in parallel.
 
     Args:
         year: Year to scrape (default current year).
@@ -140,7 +262,8 @@ def scrape_events(
             - events_list: List of event dictionaries from all sources
             - errors_list: List of errors encountered during scraping
     """
-    log("Starting event scraping...")
+    start_time = time.time()
+    log("Starting event scraping (parallel mode)...")
 
     if include_sources is None:
         include_sources = ["perdido_chamber"]
@@ -153,49 +276,79 @@ def scrape_events(
     all_events = []
     errors = []
 
-    # Scrape Perdido Chamber (original source)
+    # Define scraping tasks to run in parallel
+    scraping_tasks = []
+
+    # Task 1: Scrape Perdido Chamber (multiple months in parallel)
+    perdido_urls = []
     if "perdido_chamber" in include_sources:
-        log("Scraping Perdido Chamber...")
+        base_url = "https://business.perdidochamber.com/events/calendar"
         for m in range(month, min(month + 2, 13)):
             month_str = f"{year}-{m:02d}-01"
-            base_url = "https://business.perdidochamber.com/events/calendar"
             month_url = f"{base_url}/{month_str}"
-            log(f"Scraping {month_url}...")
+            perdido_urls.append(month_url)
+        scraping_tasks.extend(("perdido", url) for url in perdido_urls)
 
+    # Task 2: Scrape Wren Haven (in parallel with Perdido)
+    if "wren_haven" in include_sources:
+        scraping_tasks.append(("wren_haven", None))
+
+    # Execute all scraping tasks in parallel
+    log(f"Running {len(scraping_tasks)} scraping tasks in parallel...")
+    
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        futures = {
+            executor.submit(_scrape_single_source, source, url): (source, url)
+            for source, url in scraping_tasks
+        }
+
+        for i, future in enumerate(as_completed(futures), 1):
+            source, url = futures[future]
             try:
-                events = Envision_Perdido_DataCollection.scrape_month(month_url)
-                log(f"Scraped {len(events)} events from {month_url}")
+                events, error = future.result()
                 all_events.extend(events)
+                if error:
+                    errors.append(error)
+                elapsed = time.time() - start_time
+                log(f"  [{i}/{len(scraping_tasks)}] {source} completed: {len(events)} events in {elapsed:.1f}s elapsed")
             except Exception as e:  # pylint: disable=broad-except
-                error_msg = f"Error scraping Perdido Chamber {month_url}: {e}"
+                error_msg = f"Error scraping {source} {url or ''}: {e}"
                 log(f"ERROR: {error_msg}")
                 errors.append(error_msg)
 
-    # Scrape Wren Haven (if enabled)
-    if "wren_haven" in include_sources:
-        log("Scraping Wren Haven Homestead...")
-        try:
-            from scripts import wren_haven_scraper
-
-            events = wren_haven_scraper.scrape_wren_haven()
-            log(f"Scraped {len(events)} events from Wren Haven")
-            all_events.extend(events)
-        except ImportError as e:
-            error_msg = (
-                f"Warning: wren_haven_scraper not available (Playwright not installed?): {e}"
-            )
-            log(error_msg)
-            errors.append(error_msg)
-        except Exception as e:  # pylint: disable=broad-except
-            error_msg = f"Error scraping Wren Haven: {e}"
-            log(f"ERROR: {error_msg}")
-            errors.append(error_msg)
-
-    log(f"Total events scraped from all sources: {len(all_events)}")
+    elapsed = time.time() - start_time
+    log(f"Total events scraped: {len(all_events)} from all sources in {elapsed:.1f}s")
     if errors:
         log(f"Encountered {len(errors)} scraper error(s)")
 
     return all_events, errors
+
+
+def _scrape_single_source(source: str, url: str | None) -> tuple[list[dict], str | None]:
+    """Scrape a single source (runs in thread pool for parallelization).
+    
+    Args:
+        source: Source name ('perdido' or 'wren_haven')
+        url: URL to scrape (None for wren_haven)
+    
+    Returns:
+        Tuple of (events_list, error_message)
+    """
+    try:
+        if source == "perdido":
+            events = Envision_Perdido_DataCollection.scrape_month(url)
+            return events, None
+        elif source == "wren_haven":
+            try:
+                from scripts import wren_haven_scraper
+                events = wren_haven_scraper.scrape_wren_haven()
+                return events, None
+            except ImportError as e:
+                return [], f"wren_haven_scraper not available (Playwright not installed?): {e}"
+    except Exception as e:
+        error_msg = f"Error scraping {source}: {e}"
+        return [], error_msg
+
 
 
 def assign_event_images(events_df: pd.DataFrame) -> pd.DataFrame:
@@ -282,8 +435,8 @@ def assign_event_images(events_df: pd.DataFrame) -> pd.DataFrame:
 def classify_events(events_df: pd.DataFrame) -> pd.DataFrame | None:
     """Classify events using trained SVM model.
 
-    Uses cached model loading for efficiency. Adds confidence scores and
-    review flags.
+    Uses cached model loading and batch processing for efficiency.
+    Adds confidence scores and review flags.
 
     Args:
         events_df: DataFrame with event data.
@@ -297,25 +450,42 @@ def classify_events(events_df: pd.DataFrame) -> pd.DataFrame | None:
     if model is None or vectorizer is None:
         return None
 
-    log(f"Classifying {len(events_df)} events...")
+    log(f"Classifying {len(events_df)} events (using batch processing)...")
 
-    # Build features and classify
-    X_text = build_features(events_df)
-    X = vectorizer.transform(X_text)
-
-    predictions = model.predict(X)
-    probabilities = model.predict_proba(X)
-    confidence = np.max(probabilities, axis=1)
+    # Use batch classification for better memory efficiency
+    predictions, confidence = classify_events_batch(
+        events_df, model, vectorizer, batch_size=500, verbose=True
+    )
 
     events_df["is_community_event"] = predictions
     events_df["confidence"] = confidence
 
     # Add review flag for low confidence predictions
-    events_df["needs_review"] = events_df["confidence"] < 0.75
+    # Events below this score need manual review due to low model confidence.
+    # Use a single shared threshold across metrics, UI, and review logic.
+    events_df["needs_review"] = events_df["confidence"] < CONFIDENCE_THRESHOLD
 
     community_count = predictions.sum()
     log(
         f"Classification complete: {community_count} community events, {len(events_df) - community_count} non-community events"
+    )
+
+    # Show confidence distribution for diagnostic purposes
+    confidence_stats = {
+        "mean": events_df["confidence"].mean(),
+        "median": events_df["confidence"].median(),
+        "min": events_df["confidence"].min(),
+        "max": events_df["confidence"].max(),
+        "std": events_df["confidence"].std(),
+    }
+    needs_review_count = events_df["needs_review"].sum()
+    log(
+        f"Confidence distribution: mean={confidence_stats['mean']:.3f}, "
+        f"median={confidence_stats['median']:.3f}, std={confidence_stats['std']:.3f}"
+    )
+    log(
+        f"Events flagged for review (confidence < 0.45): {needs_review_count}/{len(events_df)} "
+        f"({100*needs_review_count/len(events_df):.1f}%)"
     )
 
     # Enrich events with tags, paid/free status, venue resolution
@@ -747,10 +917,15 @@ def main():
     log("=" * 80)
     log("AUTOMATED COMMUNITY EVENT CLASSIFICATION PIPELINE")
     log("=" * 80)
+    
+    pipeline_start_time = time.time()
 
     try:
         # Step 1: Scrape events
+        step_start = time.time()
         events, scrape_errors = scrape_events(include_sources=["perdido_chamber", "wren_haven"])
+        step_time = time.time() - step_start
+        log(f"\nStep 1 (Scraping) completed in {step_time:.1f}s")
 
         # Log scraper errors and add to metrics
         for error in scrape_errors:
@@ -775,7 +950,12 @@ def main():
         log(f"Raw data saved to {raw_csv}")
 
         # Step 2: Classify events
+        step_start = time.time()
+        log("\nStep 2: Classifying events...")
         classified_df = classify_events(events_df)
+        step_time = time.time() - step_start
+        log(f"Step 2 (Classification) completed in {step_time:.1f}s")
+        
         if classified_df is None:
             metrics.add_error("Classification step failed")
             logger.info(metrics.get_summary())
@@ -783,7 +963,94 @@ def main():
 
         metrics.add_classified(len(classified_df))
 
-        # Step 3: Filter community events and remove unreasonably long events
+        # Step 3: Enhance descriptions with OpenAI (optional)
+        step_start = time.time()
+        log("\nStep 3: Enhancing event descriptions with OpenAI...")
+        if os.getenv('OPENAI_API_KEY') and enhance_event_descriptions:
+            try:
+                openai_dry_run = os.getenv('OPENAI_DRY_RUN', 'false').lower() == 'true'
+                openai_model = os.getenv('OPENAI_MODEL', 'gpt-4o-mini')
+                openai_use_batch = os.getenv('OPENAI_USE_BATCH', 'false').lower() == 'true'
+                openai_top_n = int(os.getenv('OPENAI_TOP_N', '100'))
+                openai_min_confidence = float(os.getenv('OPENAI_MIN_CONFIDENCE', '0.75'))
+
+                # Convert DataFrame to list of dicts for enhancement
+                events_list = classified_df.to_dict('records')
+
+                # Normalize keys for the enhancer: ensure Title/Description exist
+                for event in events_list:
+                    # Prefer existing Title/Description; fall back to lowercase keys
+                    if 'Title' not in event and 'title' in event:
+                        event['Title'] = event['title']
+                    if 'Description' not in event and 'description' in event:
+                        event['Description'] = event['description']
+
+                # Track original descriptions to detect actual changes
+                original_descriptions = []
+                for event in events_list:
+                    # Use lowercase description if present, else fall back to Description
+                    if 'description' in event and event['description'] is not None:
+                        original_descriptions.append(event['description'])
+                    else:
+                        original_descriptions.append(event.get('Description'))
+
+                enhanced_events = enhance_event_descriptions(
+                    events_list,
+                    dry_run=openai_dry_run,
+                    model=openai_model,
+                    use_batch=openai_use_batch,
+                    top_n=openai_top_n,
+                    min_confidence=openai_min_confidence,
+                    use_cache=True,
+                    save_cache=True
+                )
+
+                # Post-process enhanced events: propagate enhanced Title/Description
+                # back into lowercase fields and count actual description changes.
+                changed_count = 0
+                for idx, event in enumerate(enhanced_events):
+                    # Normalize title casing
+                    if 'Title' in event and (not event.get('title')):
+                        event['title'] = event['Title']
+
+                    # Determine the new description value, preferring Description
+                    new_desc = None
+                    if 'Description' in event and event['Description'] is not None:
+                        new_desc = event['Description']
+                    elif 'description' in event and event['description'] is not None:
+                        new_desc = event['description']
+
+                    # Original description for this index (may be None)
+                    orig_desc = original_descriptions[idx] if idx < len(original_descriptions) else None
+
+                    # If we have a new non-empty description and it actually changed, count it
+                    if new_desc is not None and new_desc != orig_desc:
+                        changed_count += 1
+
+                    # Ensure lowercase description reflects the latest value
+                    if new_desc is not None:
+                        event['description'] = new_desc
+
+                # Convert back to DataFrame with normalized lowercase fields
+                classified_df = pd.DataFrame(enhanced_events)
+                step_time = time.time() - step_start
+                log(f"Enhanced {changed_count} event descriptions in {step_time:.1f}s")
+                metrics.add_enhanced(changed_count)
+            except Exception as e:
+                step_time = time.time() - step_start
+                log(f"Warning: Description enhancement failed after {step_time:.1f}s: {e}")
+                logger.warning(f"OpenAI enhancement error: {e}")
+                # Continue with original descriptions
+        else:
+            if not os.getenv('OPENAI_API_KEY'):
+                log("[SKIP] OPENAI_API_KEY not set; skipping description enhancement")
+            if not enhance_event_descriptions:
+                log("[SKIP] regenerate_descriptions module not available")
+            log("Step 3 (Enhancement) skipped: no API key or module")
+
+        # Step 4: Filter community events and remove unreasonably long events
+        step_start = time.time()
+        log("\nStep 4: Filtering community events...")
         community_events = classified_df[classified_df["is_community_event"] == 1].copy()
 
         # Track events needing review (confidence < 0.75)
@@ -815,27 +1082,40 @@ def main():
             if filtered_out > 0:
                 log(f"Filtered out {filtered_out} events with duration > 60 days")
 
+        step_time = time.time() - step_start
+        log(f"Step 4 (Filtering) completed in {step_time:.1f}s")
         log(f"Found {len(community_events)} community events")
 
-        # Step 4: Export for calendar
+        # Step 5: Export for calendar
+        step_start = time.time()
+        log("\nStep 5: Exporting events for calendar...")
         calendar_csv = export_for_calendar(community_events, format="csv")
+        step_time = time.time() - step_start
+        log(f"Step 5 (Export) completed in {step_time:.1f}s")
 
-        # Step 5: Send email notification
+        # Step 6: Send email notification
+        step_start = time.time()
         if EMAIL_CONFIG["sender_email"] != "your_email@example.com":
+            log("\nStep 6: Sending email notification...")
             send_email_notification(community_events, classified_df, calendar_csv)
+            step_time = time.time() - step_start
+            log(f"Step 6 (Email) completed in {step_time:.1f}s")
         else:
             log("Email not configured. Skipping email notification.")
             log(f"Review file manually at: {calendar_csv}")
 
-        # Step 6: Auto-upload to WordPress (if enabled)
+        # Step 7: Auto-upload to WordPress (if enabled)
         auto_upload = os.getenv("AUTO_UPLOAD", "true").lower() in {"true", "1", "yes"}
 
         if auto_upload and len(community_events) > 0:
+            step_start = time.time()
             log("\n" + "=" * 80)
-            log("AUTO-UPLOAD ENABLED - Uploading to WordPress...")
+            log("Step 7: AUTO-UPLOAD ENABLED - Uploading to WordPress...")
             log("=" * 80)
 
             created_ids, published_count = upload_to_wordpress(calendar_csv)
+            step_time = time.time() - step_start
+            log(f"Step 7 (Upload) completed in {step_time:.1f}s")
 
             if created_ids and published_count:
                 log(f"Successfully published {published_count} events to calendar")
@@ -853,8 +1133,11 @@ def main():
             log(f"Use: python scripts/wordpress_uploader.py {calendar_csv}")
             log("=" * 80)
 
+        # Final summary with total time
+        total_time = time.time() - pipeline_start_time
         log("\n" + "=" * 80)
         log("PIPELINE COMPLETE!")
+        log(f"Total execution time: {total_time:.1f}s ({total_time/60:.1f} minutes)")
         log("=" * 80)
 
         # Log final metrics summary

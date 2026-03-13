@@ -16,33 +16,7 @@ import json
 import re
 import time
 from urllib.parse import urljoin, urlparse
-
-try:
-    from zoneinfo import ZoneInfo
-except ImportError:
-    # Try dynamic imports to avoid static analyzer errors for optional
-    # packages
-    try:
-        import importlib
-
-        _bz = importlib.import_module("backports.zoneinfo")
-        ZoneInfo = getattr(_bz, "ZoneInfo")
-    except (ImportError, AttributeError):
-        try:
-            import importlib
-
-            _dt = importlib.import_module("dateutil.tz")
-            # dateutil.tz.gettz returns a tzinfo-like object when called
-            # with a name
-            ZoneInfo = getattr(_dt, "gettz")
-        except (ImportError, AttributeError):
-            ZoneInfo = None
-            print(
-                "Warning: no ZoneInfo implementation available; install "
-                "Python 3.9+, backports.zoneinfo, or python-dateutil to "
-                "enable timezone support."
-            )
-
+from zoneinfo import ZoneInfo
 import importlib
 from typing import TYPE_CHECKING
 
@@ -175,16 +149,29 @@ def get_event_url(month_url: str) -> list[str]:
 def find_ics_links(soup) -> str | None:
     """Find iCalendar download link on an event detail page.
 
+    Handles both old and new GrowthZone link formats:
+    - New format: /events/addtocalendar/{slug}?format=ICal
+    - Old format: /events/ical/{slug}.ics
+
     Args:
         soup: BeautifulSoup parsed HTML object.
 
     Returns:
         URL to ICS file, or None if not found.
     """
+    # Try new format first: "Add to iCal Calendar" link in modal
+    # Look for href with "addtocalendar" and "format=ICal"
+    ical_link = soup.select_one('a[href*="addtocalendar"][href*="format=ICal"]')
+    if ical_link and ical_link.get("href"):
+        return urljoin(BASE, ical_link["href"])
+    
+    # Fallback to old format: direct .ics link
+    # Look for "Add to Calendar - iCal" text link
     anchor = soup.find("a", string=re.compile(r"Add to Calendar\s*-\s*iCal", re.IGNORECASE))
     if anchor and anchor.get("href"):
         return urljoin(BASE, anchor["href"])
 
+    # Fallback to any direct .ics link
     generic = soup.select_one('a[href$=".ics"]')
     if generic and generic.get("href"):
         return urljoin(BASE, generic["href"])
@@ -195,9 +182,11 @@ def find_ics_links(soup) -> str | None:
 def get_ics_url_from_event(event_url: str) -> str | None:
     """Fetches the ICS URL from the event page.
 
-    GrowthZone event detail pages include an "Add to Calendar -> iCal" link
-    that points to an ICS file. If that link cannot be found, this function
-    falls back to constructing the .ics URL from the event detil slug.
+    GrowthZone event detail pages include calendar download links. This function
+    tries multiple approaches:
+    1. New format (GrowthZone 2025+): /events/addtocalendar/{slug}?format=ICal
+    2. Old format (legacy): /events/ical/{slug}.ics
+    3. HTML parsing: Search page for any available ICS link
 
     Args:
         event_url (str): The URL of the event detail page.
@@ -205,32 +194,49 @@ def get_ics_url_from_event(event_url: str) -> str | None:
     Returns:
         str | None: The URL of the ICS file, or None if it cannot be found.
     """
+    # Extract slug from event URL: /events/details/[slug]
+    match = re.search(r"/events/details/([^/]+)", urlparse(event_url).path)
+    if not match:
+        print(f"Could not extract event slug from {event_url}")
+        return None
+    
+    event_slug = match.group(1)
+    
+    # Try new format first: /events/addtocalendar/{slug}?format=ICal
+    new_format_url = urljoin(BASE, f"/events/addtocalendar/{event_slug}?format=ICal")
     try:
-        time.sleep(1)  # be polite and avoid overwhelming the server
+        time.sleep(0.1)  # Rate limiting
+        resp = sess.head(new_format_url, timeout=15, allow_redirects=True)
+        if resp.status_code == 200:
+            return new_format_url
+    except requests.RequestException:
+        pass
+    
+    # Try old format: /events/ical/{slug}.ics
+    old_format_url = urljoin(BASE, f"/events/ical/{event_slug}.ics")
+    try:
+        time.sleep(0.1)  # Rate limiting
+        resp = sess.head(old_format_url, timeout=15, allow_redirects=True)
+        if resp.status_code == 200:
+            return old_format_url
+    except requests.RequestException:
+        pass
+    
+    # Fallback: fetch the event page and search for ICS link in HTML
+    try:
+        time.sleep(0.1)  # Rate limiting before fetching event page
         response = sess.get(event_url, timeout=30)
         response.raise_for_status()
     except requests.RequestException as e:
         print(f"Error fetching event page {event_url}: {e}")
         return None
-
+    
     if BeautifulSoup is None:
-        print("Cannot parse event page HTML because BeautifulSoup is not installed.")
+        print("Cannot parse event page HTML due to BeautifulSoup installation.")
         return None
-
+    
     soup = BeautifulSoup(response.text, "html.parser")
-
-    # Look for the "Add to Calendar -> iCal" link
-    ics_link = find_ics_links(soup)
-    if ics_link:
-        return ics_link
-
-    # Fallback: Construct the ICS URL from the event detail slug
-    match = re.search(r"/events/details/([^/]+)", urlparse(event_url).path)
-    if match:
-        event_slug = match.group(1)
-        return urljoin(BASE, f"/events/ical/{event_slug}.ics")
-    else:
-        return None
+    return find_ics_links(soup)
 
 
 # ics fetching and parsing
@@ -242,7 +248,6 @@ def fetch_calendar(ics_url: str) -> object | None:
 
     # download and parse the ics file into an icalendar object
     try:
-        time.sleep(1)  # be polite and avoid overwhelming the server
         response = sess.get(ics_url, timeout=30)
         response.raise_for_status()
         # use Calendar.from_ical when available
@@ -351,9 +356,11 @@ def scrape_month(month_url: str, pause_seconds: float = 0.4) -> list[dict]:
             ics = get_ics_url_from_event(page_url)
             if not ics:
                 errors.append(f"No ICS link found on event page {page_url}")
+                time.sleep(pause_seconds)  # Rate limiting: wait before trying next event
                 continue
 
             if ics in seen_ics:
+                time.sleep(pause_seconds)
                 continue
             seen_ics.add(ics)
 
@@ -363,8 +370,9 @@ def scrape_month(month_url: str, pause_seconds: float = 0.4) -> list[dict]:
         except Exception as e:
             errors.append(f"Error processing event page {page_url}: {e}")
         finally:
-            time.sleep(pause_seconds)  # be polite and avoid overwhelming the server
-
+            # Rate limiting: always wait between requests to be polite to the server
+            time.sleep(pause_seconds)
+        
     print(f"Scraped {len(all_events)} events with {len(errors)} errors.")
     if errors:
         for msg in errors[:5]:

@@ -4,14 +4,9 @@ Unit Tests for Event Normalizer
 Tests paid/free detection, event filtering, tag inference, and venue resolution.
 """
 
-import sys
 import unittest
-from pathlib import Path
 
-# Add scripts directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
-
-from event_normalizer import (
+from scripts.event_normalizer import (
     EventType,
     PaidStatus,
     detect_paid_or_free,
@@ -55,7 +50,7 @@ class TestPaidFreeDetection(unittest.TestCase):
         is_free, status, event_type = detect_paid_or_free(cost_text="$0.00")
         self.assertTrue(is_free)
         self.assertEqual(status, PaidStatus.FREE)
-        self.assertEqual(status, PaidStatus.FREE)
+        self.assertEqual(event_type, EventType.FREE_EVENT)
 
     def test_explicit_price(self):
         """Test explicit price as paid."""

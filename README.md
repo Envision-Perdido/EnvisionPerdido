@@ -13,6 +13,8 @@ This system automatically:
 
 ## Quick Start
 
+### Local Development (Windows)
+
 ```powershell
 # Activate environment
 cd path\to\EnvisionPerdido
@@ -28,65 +30,47 @@ python scripts\wordpress_uploader.py
 python scripts\health_check.py
 ```
 
-## Docker Workflow
+### Remote Deployment (Linux/macOS via make.com)
 
-Build the containerized runtime:
-
-```bash
-docker compose build
-```
-
-Run the documented commands inside the container:
+For remote server deployment with make.com orchestration:
 
 ```bash
-docker compose run --rm app python scripts/automated_pipeline.py
-docker compose run --rm app python scripts/wordpress_uploader.py
-docker compose run --rm app python scripts/health_check.py
+# 1. Clone repository on remote server
+git clone https://github.com/Envision-Perdido/EnvisionPerdido.git
+cd EnvisionPerdido
+
+# 2. Set up environment
+cp .env.example .env
+nano .env  # Add your WordPress & email credentials
+
+# 3. Verify setup (optional but recommended)
+make verify
+
+# 4. Test in dry-run mode (safe, no uploads)
+make dry-run
+
+# 5. Enable full automation (make.com will call this)
+make run-pipeline
 ```
 
-Open an interactive shell if you want to run other repo commands manually:
+**make.com Configuration Example:**
 
-```bash
-docker compose run --rm app
+```
+[Trigger: Schedule (daily 8am) OR Webhook]
+    ↓
+[SSH Module: Execute command]
+    Host: your-server.example.com
+    Command: cd /home/ubuntu/EnvisionPerdido && make dry-run
+    ↓
+[Conditional: Check exit code = 0]
+    ↓
+[SSH Module: Execute command]
+    Command: cd /home/ubuntu/EnvisionPerdido && make run-pipeline
+    ↓
+[Email: Send completion notification]
 ```
 
-Generated files persist on the host under `container-data/`:
-
-- `container-data/output/` maps to the app's `output/`
-- `container-data/data-cache/` maps to the app's `data/cache/`
-
-## Using Codex In This Repo
-
-If you run `codex` from this repository, there are local reusable skills under `skills/` that map to the main project workflows.
-
-For a novice user, the simplest prompts are:
-
-- "Set up the environment" -> uses `calendar-env-setup`
-- "Build the Docker image" -> uses `calendar-docker-build`
-- "Run the pipeline" -> uses `calendar-run-pipeline`
-- "Upload events to WordPress" -> uses `calendar-wordpress-upload`
-- "Run a health check" -> uses `calendar-health-check`
-- "Open a shell in the container" -> uses `calendar-shell`
-
-These skills are stored in this repository for portability:
-
-- `skills/calendar-env-setup/`
-- `skills/calendar-docker-build/`
-- `skills/calendar-run-pipeline/`
-- `skills/calendar-wordpress-upload/`
-- `skills/calendar-health-check/`
-- `skills/calendar-shell/`
-
-If you are not sure what to ask for, start with one of these exact prompts:
-
-```text
-Set up the environment for this repo
-Build the Docker image
-Run the pipeline in Docker
-Upload events to WordPress
-Run a health check
-Open a bash shell in the container
-```
+For complete setup instructions, see [Deployment on make.com](#deployment-on-make.com) below.
 
 ## Documentation
 
@@ -96,6 +80,7 @@ All detailed documentation is in the `docs/` folder. See **[docs/INDEX.md](docs/
 - **[Quick Start Guide](docs/QUICKSTART.md)** - Get started in 5 minutes
 - **[Project Structure](docs/PROJECT_STRUCTURE.md)** - Folder organization and file locations
 - **[WordPress Integration](docs/WORDPRESS_INTEGRATION_GUIDE.md)** - Calendar upload workflow
+- **[GitHub Secrets Setup](docs/GITHUB_SECRETS.md)** - Required secrets and variables before going public
 - **[Contributing](CONTRIBUTING.md)** - Development workflow and branching strategy
 - **[Critical Issues](CRITICAL_ISSUES.md)** - Known blockers and production issues
 
@@ -109,7 +94,7 @@ EnvisionPerdido/
 ├── output/         # Pipeline outputs and logs
 ├── plugins/        # WordPress plugins
 ├── notebooks/      # Jupyter notebooks
-└── tests/          # Test files
+└── tests/          # Test files (unit/, integration/, smoke/)
 ```
 
 See [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md) for the complete structure.
@@ -175,3 +160,149 @@ This repository uses GitHub Actions for automated testing, security scanning, an
 - ** Stale Management:** Auto-closes inactive issues
 
 See `.github/workflows/` for configuration and [docs/CI_CD_GUIDE.md](docs/CI_CD_GUIDE.md) for details.
+
+## Running Tests Locally
+
+Install dependencies and run the unit test suite from the project root:
+
+```bash
+pip install -r requirements.txt pytest
+python -m pytest tests/unit -v --tb=short
+```
+
+Tests are organized under `tests/`:
+
+| Directory | Purpose | Runs in CI? |
+|---|---|---|
+| `tests/unit/` | Fast, isolated unit tests — no network or external deps | ✅ Yes |
+| `tests/integration/` | Integration tests requiring external services | ❌ Manual only |
+| `tests/smoke/` | Lightweight smoke tests for module imports and config | ❌ Manual only |
+
+Use pytest markers to skip slow or network-dependent tests:
+
+```bash
+# Run only tests that are not slow/network/integration
+python -m pytest tests/unit -v --tb=short -m "not slow and not network and not integration"
+```
+
+## Deployment on make.com
+
+This project supports automated deployment and orchestration via **make.com** using SSH commands on a remote server.
+
+### Prerequisites
+
+Your supervisor/deployment server needs:
+
+- **Linux or macOS** with SSH access
+- **Git** installed
+- **Python 3.11+** installed
+- An SSH key pair (for make.com to authenticate)
+- `.env` file with WordPress & email credentials (filled from `.env.example`)
+- Model artifacts at `data/artifacts/event_classifier_model.pkl` and `event_vectorizer.pkl`
+
+### First-Time Server Setup
+
+SSH into your deployment server and run:
+
+```bash
+# Clone repository
+git clone https://github.com/Envision-Perdido/EnvisionPerdido.git
+cd EnvisionPerdido
+
+# Set up from template
+cp .env.example .env
+
+# Edit with your WordPress & email credentials
+nano .env
+
+# Install dependencies (creates venv and installs from requirements.txt)
+make setup
+
+# Verify everything is configured correctly
+make verify
+```
+
+Once `make verify` passes, the server is ready for make.com integration.
+
+### make.com Webhook/Scenario Configuration
+
+In **make.com**, create a scenario with the following modules:
+
+1. **Trigger**: 
+   - "Schedule" (e.g., daily at 8am)
+   - OR "Webhooks" (if triggered by external event)
+
+2. **Dry-run Test** (SSH module):
+   - **Host**: `your-server.example.com`
+   - **Port**: `22` (or your SSH port)
+   - **Username**: `ubuntu` (or your user)
+   - **Private Key**: [upload your SSH key]
+   - **Command**: 
+     ```bash
+     cd /home/ubuntu/EnvisionPerdido && make dry-run
+     ```
+
+3. **Conditional Check**:
+   - If **exit code** from step 2 is `0`, proceed to step 4
+   - Otherwise, send error notification
+
+4. **Full Pipeline** (SSH module):
+   - Same host/credentials as step 2
+   - **Command**:
+     ```bash
+     cd /home/ubuntu/EnvisionPerdido && make run-pipeline
+     ```
+
+5. **Notification** (Email module):
+   - Send completion summary to supervisors
+   - Include exit status and logs
+
+### Available make Targets
+
+From the remote server (or via make.com SSH):
+
+```bash
+make help           # Show all available targets
+make setup          # Create venv and install dependencies
+make verify         # Check setup (env, artifacts, packages)
+make test           # Run pytest suite
+make lint           # Run ruff linter
+make dry-run        # Safe test run (AUTO_UPLOAD=false, no uploads)
+make run-pipeline   # Full pipeline with WordPress uploads
+make run-uploader   # Interactive uploader (manual review)
+```
+
+### Monitoring & Logs
+
+After each run, check:
+
+- **CSV exports**: `output/pipeline/calendar_upload_*.csv` (latest file)
+- **Logs**: `output/logs/automated_pipeline_*.log` (latest file)
+
+Logs include:
+- Scraping results (count, sources)
+- Classification results (count, confidence)
+- WordPress upload status
+- Email delivery confirmation
+
+make.com will capture stdout/stderr from SSH commands. Configure email notifications in make.com to alert on failures.
+
+### Troubleshooting
+
+**SSH connection fails:**
+- Check SSH key is uploaded to make.com
+- Verify public key is in `~/.ssh/authorized_keys` on server
+- Ensure firewall allows SSH (port 22 or custom)
+
+**Pipeline exits with error:**
+- SSH into server: `cd EnvisionPerdido && tail -50 output/logs/*.log`
+- Run `make verify` to check setup
+- Ensure `.env` is filled with valid credentials
+
+**No events scraped/classified:**
+- Check data sources are accessible: `curl https://perdidochamber.org`
+- Verify model artifacts exist: `ls -la data/artifacts/`
+- Review full log: `cat output/logs/automated_pipeline_*.log | grep -i error`
+
+For debugging during development, use `make dry-run` to test without uploading to WordPress.
+

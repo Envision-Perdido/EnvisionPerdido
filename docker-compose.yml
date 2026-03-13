@@ -14,3 +14,53 @@ services:
       - ./container-data/data-cache:/app/data/cache
       - ./scripts/macos:/app/scripts/macos:ro
     command: bash
+version: '3.8'
+
+services:
+  pipeline:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: envision-perdido-pipeline
+    
+    # Load environment from .env file
+    env_file:
+      - .env
+    
+    # If you need to override specific env vars, do it here:
+    environment:
+      # These will override values from .env if set
+      - AUTO_UPLOAD=${AUTO_UPLOAD:-false}
+      - SITE_TIMEZONE=${SITE_TIMEZONE:-America/Chicago}
+    
+    # Mount volumes for persistent data
+    volumes:
+      # Data and model artifacts
+      - ./data:/app/data
+      # Output logs and CSVs
+      - ./output:/app/output
+    
+    working_dir: /app
+    
+    # Run the pipeline
+    command: python scripts/automated_pipeline.py
+    
+    # Restart policy
+    restart: "no"
+    
+    # Resource limits (adjust based on your server capacity)
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+    
+    # Logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
