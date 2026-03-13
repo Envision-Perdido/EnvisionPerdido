@@ -10,7 +10,7 @@ Features:
 
 Usage (standalone):
     python scripts/regenerate_descriptions.py [OPTIONS]
-    
+
 Options:
     --batch              Use OpenAI Batch API (async, cheaper)
     --sync               Use sync API (default, immediate results)
@@ -33,17 +33,16 @@ Usage (imported):
     )
 """
 
+import hashlib
 import json
 import os
 import sys
 import time
-import hashlib
 from datetime import datetime
-from typing import List, Dict, Optional
 from pathlib import Path
 
 try:
-    from openai import OpenAI, APIError
+    from openai import APIError, OpenAI
 except ImportError:
     print("[ERROR] openai package not installed. Run: pip install openai")
     sys.exit(1)
@@ -60,11 +59,11 @@ CACHE_DIR.mkdir(parents=True, exist_ok=True)
 CACHE_FILE = CACHE_DIR / "enhanced_descriptions.json"
 
 
-def _load_cache() -> Dict[str, str]:
+def _load_cache() -> dict[str, str]:
     """Load cached enhanced descriptions from JSON file."""
     if CACHE_FILE.exists():
         try:
-            with open(CACHE_FILE, 'r', encoding='utf-8') as f:
+            with open(CACHE_FILE, encoding="utf-8") as f:
                 cache = json.load(f)
             logger.info(f"Loaded cache with {len(cache)} entries")
             return cache
@@ -74,35 +73,35 @@ def _load_cache() -> Dict[str, str]:
     return {}
 
 
-def _save_cache(cache: Dict[str, str]) -> None:
+def _save_cache(cache: dict[str, str]) -> None:
     """Save enhanced descriptions to JSON cache file."""
     try:
-        with open(CACHE_FILE, 'w', encoding='utf-8') as f:
+        with open(CACHE_FILE, "w", encoding="utf-8") as f:
             json.dump(cache, f, indent=2, ensure_ascii=False)
         logger.info(f"Saved {len(cache)} entries to cache")
     except Exception as e:
         logger.error(f"Failed to save cache: {e}")
 
 
-def _get_cache_key(event: Dict) -> str:
+def _get_cache_key(event: dict) -> str:
     """Generate cache key from event description using hash."""
-    title = event.get('Title', '')
-    description = event.get('Description', '')
-    location = event.get('Location', '')
+    title = event.get("Title", "")
+    description = event.get("Description", "")
+    location = event.get("Location", "")
 
     # Hash the original description to detect if it changed
     combined = f"{title}|{description}|{location}"
     return hashlib.md5(combined.encode()).hexdigest()
 
 
-def _build_batch_request(event: Dict, request_id: str, model: str = "gpt-4o-mini") -> Dict:
+def _build_batch_request(event: dict, request_id: str, model: str = "gpt-4o-mini") -> dict:
     """Build a single request for the Batch API (JSONL format)."""
-    title = event.get('Title', 'Unknown Event')
-    original_desc = event.get('Description', 'No description provided')
-    location = event.get('Location', 'TBD')
-    start_date = event.get('Start Date', 'TBD')
+    title = event.get("Title", "Unknown Event")
+    original_desc = event.get("Description", "No description provided")
+    location = event.get("Location", "TBD")
+    start_date = event.get("Start Date", "TBD")
 
-    prompt = f"""You are a professional event marketing copywriter. 
+    prompt = f"""You are a professional event marketing copywriter.
 Improve the following event description to be more engaging, informative, and compelling.
 Keep it concise (2-3 sentences, max 150 words). Maintain factual accuracy.
 
@@ -121,20 +120,18 @@ Provide ONLY the improved description text, no labels or formatting."""
         "body": {
             "model": model,
             "max_tokens": 200,
-            "messages": [{"role": "user", "content": prompt}]
-        }
+            "messages": [{"role": "user", "content": prompt}],
+        },
     }
 
 
-def _submit_batch(client: OpenAI, requests: List[Dict]) -> str:
+def _submit_batch(client: OpenAI, requests: list[dict]) -> str:
     """Submit batch to OpenAI Batch API and return batch ID."""
     logger.info(f"Submitting batch with {len(requests)} requests to OpenAI...")
 
     try:
         # OpenAI SDK handles JSONL conversion
-        batch_response = client.beta.batch.create(
-            requests=requests
-        )
+        batch_response = client.beta.batch.create(requests=requests)
         batch_id = batch_response.id
         logger.info(f"Batch submitted successfully. Batch ID: {batch_id}")
         logger.info(f"You can check status with: openai api batch.retrieve -id {batch_id}")
@@ -144,7 +141,9 @@ def _submit_batch(client: OpenAI, requests: List[Dict]) -> str:
         raise
 
 
-def _poll_batch_status(client: OpenAI, batch_id: str, max_wait: int = 3600, poll_interval: int = 30) -> bool:
+def _poll_batch_status(
+    client: OpenAI, batch_id: str, max_wait: int = 3600, poll_interval: int = 30
+) -> bool:
     """Poll batch status until complete. Returns True if successful."""
     logger.info(f"Polling batch {batch_id} for completion (max wait: {max_wait}s)...")
 
@@ -155,14 +154,16 @@ def _poll_batch_status(client: OpenAI, batch_id: str, max_wait: int = 3600, poll
             status = batch.status
 
             logger.info(f"Batch status: {status}")
-            logger.info(f"  Processed: {batch.request_counts.completed}/{batch.request_counts.total}")
+            logger.info(
+                f"  Processed: {batch.request_counts.completed}/{batch.request_counts.total}"
+            )
 
             if status == "completed":
                 logger.info("Batch completed!")
                 return True
             elif status == "failed":
                 logger.error("✗ Batch failed")
-                if hasattr(batch, 'errors') and batch.errors:
+                if hasattr(batch, "errors") and batch.errors:
                     for error in batch.errors:
                         logger.error(f"  Error: {error}")
                 return False
@@ -181,7 +182,7 @@ def _poll_batch_status(client: OpenAI, batch_id: str, max_wait: int = 3600, poll
     return False
 
 
-def _retrieve_batch_results(client: OpenAI, batch_id: str) -> Dict[str, str]:
+def _retrieve_batch_results(client: OpenAI, batch_id: str) -> dict[str, str]:
     """Retrieve results from completed batch. Returns dict of custom_id -> enhanced_description."""
     logger.info(f"Retrieving results from batch {batch_id}...")
 
@@ -210,38 +211,35 @@ def _retrieve_batch_results(client: OpenAI, batch_id: str) -> Dict[str, str]:
 
 
 def generate_single_description(
-    client: OpenAI,
-    event: Dict,
-    model: str = "gpt-4o-mini",
-    dry_run: bool = False
+    client: OpenAI, event: dict, model: str = "gpt-4o-mini", dry_run: bool = False
 ) -> str:
     """
     Generate improved description for a single event.
-    
+
     Args:
         client: OpenAI client
         event: Event dict with keys: Title, Description, Start Date, Location
         model: Model name
         dry_run: If True, return placeholder
-    
+
     Returns:
         Enhanced description (or original if dry_run or error)
     """
     if dry_run:
         logger.debug(f"[DRY-RUN] Would enhance: {event.get('Title', 'Unknown')}")
-        return event.get('Description', 'No description')
+        return event.get("Description", "No description")
 
-    title = event.get('Title', 'Unknown Event')
-    original_desc = event.get('Description', 'No description provided')
-    location = event.get('Location', 'TBD')
-    start_date = event.get('Start Date', 'TBD')
+    title = event.get("Title", "Unknown Event")
+    original_desc = event.get("Description", "No description provided")
+    location = event.get("Location", "TBD")
+    start_date = event.get("Start Date", "TBD")
 
     # Skip if no description
-    if not original_desc or original_desc.strip() == '':
+    if not original_desc or original_desc.strip() == "":
         logger.debug(f"Skipping (no description): {title}")
         return original_desc
 
-    prompt = f"""You are a professional event marketing copywriter. 
+    prompt = f"""You are a professional event marketing copywriter.
 Improve the following event description to be more engaging, informative, and compelling.
 Keep it concise (2-3 sentences, max 150 words). Maintain factual accuracy.
 
@@ -255,9 +253,7 @@ Provide ONLY the improved description text, no labels or formatting."""
 
     try:
         response = client.messages.create(
-            model=model,
-            max_tokens=200,
-            messages=[{"role": "user", "content": prompt}]
+            model=model, max_tokens=200, messages=[{"role": "user", "content": prompt}]
         )
         enhanced = response.content[0].text.strip()
         logger.info(f"Enhanced: {title}")
@@ -270,18 +266,18 @@ Provide ONLY the improved description text, no labels or formatting."""
 
 
 def enhance_event_descriptions(
-    events: List[Dict],
+    events: list[dict],
     dry_run: bool = False,
     model: str = "gpt-4o-mini",
     use_batch: bool = False,
-    top_n: Optional[int] = 100,
+    top_n: int | None = 100,
     min_confidence: float = 0.75,
     use_cache: bool = True,
-    save_cache: bool = True
-) -> List[Dict]:
+    save_cache: bool = True,
+) -> list[dict]:
     """
     Enhance descriptions for events using OpenAI.
-    
+
     Args:
         events: List of event dictionaries
         dry_run: If True, don't call API
@@ -291,11 +287,11 @@ def enhance_event_descriptions(
         min_confidence: Only enhance events with confidence >= this threshold
         use_cache: Load cached enhancements
         save_cache: Save enhancements to cache
-    
+
     Returns:
         List of events with enhanced descriptions
     """
-    api_key = os.getenv('OPENAI_API_KEY')
+    api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         logger.warning("OPENAI_API_KEY not set. Skipping description enhancement.")
         return events
@@ -310,20 +306,22 @@ def enhance_event_descriptions(
     # Filter events by confidence (top-N)
     events_to_enhance = []
     for event in events:
-        original_desc = event.get('Description', '')
-        if not original_desc or original_desc.strip() == '':
+        original_desc = event.get("Description", "")
+        if not original_desc or original_desc.strip() == "":
             continue
 
-        confidence = event.get('confidence', 1.0)
+        confidence = event.get("confidence", 1.0)
         if confidence >= min_confidence:
             events_to_enhance.append(event)
 
     # Sort by confidence descending, take top N
-    events_to_enhance.sort(key=lambda e: e.get('confidence', 0), reverse=True)
+    events_to_enhance.sort(key=lambda e: e.get("confidence", 0), reverse=True)
     if top_n:
         events_to_enhance = events_to_enhance[:top_n]
 
-    logger.info(f"Will enhance {len(events_to_enhance)}/{len(events)} events (top_n={top_n}, min_confidence={min_confidence})")
+    logger.info(
+        f"Will enhance {len(events_to_enhance)}/{len(events)} events (top_n={top_n}, min_confidence={min_confidence})"
+    )
 
     # Check cache and filter out already-enhanced
     cache_hits = 0
@@ -331,7 +329,7 @@ def enhance_event_descriptions(
     for event in events_to_enhance:
         cache_key = _get_cache_key(event)
         if cache_key in cache:
-            event['Description'] = cache[cache_key]
+            event["Description"] = cache[cache_key]
             cache_hits += 1
         else:
             still_to_enhance.append(event)
@@ -374,7 +372,7 @@ def enhance_event_descriptions(
                 # Try to find result using various ID formats
                 for request_id, enhanced_desc in batch_results.items():
                     if cache_key in request_id:
-                        event['Description'] = enhanced_desc
+                        event["Description"] = enhanced_desc
                         cache[cache_key] = enhanced_desc
                         break
         else:
@@ -384,11 +382,11 @@ def enhance_event_descriptions(
         # Sync mode (immediate results)
         logger.info(f"Using OpenAI sync API for {len(still_to_enhance)} events...")
         for i, event in enumerate(still_to_enhance, 1):
-            title = event.get('Title', f'Event {i}')
+            title = event.get("Title", f"Event {i}")
             logger.info(f"[{i}/{len(still_to_enhance)}] {title}")
 
             enhanced_desc = generate_single_description(client, event, model, dry_run=False)
-            event['Description'] = enhanced_desc
+            event["Description"] = enhanced_desc
 
             # Update cache
             cache_key = _get_cache_key(event)
@@ -408,15 +406,28 @@ def main():
     import csv
 
     parser = argparse.ArgumentParser(description="Regenerate event descriptions using OpenAI")
-    parser.add_argument('--batch', action='store_true', help="Use OpenAI Batch API (async, cheaper)")
-    parser.add_argument('--sync', action='store_true', help="Use sync API (default, immediate results)")
-    parser.add_argument('--top-n', type=int, default=100, help="Only enhance top N confidence events")
-    parser.add_argument('--min-confidence', type=float, default=0.75, help="Only enhance events with confidence >= X")
-    parser.add_argument('--no-cache', action='store_true', help="Ignore cache, re-enhance all events")
-    parser.add_argument('--skip-cache', action='store_true', help="Don't save results to cache")
-    parser.add_argument('--dry-run', action='store_true', help="Don't call OpenAI API")
-    parser.add_argument('--model', default='gpt-4o-mini', help='OpenAI model')
-    parser.add_argument('--csv', type=Path, help='Specific CSV file to process')
+    parser.add_argument(
+        "--batch", action="store_true", help="Use OpenAI Batch API (async, cheaper)"
+    )
+    parser.add_argument(
+        "--sync", action="store_true", help="Use sync API (default, immediate results)"
+    )
+    parser.add_argument(
+        "--top-n", type=int, default=100, help="Only enhance top N confidence events"
+    )
+    parser.add_argument(
+        "--min-confidence",
+        type=float,
+        default=0.75,
+        help="Only enhance events with confidence >= X",
+    )
+    parser.add_argument(
+        "--no-cache", action="store_true", help="Ignore cache, re-enhance all events"
+    )
+    parser.add_argument("--skip-cache", action="store_true", help="Don't save results to cache")
+    parser.add_argument("--dry-run", action="store_true", help="Don't call OpenAI API")
+    parser.add_argument("--model", default="gpt-4o-mini", help="OpenAI model")
+    parser.add_argument("--csv", type=Path, help="Specific CSV file to process")
     args = parser.parse_args()
 
     # Find CSV
@@ -428,7 +439,9 @@ def main():
             logger.error(f"Pipeline directory not found: {pipeline_dir}")
             sys.exit(1)
 
-        csv_files = sorted(pipeline_dir.glob("calendar_upload_*.csv"), key=os.path.getmtime, reverse=True)
+        csv_files = sorted(
+            pipeline_dir.glob("calendar_upload_*.csv"), key=os.path.getmtime, reverse=True
+        )
         if not csv_files:
             logger.error(f"No calendar_upload_*.csv files found in {pipeline_dir}")
             sys.exit(1)
@@ -440,7 +453,7 @@ def main():
     # Read CSV
     events = []
     try:
-        with open(csv_path, 'r', encoding='utf-8') as f:
+        with open(csv_path, encoding="utf-8") as f:
             reader = csv.DictReader(f)
             events = list(reader)
         logger.info(f"Loaded {len(events)} events")
@@ -458,7 +471,7 @@ def main():
         top_n=args.top_n,
         min_confidence=args.min_confidence,
         use_cache=not args.no_cache,
-        save_cache=not args.skip_cache
+        save_cache=not args.skip_cache,
     )
 
     # Write output
@@ -470,7 +483,7 @@ def main():
 
     try:
         fieldnames = enhanced_events[0].keys()
-        with open(output_path, 'w', newline='', encoding='utf-8') as f:
+        with open(output_path, "w", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
             writer.writerows(enhanced_events)
@@ -482,5 +495,5 @@ def main():
         sys.exit(1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

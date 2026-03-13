@@ -10,8 +10,9 @@ This script:
 5. Reports statistics for retraining decision
 """
 
-import pandas as pd
 from pathlib import Path
+
+import pandas as pd
 
 BASE_DIR = Path(__file__).parent.parent
 RAW_DIR = BASE_DIR / "data" / "raw"
@@ -19,12 +20,14 @@ PROCESSED_DIR = BASE_DIR / "data" / "processed"
 LABELED_DIR = BASE_DIR / "data" / "labeled"
 OUTPUT_FILE = BASE_DIR / "data" / "processed" / "consolidated_training_data.csv"
 
+
 def normalize_event(row):
     """Normalize event for deduplication."""
     title = str(row.get("title", "")).strip().lower()
     start = str(row.get("start", "")).strip()
     location = str(row.get("location", "")).strip().lower()
     return f"{title}|{start}|{location}"
+
 
 def load_and_consolidate():
     """Load all event data and consolidate."""
@@ -78,7 +81,11 @@ def load_and_consolidate():
     print(f"[Consolidating] Total events after dedup: {len(combined)}")
 
     # Count labeled
-    labeled_count = combined["is_community_event"].notna().sum() if "is_community_event" in combined.columns else 0
+    labeled_count = (
+        combined["is_community_event"].notna().sum()
+        if "is_community_event" in combined.columns
+        else 0
+    )
     unlabeled_count = len(combined) - labeled_count
 
     print(f"[Status] Labeled events: {labeled_count}")
@@ -90,6 +97,7 @@ def load_and_consolidate():
     print(f"        Total events: {len(combined)}")
 
     return combined, labeled_count, unlabeled_count
+
 
 if __name__ == "__main__":
     print("=" * 80)

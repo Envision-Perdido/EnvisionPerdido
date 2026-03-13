@@ -23,7 +23,6 @@ from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
-from typing import Tuple
 
 import joblib
 import numpy as np
@@ -72,10 +71,11 @@ def load_model_and_vectorizer():
     Supports both old (separate model/vectorizer) and new (unified pipeline) formats.
 
     Returns:
-        Tuple[object | None, object | None]: Tuple of (model,
+        tuple[object | None, object | None]: Tuple of (model,
             vectorizer), or (None, None) if files not found.
     """
     from sklearn.pipeline import Pipeline
+
     global _MODEL_CACHE
 
     if _MODEL_CACHE["model"] is None or _MODEL_CACHE["vectorizer"] is None:
@@ -164,7 +164,7 @@ def classify_events_batch(
     vectorizer: object,
     batch_size: int = 500,
     verbose: bool = True,
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray]:
     """Classify events in batches for better memory efficiency.
 
     Uses batch processing to vectorize and classify events, reducing peak memory
@@ -195,7 +195,11 @@ def classify_events_batch(
         if use_unified_pipeline:
             # New unified pipeline format: build all required features
             # The pipeline expects: text, hour, is_weekend, venue_library, venue_park, venue_church, venue_museum
-            text = batch.get("title", pd.Series()).fillna("") + " " + batch.get("description", pd.Series()).fillna("")
+            text = (
+                batch.get("title", pd.Series()).fillna("")
+                + " "
+                + batch.get("description", pd.Series()).fillna("")
+            )
 
             dt = pd.to_datetime(batch.get("start", pd.Series()), errors="coerce", utc=True)
             hour = dt.dt.hour.fillna(-1).astype(int)
@@ -208,15 +212,17 @@ def classify_events_batch(
             venue_church = loc.str.contains(r"\bchurch\b", na=False).astype(int)
             venue_museum = loc.str.contains(r"\bmuseum\b|gallery", na=False).astype(int)
 
-            X = pd.DataFrame({
-                "text": text,
-                "hour": hour,
-                "is_weekend": is_weekend,
-                "venue_library": venue_library,
-                "venue_park": venue_park,
-                "venue_church": venue_church,
-                "venue_museum": venue_museum,
-            })
+            X = pd.DataFrame(
+                {
+                    "text": text,
+                    "hour": hour,
+                    "is_weekend": is_weekend,
+                    "venue_library": venue_library,
+                    "venue_park": venue_park,
+                    "venue_church": venue_church,
+                    "venue_museum": venue_museum,
+                }
+            )
         else:
             # Old format: manually build text features and vectorize
             X_text = build_features(batch)
@@ -316,7 +322,9 @@ def scrape_events(
                 if error:
                     errors.append(error)
                 elapsed = time.time() - start_time
-                log(f"  [{i}/{len(scraping_tasks)}] {source} completed: {len(events)} events in {elapsed:.1f}s elapsed")
+                log(
+                    f"  [{i}/{len(scraping_tasks)}] {source} completed: {len(events)} events in {elapsed:.1f}s elapsed"
+                )
             except Exception as e:  # pylint: disable=broad-except
                 error_msg = f"Error scraping {source} {url or ''}: {e}"
                 log(f"ERROR: {error_msg}")
@@ -332,11 +340,11 @@ def scrape_events(
 
 def _scrape_single_source(source: str, url: str | None) -> tuple[list[dict], str | None]:
     """Scrape a single source (runs in thread pool for parallelization).
-    
+
     Args:
         source: Source name ('perdido' or 'wren_haven')
         url: URL to scrape (None for wren_haven)
-    
+
     Returns:
         Tuple of (events_list, error_message)
     """
@@ -347,6 +355,7 @@ def _scrape_single_source(source: str, url: str | None) -> tuple[list[dict], str
         elif source == "wren_haven":
             try:
                 from scripts import wren_haven_scraper
+
                 events = wren_haven_scraper.scrape_wren_haven()
                 return events, None
             except ImportError as e:
@@ -354,7 +363,6 @@ def _scrape_single_source(source: str, url: str | None) -> tuple[list[dict], str
     except Exception as e:
         error_msg = f"Error scraping {source}: {e}"
         return [], error_msg
-
 
 
 def assign_event_images(events_df: pd.DataFrame) -> pd.DataFrame:
@@ -491,7 +499,7 @@ def classify_events(events_df: pd.DataFrame) -> pd.DataFrame | None:
     )
     log(
         f"Events flagged for review (confidence < {CONFIDENCE_THRESHOLD}): {needs_review_count}/{len(events_df)} "
-        f"({100*needs_review_count/len(events_df):.1f}%)"
+        f"({100 * needs_review_count / len(events_df):.1f}%)"
     )
 
     # Enrich events with tags, paid/free status, venue resolution
@@ -972,33 +980,33 @@ def main():
         # Step 3: Enhance descriptions with OpenAI (optional)
         step_start = time.time()
         log("\nStep 3: Enhancing event descriptions with OpenAI...")
-        if os.getenv('OPENAI_API_KEY') and enhance_event_descriptions:
+        if os.getenv("OPENAI_API_KEY") and enhance_event_descriptions:
             try:
-                openai_dry_run = os.getenv('OPENAI_DRY_RUN', 'false').lower() == 'true'
-                openai_model = os.getenv('OPENAI_MODEL', 'gpt-4o-mini')
-                openai_use_batch = os.getenv('OPENAI_USE_BATCH', 'false').lower() == 'true'
-                openai_top_n = int(os.getenv('OPENAI_TOP_N', '100'))
-                openai_min_confidence = float(os.getenv('OPENAI_MIN_CONFIDENCE', '0.75'))
+                openai_dry_run = os.getenv("OPENAI_DRY_RUN", "false").lower() == "true"
+                openai_model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+                openai_use_batch = os.getenv("OPENAI_USE_BATCH", "false").lower() == "true"
+                openai_top_n = int(os.getenv("OPENAI_TOP_N", "100"))
+                openai_min_confidence = float(os.getenv("OPENAI_MIN_CONFIDENCE", "0.75"))
 
                 # Convert DataFrame to list of dicts for enhancement
-                events_list = classified_df.to_dict('records')
+                events_list = classified_df.to_dict("records")
 
                 # Normalize keys for the enhancer: ensure Title/Description exist
                 for event in events_list:
                     # Prefer existing Title/Description; fall back to lowercase keys
-                    if 'Title' not in event and 'title' in event:
-                        event['Title'] = event['title']
-                    if 'Description' not in event and 'description' in event:
-                        event['Description'] = event['description']
+                    if "Title" not in event and "title" in event:
+                        event["Title"] = event["title"]
+                    if "Description" not in event and "description" in event:
+                        event["Description"] = event["description"]
 
                 # Track original descriptions to detect actual changes
                 original_descriptions = []
                 for event in events_list:
                     # Use lowercase description if present, else fall back to Description
-                    if 'description' in event and event['description'] is not None:
-                        original_descriptions.append(event['description'])
+                    if "description" in event and event["description"] is not None:
+                        original_descriptions.append(event["description"])
                     else:
-                        original_descriptions.append(event.get('Description'))
+                        original_descriptions.append(event.get("Description"))
 
                 enhanced_events = enhance_event_descriptions(
                     events_list,
@@ -1008,7 +1016,7 @@ def main():
                     top_n=openai_top_n,
                     min_confidence=openai_min_confidence,
                     use_cache=True,
-                    save_cache=True
+                    save_cache=True,
                 )
 
                 # Post-process enhanced events: propagate enhanced Title/Description
@@ -1016,18 +1024,20 @@ def main():
                 changed_count = 0
                 for idx, event in enumerate(enhanced_events):
                     # Normalize title casing
-                    if 'Title' in event and (not event.get('title')):
-                        event['title'] = event['Title']
+                    if "Title" in event and (not event.get("title")):
+                        event["title"] = event["Title"]
 
                     # Determine the new description value, preferring Description
                     new_desc = None
-                    if 'Description' in event and event['Description'] is not None:
-                        new_desc = event['Description']
-                    elif 'description' in event and event['description'] is not None:
-                        new_desc = event['description']
+                    if "Description" in event and event["Description"] is not None:
+                        new_desc = event["Description"]
+                    elif "description" in event and event["description"] is not None:
+                        new_desc = event["description"]
 
                     # Original description for this index (may be None)
-                    orig_desc = original_descriptions[idx] if idx < len(original_descriptions) else None
+                    orig_desc = (
+                        original_descriptions[idx] if idx < len(original_descriptions) else None
+                    )
 
                     # If we have a new non-empty description and it actually changed, count it
                     if new_desc is not None and new_desc != orig_desc:
@@ -1035,7 +1045,7 @@ def main():
 
                     # Ensure lowercase description reflects the latest value
                     if new_desc is not None:
-                        event['description'] = new_desc
+                        event["description"] = new_desc
 
                 # Convert back to DataFrame with normalized lowercase fields
                 classified_df = pd.DataFrame(enhanced_events)
@@ -1048,7 +1058,7 @@ def main():
                 logger.warning(f"OpenAI enhancement error: {e}")
                 # Continue with original descriptions
         else:
-            if not os.getenv('OPENAI_API_KEY'):
+            if not os.getenv("OPENAI_API_KEY"):
                 log("[SKIP] OPENAI_API_KEY not set; skipping description enhancement")
             if not enhance_event_descriptions:
                 log("[SKIP] regenerate_descriptions module not available")
@@ -1143,7 +1153,7 @@ def main():
         total_time = time.time() - pipeline_start_time
         log("\n" + "=" * 80)
         log("PIPELINE COMPLETE!")
-        log(f"Total execution time: {total_time:.1f}s ({total_time/60:.1f} minutes)")
+        log(f"Total execution time: {total_time:.1f}s ({total_time / 60:.1f} minutes)")
         log("=" * 80)
 
         # Log final metrics summary

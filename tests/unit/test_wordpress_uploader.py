@@ -226,7 +226,14 @@ def test_find_existing_media_by_filename(tmp_path):
             self.get_calls.append(url)
             if url.endswith("/media") and params and "search" in params:
                 return DummyResponse(
-                    200, [{"id": 88, "source_url": "https://example.org/event_banner.jpg", "slug": "event_banner"}]
+                    200,
+                    [
+                        {
+                            "id": 88,
+                            "source_url": "https://example.org/event_banner.jpg",
+                            "slug": "event_banner",
+                        }
+                    ],
                 )
             return DummyResponse(200, [])
 
@@ -290,7 +297,8 @@ def test_upload_image_reuses_filename_match(monkeypatch, tmp_path):
                 if "ep_hash" in search:
                     return DummyResponse(200, [])
                 return DummyResponse(
-                    200, [{"id": 66, "source_url": "https://example.org/image.jpg", "slug": "image"}]
+                    200,
+                    [{"id": 66, "source_url": "https://example.org/image.jpg", "slug": "image"}],
                 )
             return DummyResponse(200, [])
 

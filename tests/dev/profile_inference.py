@@ -15,7 +15,6 @@ import pstats
 import time
 from io import StringIO
 from pathlib import Path
-from typing import List
 
 import joblib
 import numpy as np
@@ -29,20 +28,20 @@ VECTORIZER_PATH = BASE_DIR / "data" / "artifacts" / "event_vectorizer.pkl"
 def load_artifacts():
     """Load trained model and vectorizer."""
     if not MODEL_PATH.exists() or not VECTORIZER_PATH.exists():
-        print(f"❌ Model or vectorizer not found")
+        print("❌ Model or vectorizer not found")
         return None, None
 
     try:
         model = joblib.load(MODEL_PATH)
         vectorizer = joblib.load(VECTORIZER_PATH)
-        print(f"✅ Loaded model and vectorizer")
+        print("✅ Loaded model and vectorizer")
         return model, vectorizer
     except Exception as e:
         print(f"❌ Failed to load artifacts: {e}")
         return None, None
 
 
-def generate_sample_texts(n_samples: int = 100) -> List[str]:
+def generate_sample_texts(n_samples: int = 100) -> list[str]:
     """Generate sample event descriptions for profiling.
 
     Args:
@@ -87,7 +86,7 @@ def generate_sample_texts(n_samples: int = 100) -> List[str]:
     return samples
 
 
-def profile_vectorization(vectorizer, texts: List[str], n_runs: int = 10) -> dict:
+def profile_vectorization(vectorizer, texts: list[str], n_runs: int = 10) -> dict:
     """Profile the vectorization step.
 
     Args:
@@ -118,12 +117,12 @@ def profile_vectorization(vectorizer, texts: List[str], n_runs: int = 10) -> dic
     }
 
 
-def profile_prediction(model, X, n_runs: int = 10) -> dict:
+def profile_prediction(model, x, n_runs: int = 10) -> dict:
     """Profile the prediction step.
 
     Args:
         model: Trained classifier
-        X: Feature matrix (typically sparse)
+        x: Feature matrix (typically sparse)
         n_runs: Number of runs for averaging
 
     Returns:
@@ -134,7 +133,7 @@ def profile_prediction(model, X, n_runs: int = 10) -> dict:
     times = []
     for _ in range(n_runs):
         start = time.perf_counter()
-        predictions = model.predict(X)
+        predictions = model.predict(x)
         end = time.perf_counter()
         times.append(end - start)
 
@@ -145,17 +144,19 @@ def profile_prediction(model, X, n_runs: int = 10) -> dict:
         "prediction_std_ms": float(times.std() * 1000),
         "prediction_min_ms": float(times.min() * 1000),
         "prediction_max_ms": float(times.max() * 1000),
-        "n_samples": X.shape[0] if hasattr(X, 'shape') else None,
-        "prediction_per_sample_ms": float(times.mean() * 1000 / X.shape[0]) if hasattr(X, 'shape') else None,
+        "n_samples": x.shape[0] if hasattr(x, "shape") else None,
+        "prediction_per_sample_ms": float(times.mean() * 1000 / x.shape[0])
+        if hasattr(x, "shape")
+        else None,
     }
 
 
-def profile_decision_function(model, X, n_runs: int = 10) -> dict:
+def profile_decision_function(model, x, n_runs: int = 10) -> dict:
     """Profile the decision function (distance from hyperplane).
 
     Args:
         model: Trained classifier
-        X: Feature matrix
+        x: Feature matrix
         n_runs: Number of runs for averaging
 
     Returns:
@@ -169,7 +170,7 @@ def profile_decision_function(model, X, n_runs: int = 10) -> dict:
     times = []
     for _ in range(n_runs):
         start = time.perf_counter()
-        scores = model.decision_function(X)
+        scores = model.decision_function(x)
         end = time.perf_counter()
         times.append(end - start)
 
@@ -177,13 +178,13 @@ def profile_decision_function(model, X, n_runs: int = 10) -> dict:
     return {
         "decision_function_mean_ms": float(times.mean() * 1000),
         "decision_function_median_ms": float(np.median(times) * 1000),
-        "decision_function_per_sample_ms": float(times.mean() * 1000 / X.shape[0]) if hasattr(X, 'shape') else None,
+        "decision_function_per_sample_ms": float(times.mean() * 1000 / x.shape[0])
+        if hasattr(x, "shape")
+        else None,
     }
 
 
-def profile_full_pipeline(
-    model, vectorizer, texts: List[str], n_runs: int = 5
-) -> dict:
+def profile_full_pipeline(model, vectorizer, texts: list[str], n_runs: int = 5) -> dict:
     """Profile the complete inference pipeline end-to-end.
 
     Args:
@@ -215,9 +216,7 @@ def profile_full_pipeline(
     }
 
 
-def profile_batch_inference(
-    model, vectorizer, texts: List[str], batch_size: int = 100
-) -> dict:
+def profile_batch_inference(model, vectorizer, texts: list[str], batch_size: int = 100) -> dict:
     """Profile batch inference at different batch sizes.
 
     Args:
@@ -251,7 +250,7 @@ def profile_batch_inference(
     }
 
 
-def profile_cprofile(model, vectorizer, texts: List[str]) -> str:
+def profile_cprofile(model, vectorizer, texts: list[str]) -> str:
     """Profile using cProfile for detailed function-level statistics.
 
     Args:
@@ -305,7 +304,7 @@ def print_recommendations(profile_results: dict) -> None:
         vec_pct = (vec_time / total_time) * 100
         pred_pct = (pred_time / total_time) * 100
 
-        print(f"\nTime Breakdown:")
+        print("\nTime Breakdown:")
         print(f"  Vectorization: {vec_pct:.1f}% ({vec_time:.2f}ms)")
         print(f"  Prediction:    {pred_pct:.1f}% ({pred_time:.2f}ms)")
 

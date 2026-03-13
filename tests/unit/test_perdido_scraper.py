@@ -24,12 +24,17 @@ class DummyResponse:
 class DummySession:
     """Minimal stub of requests.Session for deterministic tests."""
 
-    def __init__(self, html_by_url):
+    def __init__(self, html_by_url, head_status_by_url=None):
         self.html_by_url = html_by_url
+        self.head_status_by_url = head_status_by_url or {}
 
     def get(self, url, timeout=30):
         html, code = self.html_by_url.get(url, ("", 404))
         return DummyResponse(html, status_code=code)
+
+    def head(self, url, timeout=15, allow_redirects=True):
+        status_code = self.head_status_by_url.get(url, 404)
+        return DummyResponse("", status_code=status_code)
 
 
 @pytest.fixture
@@ -64,10 +69,16 @@ def test_get_ics_url_from_event_finds_direct_link(restore_session):
 
 
 def test_get_ics_url_from_event_fallback_slug(restore_session):
-    # No "Add to Calendar - iCal" link → should build fallback /events/ical/<slug>.ics
+    # When old format URL exists but no direct link in HTML, return the old format URL
     event_url = "https://business.perdidochamber.com/events/details/networking-night-august-99999"
+    old_format_url = (
+        "https://business.perdidochamber.com/events/ical/networking-night-august-99999.ics"
+    )
     html = "<html><body><p>No calendar link here</p></body></html>"
-    scraper.sess = DummySession({event_url: (html, 200)})
+    scraper.sess = DummySession(
+        {event_url: (html, 200)},
+        {old_format_url: 200},  # HEAD request to old format URL succeeds
+    )
 
     out = scraper.get_ics_url_from_event(event_url)
     assert out == f"{scraper.BASE}/events/ical/networking-night-august-99999.ics"
