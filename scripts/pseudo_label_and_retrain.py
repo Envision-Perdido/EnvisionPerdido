@@ -13,7 +13,6 @@ This approach:
 import pandas as pd
 import joblib
 from pathlib import Path
-from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.svm import SVC
 from sklearn.metrics import accuracy_score, classification_report
 import numpy as np
