@@ -1,6 +1,5 @@
 import calendar
 import hashlib
-import json
 
 import pandas as pd
 
@@ -22,7 +21,7 @@ class DummySession:
         self.post_calls = []
         self.get_calls = []
 
-    def post(self, url, auth=None, headers=None, data=None, json=None):
+    def post(self, url, auth=None, headers=None, data=None, json=None, **kwargs):
         self.post_calls.append({"url": url, "json": json, "headers": headers})
         # Simulate event creation endpoint
         if url.endswith("/media"):

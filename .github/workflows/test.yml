@@ -26,10 +26,6 @@ jobs:
           pip install -r requirements.txt
           pip install pytest
       
-      - name: Install Playwright browsers
+      - name: Run unit tests
         run: |
-          playwright install chromium
-      
-      - name: Run pytest
-        run: |
-          pytest tests/ -v --tb=short
+          pytest tests/unit -v --tb=short

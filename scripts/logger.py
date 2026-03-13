@@ -182,6 +182,7 @@ class PipelineMetrics:
         """Initialize metrics."""
         self.scraped = 0
         self.classified = 0
+        self.enhanced = 0
         self.needs_review = 0
         self.skipped_duplicates = 0
         self.uploaded = 0
@@ -195,6 +196,10 @@ class PipelineMetrics:
     def add_classified(self, count: int):
         """Add classified event count."""
         self.classified += count
+
+    def add_enhanced(self, count: int):
+        """Add enhanced event count."""
+        self.enhanced += count
 
     def add_needs_review(self, count: int):
         """Add count of events needing review."""
@@ -222,12 +227,14 @@ Execution Time: {duration:.1f} seconds
 
 {self.scraped} events scraped
 {self.classified} events classified
+{self.enhanced} events enhanced with OpenAI
 {self.needs_review} events needing review
 {self.skipped_duplicates} duplicate events skipped
 {self.uploaded} events uploaded
 
 Efficiency:
   Classification Rate:       {self.classified}/{self.scraped} ({100 * self.classified / self.scraped if self.scraped else 0:.1f}%)
+  Enhancement Rate:          {self.enhanced}/{self.classified} ({100 * self.enhanced / self.classified if self.classified else 0:.1f}%)
   Upload Rate:               {self.uploaded}/{self.classified} ({100 * self.uploaded / self.classified if self.classified else 0:.1f}%)
 
 Errors: {len(self.errors)}

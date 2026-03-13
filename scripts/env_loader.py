@@ -120,7 +120,7 @@ def load_env(verbose=False):
                 os.environ[key] = val
 
         if verbose:
-            print(f"✓ Loaded {len(env_vars)} environment variables from {loaded_from}")
+            print(f"Loaded {len(env_vars)} environment variables from {loaded_from}")
         return True
     else:
         if verbose:
@@ -201,7 +201,7 @@ def validate_env_config():
         sys.exit(1)
 
     # All required variables are set
-    print("✓ Environment validation passed")
+    print("Environment validation passed")
 
 
 # Auto-load on import (silent mode)

@@ -60,7 +60,7 @@ def set_wordpress_timezone():
     response = requests.post(url, json=data, headers=headers, verify=False)
 
     if response.status_code == 200:
-        print("✓ Successfully set timezone to America/Chicago")
+        print("Successfully set timezone to America/Chicago")
         result = response.json()
         print(f"  Timezone: {result.get('timezone_string', 'N/A')}")
         print(f"  GMT Offset: {result.get('gmt_offset', 'N/A')}")
