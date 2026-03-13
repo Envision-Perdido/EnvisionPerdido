@@ -16,7 +16,7 @@ Usage:
 import argparse
 import json
 from pathlib import Path
-from typing import Optional, Tuple
+
 
 import joblib
 import matplotlib.pyplot as plt
@@ -43,7 +43,7 @@ plt.rcParams["figure.figsize"] = (12, 6)
 plt.rcParams["font.size"] = 10
 
 
-def load_artifacts() -> Tuple[Optional[object], Optional[object]]:
+def load_artifacts() -> tuple[object | None, object | None]:
     """Load trained model and vectorizer.
 
     Returns:
@@ -52,15 +52,15 @@ def load_artifacts() -> Tuple[Optional[object], Optional[object]]:
     if not MODEL_PATH.exists():
         print(f"❌ Model not found at {MODEL_PATH}")
         return None, None
-    
+
     if not VECTORIZER_PATH.exists():
         print(f"❌ Vectorizer not found at {VECTORIZER_PATH}")
         return None, None
-    
+
     try:
         model = joblib.load(MODEL_PATH)
         vectorizer = joblib.load(VECTORIZER_PATH)
-        print(f"✅ Loaded model and vectorizer")
+        print("✅ Loaded model and vectorizer")
         return model, vectorizer
     except Exception as e:
         print(f"❌ Failed to load artifacts: {e}")
@@ -74,7 +74,7 @@ def plot_feature_importance(
     y_test: np.ndarray,
     output_dir: Path,
     top_n: int = 20,
-) -> pd.DataFrame:
+) -> pd.DataFrame | None:
     """Compute and plot permutation importance for top N features.
 
     Args:

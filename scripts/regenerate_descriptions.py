@@ -39,7 +39,6 @@ import sys
 import time
 import hashlib
 from datetime import datetime
-from typing import List, Dict, Optional
 from pathlib import Path
 
 try:
@@ -60,7 +59,7 @@ CACHE_DIR.mkdir(parents=True, exist_ok=True)
 CACHE_FILE = CACHE_DIR / "enhanced_descriptions.json"
 
 
-def _load_cache() -> Dict[str, str]:
+def _load_cache() -> dict[str, str]:
     """Load cached enhanced descriptions from JSON file."""
     if CACHE_FILE.exists():
         try:
@@ -74,7 +73,7 @@ def _load_cache() -> Dict[str, str]:
     return {}
 
 
-def _save_cache(cache: Dict[str, str]) -> None:
+def _save_cache(cache: dict[str, str]) -> None:
     """Save enhanced descriptions to JSON cache file."""
     try:
         with open(CACHE_FILE, 'w', encoding='utf-8') as f:
@@ -84,7 +83,7 @@ def _save_cache(cache: Dict[str, str]) -> None:
         logger.error(f"Failed to save cache: {e}")
 
 
-def _get_cache_key(event: Dict) -> str:
+def _get_cache_key(event: dict) -> str:
     """Generate cache key from event description using hash."""
     title = event.get('Title', '')
     description = event.get('Description', '')
@@ -95,7 +94,7 @@ def _get_cache_key(event: Dict) -> str:
     return hashlib.md5(combined.encode()).hexdigest()
 
 
-def _build_batch_request(event: Dict, request_id: str, model: str = "gpt-4o-mini") -> Dict:
+def _build_batch_request(event: dict, request_id: str, model: str = "gpt-4o-mini") -> dict:
     """Build a single request for the Batch API (JSONL format)."""
     title = event.get('Title', 'Unknown Event')
     original_desc = event.get('Description', 'No description provided')
@@ -126,7 +125,7 @@ Provide ONLY the improved description text, no labels or formatting."""
     }
 
 
-def _submit_batch(client: OpenAI, requests: List[Dict]) -> str:
+def _submit_batch(client: OpenAI, requests: list[dict]) -> str:
     """Submit batch to OpenAI Batch API and return batch ID."""
     logger.info(f"Submitting batch with {len(requests)} requests to OpenAI...")
 
@@ -181,7 +180,7 @@ def _poll_batch_status(client: OpenAI, batch_id: str, max_wait: int = 3600, poll
     return False
 
 
-def _retrieve_batch_results(client: OpenAI, batch_id: str) -> Dict[str, str]:
+def _retrieve_batch_results(client: OpenAI, batch_id: str) -> dict[str, str]:
     """Retrieve results from completed batch. Returns dict of custom_id -> enhanced_description."""
     logger.info(f"Retrieving results from batch {batch_id}...")
 
@@ -211,7 +210,7 @@ def _retrieve_batch_results(client: OpenAI, batch_id: str) -> Dict[str, str]:
 
 def generate_single_description(
     client: OpenAI,
-    event: Dict,
+    event: dict,
     model: str = "gpt-4o-mini",
     dry_run: bool = False
 ) -> str:
@@ -270,15 +269,15 @@ Provide ONLY the improved description text, no labels or formatting."""
 
 
 def enhance_event_descriptions(
-    events: List[Dict],
+    events: list[dict],
     dry_run: bool = False,
     model: str = "gpt-4o-mini",
     use_batch: bool = False,
-    top_n: Optional[int] = 100,
+    top_n: int | None = 100,
     min_confidence: float = 0.75,
     use_cache: bool = True,
     save_cache: bool = True
-) -> List[Dict]:
+) -> list[dict]:
     """
     Enhance descriptions for events using OpenAI.
     

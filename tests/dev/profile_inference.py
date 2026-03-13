@@ -15,7 +15,7 @@ import pstats
 import time
 from io import StringIO
 from pathlib import Path
-from typing import List
+
 
 import joblib
 import numpy as np
@@ -29,20 +29,20 @@ VECTORIZER_PATH = BASE_DIR / "data" / "artifacts" / "event_vectorizer.pkl"
 def load_artifacts():
     """Load trained model and vectorizer."""
     if not MODEL_PATH.exists() or not VECTORIZER_PATH.exists():
-        print(f"❌ Model or vectorizer not found")
+        print("❌ Model or vectorizer not found")
         return None, None
 
     try:
         model = joblib.load(MODEL_PATH)
         vectorizer = joblib.load(VECTORIZER_PATH)
-        print(f"✅ Loaded model and vectorizer")
+        print("✅ Loaded model and vectorizer")
         return model, vectorizer
     except Exception as e:
         print(f"❌ Failed to load artifacts: {e}")
         return None, None
 
 
-def generate_sample_texts(n_samples: int = 100) -> List[str]:
+def generate_sample_texts(n_samples: int = 100) -> list[str]:
     """Generate sample event descriptions for profiling.
 
     Args:
@@ -87,7 +87,7 @@ def generate_sample_texts(n_samples: int = 100) -> List[str]:
     return samples
 
 
-def profile_vectorization(vectorizer, texts: List[str], n_runs: int = 10) -> dict:
+def profile_vectorization(vectorizer, texts: list[str], n_runs: int = 10) -> dict:
     """Profile the vectorization step.
 
     Args:
@@ -182,7 +182,7 @@ def profile_decision_function(model, X, n_runs: int = 10) -> dict:
 
 
 def profile_full_pipeline(
-    model, vectorizer, texts: List[str], n_runs: int = 5
+    model, vectorizer, texts: list[str], n_runs: int = 5
 ) -> dict:
     """Profile the complete inference pipeline end-to-end.
 
@@ -216,7 +216,7 @@ def profile_full_pipeline(
 
 
 def profile_batch_inference(
-    model, vectorizer, texts: List[str], batch_size: int = 100
+    model, vectorizer, texts: list[str], batch_size: int = 100
 ) -> dict:
     """Profile batch inference at different batch sizes.
 
@@ -251,7 +251,7 @@ def profile_batch_inference(
     }
 
 
-def profile_cprofile(model, vectorizer, texts: List[str]) -> str:
+def profile_cprofile(model, vectorizer, texts: list[str]) -> str:
     """Profile using cProfile for detailed function-level statistics.
 
     Args:
