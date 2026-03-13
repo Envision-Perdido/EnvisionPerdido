@@ -18,7 +18,6 @@ from pathlib import Path
 from typing import List
 
 import joblib
-import pandas as pd
 import numpy as np
 
 # Configuration
