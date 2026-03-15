@@ -231,8 +231,9 @@ def classify_events_batch(
             decision_scores = model.decision_function(X)
             # Convert decision function to confidence-like score (sigmoid transform)
             # For binary classification, values range approximately [-inf, +inf]
-            # Normalize to [0, 1] using sigmoid
-            batch_confidences = 1 / (1 + np.exp(-decision_scores))
+            # Use absolute value to measure distance from decision boundary (0)
+            # Normalize to [0, 1] using sigmoid applied to absolute value
+            batch_confidences = 1 / (1 + np.exp(-np.abs(decision_scores)))
         else:
             # Fallback if decision_function not available
             batch_confidences = np.ones(len(batch_predictions)) * 0.5

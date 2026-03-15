@@ -64,8 +64,8 @@ def main():
     
     # Get decision function scores and convert to probabilities
     decision_scores = model.decision_function(X)
-    # Use sigmoid to convert to 0-1 range
-    confidences_proba = 1 / (1 + np.exp(-decision_scores))
+    # Use sigmoid on absolute value to convert to 0-1 range (confidence as distance from boundary)
+    confidences_proba = 1 / (1 + np.exp(-np.abs(decision_scores)))
     
     consolidated_df["is_community_event"] = predictions
     consolidated_df["confidence"] = confidences_proba
