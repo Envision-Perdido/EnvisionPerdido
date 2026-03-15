@@ -235,15 +235,10 @@ def classify_events_batch(
         # Get confidence scores (use decision_function for SVM)
         if hasattr(model, "decision_function"):
             decision_scores = model.decision_function(X)
-            # Convert decision function to confidence-like score using sigmoid of
-            # the absolute value.  For binary LinearSVC the sign of the raw score
-            # indicates the predicted class (positive → class 1, negative → class 0),
-            # so applying sigmoid to the raw score would give values < 0.5 for every
-            # class-0 prediction and cause them all to be flagged for review.
-            # Using the absolute value means confidence reflects distance from the
-            # decision boundary regardless of predicted class:
-            #   |score| ≈ 0  →  confidence ≈ 0.5  (uncertain / near boundary)
-            #   |score| ≫ 0  →  confidence → 1.0  (certain, far from boundary)
+            # Convert decision function to confidence-like score (sigmoid transform)
+            # For binary classification, values range approximately [-inf, +inf]
+            # Use absolute value to measure distance from decision boundary (0)
+            # Normalize to [0, 1] using sigmoid applied to absolute value
             batch_confidences = 1 / (1 + np.exp(-np.abs(decision_scores)))
         else:
             # Fallback if decision_function not available
