@@ -25,6 +25,7 @@ This directory contains all Python automation scripts for the EnvisionPerdido ca
 **Machine Learning:**
 - `svm_train_from_file.py` - Compatibility wrapper for SVM training
 - `svm_tag_events.py` - Compatibility wrapper for SVM tagging
+- `svm_analytics.py` - Compatibility wrapper for SVM analytics graphs + markdown report
 - `auto_label_and_train.py` - Compatibility wrapper for automated training
 - `events_to_labelset.py` - Compatibility wrapper for labelset generation
 - `consolidate_training_data.py` - Compatibility wrapper for dataset consolidation
@@ -85,6 +86,11 @@ python scripts/retrain_end_to_end.py \
 	--target-class1-recall 0.92 \
 	--min-class1-precision 0.68 \
 	--review-margin 0.40
+```
+
+Generate SVM analytics report and graphs:
+```bash
+python scripts/svm_analytics.py
 ```
 
 ## 📖 Documentation
