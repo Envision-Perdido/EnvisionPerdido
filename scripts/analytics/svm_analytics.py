@@ -11,6 +11,7 @@ This module focuses on practical diagnostics for the trained SVM pipeline:
 from __future__ import annotations
 
 import argparse
+import os
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -305,6 +306,10 @@ def _write_report(
     confidence_threshold: float,
     review_rate: float,
 ) -> None:
+    def rel_plot(name: str) -> str:
+        target = plots_dir / name
+        return Path(os.path.relpath(target, start=report_path.parent)).as_posix()
+
     cm_base = confusion_matrix(y_eval, tuned_metrics["y_pred"])
     body = f"""# SVM Analytics Report
 
@@ -333,27 +338,27 @@ def _write_report(
 {cm_base}
 ```
 
-![Confusion Matrix]({(plots_dir / 'confusion_matrix.png').as_posix()})
+![Confusion Matrix]({rel_plot('confusion_matrix.png')})
 
 ## Per-Class Metrics
 
-![Class Metrics]({(plots_dir / 'class_metrics.png').as_posix()})
+![Class Metrics]({rel_plot('class_metrics.png')})
 
 ## Threshold Tradeoff
 
-![Threshold Tradeoff]({(plots_dir / 'threshold_tradeoff.png').as_posix()})
+![Threshold Tradeoff]({rel_plot('threshold_tradeoff.png')})
 
 ## Confidence Distribution
 
-![Confidence Distribution]({(plots_dir / 'confidence_distribution.png').as_posix()})
+![Confidence Distribution]({rel_plot('confidence_distribution.png')})
 
 ## Review Volume
 
-![Review Volume]({(plots_dir / 'review_volume.png').as_posix()})
+![Review Volume]({rel_plot('review_volume.png')})
 
 ## Top Features
 
-![Top Features]({(plots_dir / 'top_features.png').as_posix()})
+![Top Features]({rel_plot('top_features.png')})
 """
     report_path.write_text(body, encoding="utf-8")
 
