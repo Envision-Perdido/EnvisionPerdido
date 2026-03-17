@@ -20,6 +20,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from scipy import sparse
+from sklearn.decomposition import PCA
 from sklearn.metrics import (
     accuracy_score,
     confusion_matrix,
@@ -292,6 +294,75 @@ def _plot_top_features(top_df: pd.DataFrame, output_path: Path) -> None:
     plt.close()
 
 
+def _plot_pca_projection(
+    pipe: Pipeline,
+    X_eval: pd.DataFrame,
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    output_path: Path,
+    output_csv: Path,
+) -> None:
+    """Project transformed features to 2D with PCA for visual drill-down."""
+    pre = pipe.named_steps.get("pre")
+    if pre is None:
+        # Fallback placeholder if preprocessor is not available.
+        plt.figure(figsize=(8, 4))
+        plt.text(0.1, 0.5, "PCA unavailable: preprocessor not found", fontsize=12)
+        plt.axis("off")
+        plt.tight_layout()
+        plt.savefig(output_path, dpi=200)
+        plt.close()
+        pd.DataFrame(columns=["pc1", "pc2", "true_label", "pred_label"]).to_csv(output_csv, index=False)
+        return
+
+    transformed = pre.transform(X_eval)
+    if sparse.issparse(transformed):
+        dense = transformed.toarray()
+    else:
+        dense = np.asarray(transformed)
+
+    if dense.ndim != 2 or dense.shape[0] < 2 or dense.shape[1] < 2:
+        plt.figure(figsize=(8, 4))
+        plt.text(0.1, 0.5, "PCA unavailable: insufficient dimensionality", fontsize=12)
+        plt.axis("off")
+        plt.tight_layout()
+        plt.savefig(output_path, dpi=200)
+        plt.close()
+        pd.DataFrame(columns=["pc1", "pc2", "true_label", "pred_label"]).to_csv(output_csv, index=False)
+        return
+
+    pca = PCA(n_components=2, random_state=42)
+    pcs = pca.fit_transform(dense)
+
+    pca_df = pd.DataFrame(
+        {
+            "pc1": pcs[:, 0],
+            "pc2": pcs[:, 1],
+            "true_label": y_true.astype(int),
+            "pred_label": y_pred.astype(int),
+            "correct": (y_true.astype(int) == y_pred.astype(int)).astype(int),
+        }
+    )
+    pca_df.to_csv(output_csv, index=False)
+
+    plt.figure(figsize=(9, 6))
+    sns.scatterplot(
+        data=pca_df,
+        x="pc1",
+        y="pc2",
+        hue="true_label",
+        style="correct",
+        palette="Set2",
+        alpha=0.8,
+    )
+    plt.title("PCA Projection (True Label + Correctness)")
+    plt.xlabel("PC1")
+    plt.ylabel("PC2")
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=220)
+    plt.close()
+
+
 def _write_report(
     report_path: Path,
     plots_dir: Path,
@@ -359,6 +430,10 @@ def _write_report(
 ## Top Features
 
 ![Top Features]({rel_plot('top_features.png')})
+
+## PCA Projection
+
+![PCA Projection]({rel_plot('pca_projection.png')})
 """
     report_path.write_text(body, encoding="utf-8")
 
@@ -415,6 +490,15 @@ def main() -> int:
 
     top_df = _top_features(pipe, top_n=args.top_features)
     _plot_top_features(top_df, plots_dir / "top_features.png")
+    _plot_pca_projection(
+        pipe=pipe,
+        X_eval=X_eval,
+        y_true=y_eval,
+        y_pred=y_pred_tuned,
+        output_path=plots_dir / "pca_projection.png",
+        output_csv=plots_dir / "pca_projection.csv",
+    )
+
     top_df.to_csv(plots_dir / "top_features.csv", index=False)
     sweep_df.to_csv(plots_dir / "threshold_sweep.csv", index=False)
 
