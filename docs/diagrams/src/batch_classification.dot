@@ -1,0 +1,27 @@
+digraph batch_classification {
+    graph [rankdir=TB, bgcolor="white", pad=0.3, nodesep=0.35, ranksep=0.5, fontname="Helvetica"];
+    node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=11, color="#34495E", penwidth=1.2, margin="0.16,0.12"];
+    edge [color="#5D6D7E", penwidth=1.3, arrowsize=0.8, fontname="Helvetica", fontsize=10];
+
+    INPUT [label="Input Events\nabout 1,500 total", fillcolor="#D6EAF8", color="#5DADE2"];
+    FUNC [label="classify_events_batch()\nbatch_size = 500", fillcolor="#AF7AC5", fontcolor="white", color="#8E44AD"];
+    B1 [label="Batch 1\n500 events", fillcolor="#85C1E9", color="#2E86C1"];
+    B2 [label="Batch 2\n500 events", fillcolor="#85C1E9", color="#2E86C1"];
+    B3 [label="Batch 3\n500 events", fillcolor="#85C1E9", color="#2E86C1"];
+    B4 [label="Batch 4\nremainder", fillcolor="#85C1E9", color="#2E86C1"];
+    VEC [label="TF-IDF Vectorize", fillcolor="#D2B4DE", color="#8E44AD"];
+    PRED [label="SVM Predict", fillcolor="#D2B4DE", color="#8E44AD"];
+    CONF [label="Confidence Score\nsigmoid(decision_function)", fillcolor="#D2B4DE", color="#8E44AD"];
+    MERGE [label="Merge Results\nadd is_community_event\nadd confidence\nadd needs_review", fillcolor="#82E0AA", color="#28B463"];
+
+    INPUT -> FUNC;
+    FUNC -> B1;
+    FUNC -> B2;
+    FUNC -> B3;
+    FUNC -> B4;
+    B1 -> VEC;
+    B2 -> VEC;
+    B3 -> VEC;
+    B4 -> VEC;
+    VEC -> PRED -> CONF -> MERGE;
+}

@@ -1,0 +1,86 @@
+digraph script_dependencies {
+    graph [rankdir=LR, bgcolor="white", pad=0.3, nodesep=0.45, ranksep=0.85, compound=true, fontname="Helvetica"];
+    node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=10.5, color="#34495E", penwidth=1.1, margin="0.14,0.1"];
+    edge [color="#5D6D7E", penwidth=1.2, arrowsize=0.8];
+
+    subgraph cluster_root {
+        label="scripts entry points";
+        color="#D6EAF8";
+        style="rounded,filled";
+        fillcolor="#F4FAFE";
+        AP [label="automated_pipeline.py", fillcolor="#5DADE2", fontcolor="white", color="#2E86C1"];
+        WU [label="wordpress_uploader.py", fillcolor="#5DADE2", fontcolor="white", color="#2E86C1"];
+        HC [label="health_check.py", fillcolor="#5DADE2", fontcolor="white", color="#2E86C1"];
+        MS [label="multi_calendar_scraper.py", fillcolor="#5DADE2", fontcolor="white", color="#2E86C1"];
+    }
+
+    subgraph cluster_pipeline {
+        label="scripts/pipeline";
+        color="#FDEBD0";
+        style="rounded,filled";
+        fillcolor="#FFF8ED";
+        AP2 [label="automated_pipeline", fillcolor="#F8C471", color="#D68910"];
+        WU2 [label="wordpress_uploader", fillcolor="#F8C471", color="#D68910"];
+        HC2 [label="health_check", fillcolor="#F8C471", color="#D68910"];
+    }
+
+    subgraph cluster_ml {
+        label="scripts/ml";
+        color="#E8DAEF";
+        style="rounded,filled";
+        fillcolor="#FBF5FD";
+        ST [label="svm_train_from_file", fillcolor="#AF7AC5", fontcolor="white", color="#8E44AD"];
+        SG [label="svm_tag_events", fillcolor="#AF7AC5", fontcolor="white", color="#8E44AD"];
+        AL [label="auto_label_and_train", fillcolor="#AF7AC5", fontcolor="white", color="#8E44AD"];
+    }
+
+    subgraph cluster_tooling {
+        label="scripts/tooling";
+        color="#D6DBDF";
+        style="rounded,filled";
+        fillcolor="#F8F9F9";
+        EL [label="env_loader", fillcolor="#AAB7B8", fontcolor="white", color="#7B8A8B"];
+        LG [label="logger", fillcolor="#AAB7B8", fontcolor="white", color="#7B8A8B"];
+        EN [label="event_normalizer", fillcolor="#AAB7B8", fontcolor="white", color="#7B8A8B"];
+        VR [label="venue_registry", fillcolor="#AAB7B8", fontcolor="white", color="#7B8A8B"];
+        TT [label="tag_taxonomy", fillcolor="#AAB7B8", fontcolor="white", color="#7B8A8B"];
+    }
+
+    subgraph cluster_scrapers {
+        label="scripts/scrapers";
+        color="#D5F5E3";
+        style="rounded,filled";
+        fillcolor="#F4FDF7";
+        PS [label="perdido_chamber_scraper", fillcolor="#58D68D", fontcolor="white", color="#28B463"];
+        WH [label="wren_haven_scraper", fillcolor="#58D68D", fontcolor="white", color="#28B463"];
+        MC [label="multi_calendar_scraper", fillcolor="#58D68D", fontcolor="white", color="#28B463"];
+    }
+
+    ART [label="data/artifacts\nmodel.pkl\nvectorizer.pkl", shape=cylinder, fillcolor="#82E0AA", color="#28B463"];
+    RAW [label="data/raw and data/labeled", shape=cylinder, fillcolor="#82E0AA", color="#28B463"];
+    CACHE [label="data/cache", shape=cylinder, fillcolor="#82E0AA", color="#28B463"];
+
+    AP -> AP2;
+    WU -> WU2;
+    HC -> HC2;
+    MS -> MC;
+
+    AP2 -> EL;
+    AP2 -> LG;
+    AP2 -> EN;
+    AP2 -> VR;
+    AP2 -> TT;
+    AP2 -> ART;
+
+    WU2 -> EL;
+    WU2 -> CACHE;
+
+    ST -> ART;
+    SG -> ART;
+    AL -> ST;
+    AL -> RAW;
+
+    PS -> RAW;
+    WH -> RAW;
+    MC -> RAW;
+}

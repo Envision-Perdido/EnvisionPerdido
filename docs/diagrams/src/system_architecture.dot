@@ -1,0 +1,86 @@
+digraph system_architecture {
+    graph [
+        rankdir=LR,
+        bgcolor="white",
+        pad=0.3,
+        nodesep=0.45,
+        ranksep=0.75,
+        fontname="Helvetica"
+    ];
+    node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=11, color="#34495E", penwidth=1.2, margin="0.16,0.12"];
+    edge [color="#5D6D7E", penwidth=1.3, arrowsize=0.8, fontname="Helvetica", fontsize=10];
+
+    subgraph cluster_sources {
+        label="Input Sources";
+        color="#D6EAF8";
+        style="rounded,filled";
+        fillcolor="#F4FAFE";
+        WS [label="Web Scrapers\nPerdido Chamber\nWren Haven\nMulti-source", fillcolor="#5DADE2", fontcolor="white", color="#2E86C1"];
+        ICS [label="ICS Parser", fillcolor="#5DADE2", fontcolor="white", color="#2E86C1"];
+    }
+
+    NORM [label="Data Collection and Normalizer", fillcolor="#F8C471", color="#D68910"];
+
+    subgraph cluster_training {
+        label="Training";
+        color="#E8DAEF";
+        style="rounded,filled";
+        fillcolor="#FBF5FD";
+        TRAIN [label="SVM Training\nsvm_train_from_file.py", fillcolor="#AF7AC5", fontcolor="white", color="#8E44AD"];
+        TFIDF [label="TF-IDF Vectorizer\nngram=(1,2)\nmin_df=2", fillcolor="#AF7AC5", fontcolor="white", color="#8E44AD"];
+    }
+
+    subgraph cluster_artifacts {
+        label="data/artifacts";
+        color="#D5F5E3";
+        style="rounded,filled";
+        fillcolor="#F4FDF7";
+        MODEL [label="event_classifier_model.pkl", shape=cylinder, fillcolor="#58D68D", fontcolor="white", color="#28B463"];
+        VECTOR [label="event_vectorizer.pkl", shape=cylinder, fillcolor="#58D68D", fontcolor="white", color="#28B463"];
+    }
+
+    subgraph cluster_inference {
+        label="Inference";
+        color="#FDEBD0";
+        style="rounded,filled";
+        fillcolor="#FFF8ED";
+        LOAD [label="Load Model and Vectorizer", fillcolor="#F8C471", color="#D68910"];
+        CLASSIFY [label="classify_events()", fillcolor="#AF7AC5", fontcolor="white", color="#8E44AD"];
+        BATCH [label="classify_events_batch()\n500 events per batch", fillcolor="#AF7AC5", fontcolor="white", color="#8E44AD"];
+    }
+
+    DEV [label="Dev Tools\nprofile_inference.py\nvisualize_pipeline.py", fillcolor="#AAB7B8", fontcolor="white", color="#7B8A8B"];
+
+    subgraph cluster_output {
+        label="Output Enrichment";
+        color="#FADBD8";
+        style="rounded,filled";
+        fillcolor="#FFF5F4";
+        ENRICH [label="Event Normalizer\nTags, venue, needs_review", fillcolor="#F8C471", color="#D68910"];
+        IMAGE [label="Image Assignment", fillcolor="#F8C471", color="#D68910"];
+        EXPORT [label="CSV / JSON Export", shape=cylinder, fillcolor="#58D68D", fontcolor="white", color="#28B463"];
+        EMAIL [label="Email Summary", fillcolor="#F8C471", color="#D68910"];
+        WORDPRESS [label="WordPress Upload", fillcolor="#EC7063", fontcolor="white", color="#C0392B"];
+        OUT [label="output/pipeline\ncalendar_upload_*.csv\nlogs", shape=cylinder, fillcolor="#58D68D", fontcolor="white", color="#28B463"];
+    }
+
+    WS -> NORM;
+    ICS -> NORM;
+    NORM -> TRAIN;
+    TRAIN -> TFIDF;
+    TFIDF -> MODEL;
+    TFIDF -> VECTOR;
+    NORM -> LOAD;
+    MODEL -> LOAD;
+    VECTOR -> LOAD;
+    LOAD -> CLASSIFY;
+    LOAD -> DEV;
+    CLASSIFY -> BATCH;
+    BATCH -> ENRICH;
+    ENRICH -> IMAGE;
+    IMAGE -> EXPORT;
+    EXPORT -> EMAIL;
+    EMAIL -> WORDPRESS;
+    WORDPRESS -> OUT;
+    OUT -> TRAIN [style=dashed, color="#C0392B", label="label corrections / retrain"];
+}
