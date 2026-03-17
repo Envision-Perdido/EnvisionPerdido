@@ -28,6 +28,7 @@ This directory contains all Python automation scripts for the EnvisionPerdido ca
 - `auto_label_and_train.py` - Compatibility wrapper for automated training
 - `events_to_labelset.py` - Compatibility wrapper for labelset generation
 - `consolidate_training_data.py` - Compatibility wrapper for dataset consolidation
+- `retrain_end_to_end.py` - Compatibility wrapper for chained retraining + evaluation report
 - `audit_datasets.py` - Compatibility wrapper for dataset audits
 - `modelViewer.py` - Compatibility wrapper for model inspection
 
