@@ -30,9 +30,9 @@ Source: [docs/diagrams/src/data_transformation.dot](/home/jacobmiller/EnvisionPe
 
 ---
 
-## 4. Script Package Dependencies
+## 4. Script and Data Flow
 
-![Script package dependencies](diagrams/script_dependencies.svg)
+![Script and data flow](diagrams/script_dependencies.svg)
 
 Source: [docs/diagrams/src/script_dependencies.dot](/home/jacobmiller/EnvisionPerdido/docs/diagrams/src/script_dependencies.dot)
 
