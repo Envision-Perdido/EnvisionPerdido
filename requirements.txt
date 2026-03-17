@@ -17,6 +17,8 @@ python-wordpress-xmlrpc
 
 # Email and utilities
 python-dotenv
+python-dateutil
+urllib3
 
 # AI/LLM integration
 openai>=1.3.0
