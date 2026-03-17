@@ -79,6 +79,14 @@ Scrape and consolidate multi-source events for labeling:
 python scripts/multi_calendar_scraper.py --config data/community_calendar_sources.json --target-events 10000
 ```
 
+Run end-to-end retraining with recall-target threshold policy:
+```bash
+python scripts/retrain_end_to_end.py \
+	--target-class1-recall 0.92 \
+	--min-class1-precision 0.68 \
+	--review-margin 0.40
+```
+
 ## 📖 Documentation
 
 See [docs/INDEX.md](../docs/INDEX.md) for complete documentation links.

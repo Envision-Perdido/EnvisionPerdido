@@ -17,6 +17,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import joblib
+import numpy as np
 import pandas as pd
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 from sklearn.model_selection import GroupShuffleSplit, train_test_split
@@ -96,10 +97,144 @@ def _load_pipeline(model_path: Path) -> Pipeline:
     return pipe
 
 
+def _binary_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> dict[str, float]:
+    """Compute binary metrics with class-1 emphasis."""
+    y_true = np.asarray(y_true, dtype=int)
+    y_pred = np.asarray(y_pred, dtype=int)
+
+    tp = int(((y_true == 1) & (y_pred == 1)).sum())
+    tn = int(((y_true == 0) & (y_pred == 0)).sum())
+    fp = int(((y_true == 0) & (y_pred == 1)).sum())
+    fn = int(((y_true == 1) & (y_pred == 0)).sum())
+
+    precision_1 = tp / (tp + fp) if (tp + fp) else 0.0
+    recall_1 = tp / (tp + fn) if (tp + fn) else 0.0
+    precision_0 = tn / (tn + fn) if (tn + fn) else 0.0
+    recall_0 = tn / (tn + fp) if (tn + fp) else 0.0
+    accuracy = float((tp + tn) / len(y_true)) if len(y_true) else 0.0
+
+    return {
+        "accuracy": accuracy,
+        "precision_1": float(precision_1),
+        "recall_1": float(recall_1),
+        "precision_0": float(precision_0),
+        "recall_0": float(recall_0),
+        "tp": float(tp),
+        "tn": float(tn),
+        "fp": float(fp),
+        "fn": float(fn),
+    }
+
+
+def _select_recall_threshold(
+    y_true: np.ndarray,
+    scores: np.ndarray,
+    target_recall: float,
+    min_precision: float,
+) -> tuple[float, dict[str, float], str]:
+    """Select a decision threshold that favors class-1 recall.
+
+    Strategy:
+    - Scan score cutoffs and keep candidates meeting min precision.
+    - Prefer the candidate with highest class-1 recall.
+    - If none satisfy precision, use fallback maximizing recall.
+    """
+    y_true = np.asarray(y_true, dtype=int)
+    scores = np.asarray(scores, dtype=float)
+
+    unique_thresholds = np.unique(scores)
+    # Include default and a lower bound to allow strong recall behavior.
+    candidates = np.unique(np.concatenate([unique_thresholds, np.array([0.0, scores.min() - 1e-6])]))
+
+    best_meeting_precision: tuple[float, dict[str, float]] | None = None
+    best_recall_fallback: tuple[float, dict[str, float]] | None = None
+
+    for threshold in candidates:
+        y_pred = (scores >= threshold).astype(int)
+        metrics = _binary_metrics(y_true, y_pred)
+
+        if best_recall_fallback is None or metrics["recall_1"] > best_recall_fallback[1]["recall_1"]:
+            best_recall_fallback = (float(threshold), metrics)
+
+        if metrics["precision_1"] >= min_precision:
+            if best_meeting_precision is None:
+                best_meeting_precision = (float(threshold), metrics)
+            else:
+                _, cur = best_meeting_precision
+                if metrics["recall_1"] > cur["recall_1"]:
+                    best_meeting_precision = (float(threshold), metrics)
+                elif metrics["recall_1"] == cur["recall_1"] and threshold > best_meeting_precision[0]:
+                    # Tie-break toward higher threshold to reduce review burden.
+                    best_meeting_precision = (float(threshold), metrics)
+
+    if best_meeting_precision is not None:
+        threshold, metrics = best_meeting_precision
+        mode = "precision_constrained"
+    else:
+        threshold, metrics = best_recall_fallback if best_recall_fallback else (0.0, _binary_metrics(y_true, (scores >= 0.0).astype(int)))
+        mode = "recall_fallback"
+
+    # If the precision-constrained best misses target recall badly, choose explicit target-seeking fallback.
+    if metrics["recall_1"] < target_recall and best_recall_fallback is not None:
+        fb_threshold, fb_metrics = best_recall_fallback
+        if fb_metrics["recall_1"] > metrics["recall_1"]:
+            threshold, metrics = fb_threshold, fb_metrics
+            mode = "target_recall_fallback"
+
+    return float(threshold), metrics, mode
+
+
+def _persist_threshold_policy(
+    model_path: Path,
+    threshold: float,
+    review_margin: float,
+    confidence_threshold: float,
+    mode: str,
+    min_precision: float,
+    target_recall: float,
+) -> None:
+    """Attach threshold and review policy metadata to model artifact."""
+    model_obj = joblib.load(model_path)
+
+    policy = {
+        "decision_threshold": float(threshold),
+        "review_margin": float(review_margin),
+        "confidence_threshold": float(confidence_threshold),
+        "mode": mode,
+        "target_class1_recall": float(target_recall),
+        "min_class1_precision": float(min_precision),
+        "updated_at_utc": datetime.now(UTC).isoformat(),
+    }
+
+    if isinstance(model_obj, dict):
+        model_obj["decision_threshold"] = float(threshold)
+        model_obj["review_margin"] = float(review_margin)
+        model_obj["confidence_threshold"] = float(confidence_threshold)
+        model_obj["threshold_policy"] = policy
+        joblib.dump(model_obj, model_path)
+        return
+
+    if isinstance(model_obj, Pipeline):
+        wrapped = {
+            "pipe": model_obj,
+            "decision_threshold": float(threshold),
+            "review_margin": float(review_margin),
+            "confidence_threshold": float(confidence_threshold),
+            "threshold_policy": policy,
+        }
+        joblib.dump(wrapped, model_path)
+        return
+
+    raise SystemExit("Cannot persist threshold policy: unsupported model artifact type")
+
+
 def _evaluate_model(
     train_input: Path,
     model_path: Path,
     label_col: str,
+    target_class1_recall: float,
+    min_class1_precision: float,
+    review_margin: float,
 ) -> dict[str, object]:
     labeled = _load_labeled(train_input, label_col)
     y = labeled[label_col].astype(int).values
@@ -131,10 +266,30 @@ def _evaluate_model(
         X_eval = X
         y_eval = y
 
-    y_pred = pipe.predict(X_eval)
-    acc = float(accuracy_score(y_eval, y_pred))
-    cm = confusion_matrix(y_eval, y_pred)
-    report = classification_report(y_eval, y_pred, digits=3)
+    y_pred_default = pipe.predict(X_eval)
+    default_acc = float(accuracy_score(y_eval, y_pred_default))
+    default_cm = confusion_matrix(y_eval, y_pred_default)
+    default_report = classification_report(y_eval, y_pred_default, digits=3)
+
+    if hasattr(pipe, "decision_function"):
+        decision_scores = np.asarray(pipe.decision_function(X_eval), dtype=float)
+    else:
+        # Fallback to default predictions if no decision function is available.
+        decision_scores = np.asarray(y_pred_default, dtype=float)
+
+    threshold, threshold_metrics, threshold_mode = _select_recall_threshold(
+        y_true=np.asarray(y_eval, dtype=int),
+        scores=decision_scores,
+        target_recall=target_class1_recall,
+        min_precision=min_class1_precision,
+    )
+    y_pred_threshold = (decision_scores >= threshold).astype(int)
+    threshold_acc = float(accuracy_score(y_eval, y_pred_threshold))
+    threshold_cm = confusion_matrix(y_eval, y_pred_threshold)
+    threshold_report = classification_report(y_eval, y_pred_threshold, digits=3)
+
+    needs_review = (np.abs(decision_scores - threshold) < review_margin).sum()
+    review_rate = float(needs_review / len(y_eval)) if len(y_eval) else 0.0
 
     return {
         "split_mode": split_mode,
@@ -142,9 +297,17 @@ def _evaluate_model(
         "eval_rows": int(len(y_eval)),
         "class_0": int((labeled[label_col].astype(int) == 0).sum()),
         "class_1": int((labeled[label_col].astype(int) == 1).sum()),
-        "accuracy": acc,
-        "confusion_matrix": cm,
-        "classification_report": report,
+        "accuracy": default_acc,
+        "confusion_matrix": default_cm,
+        "classification_report": default_report,
+        "decision_threshold": threshold,
+        "threshold_mode": threshold_mode,
+        "threshold_accuracy": threshold_acc,
+        "threshold_confusion_matrix": threshold_cm,
+        "threshold_classification_report": threshold_report,
+        "threshold_metrics": threshold_metrics,
+        "review_margin": float(review_margin),
+        "review_rate": review_rate,
     }
 
 
@@ -188,7 +351,17 @@ def _write_report(
 
 ## Metrics
 
-- Accuracy: {metrics['accuracy']:.4f}
+- Accuracy (default threshold=0.0): {metrics['accuracy']:.4f}
+- Accuracy (optimized threshold={metrics['decision_threshold']:.4f}): {metrics['threshold_accuracy']:.4f}
+
+## Threshold Policy
+
+- Selection mode: {metrics['threshold_mode']}
+- Decision threshold (class-1): {metrics['decision_threshold']:.4f}
+- Review margin around threshold: {metrics['review_margin']:.4f}
+- Estimated review rate on eval split: {metrics['review_rate']:.2%}
+- Class-1 precision at threshold: {metrics['threshold_metrics']['precision_1']:.4f}
+- Class-1 recall at threshold: {metrics['threshold_metrics']['recall_1']:.4f}
 
 ### Confusion Matrix
 
@@ -200,6 +373,18 @@ def _write_report(
 
 ```
 {metrics['classification_report']}
+```
+
+### Thresholded Confusion Matrix
+
+```
+{metrics['threshold_confusion_matrix']}
+```
+
+### Thresholded Classification Report
+
+```
+{metrics['threshold_classification_report']}
 ```
 """
 
@@ -260,6 +445,30 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Disable --propagate-series-labels for svm_train_from_file.py",
     )
+    parser.add_argument(
+        "--target-class1-recall",
+        type=float,
+        default=0.90,
+        help="Target class-1 recall when selecting decision threshold",
+    )
+    parser.add_argument(
+        "--min-class1-precision",
+        type=float,
+        default=0.70,
+        help="Minimum class-1 precision constraint for threshold search",
+    )
+    parser.add_argument(
+        "--review-margin",
+        type=float,
+        default=0.35,
+        help="Decision-score margin around threshold that triggers needs_review",
+    )
+    parser.add_argument(
+        "--confidence-threshold",
+        type=float,
+        default=0.75,
+        help="Confidence threshold persisted into model policy",
+    )
     return parser
 
 
@@ -298,6 +507,19 @@ def main() -> int:
         train_input=args.train_input,
         model_path=args.model_path,
         label_col=args.label_col,
+        target_class1_recall=args.target_class1_recall,
+        min_class1_precision=args.min_class1_precision,
+        review_margin=args.review_margin,
+    )
+
+    _persist_threshold_policy(
+        model_path=args.model_path,
+        threshold=float(metrics["decision_threshold"]),
+        review_margin=args.review_margin,
+        confidence_threshold=args.confidence_threshold,
+        mode=str(metrics["threshold_mode"]),
+        min_precision=args.min_class1_precision,
+        target_recall=args.target_class1_recall,
     )
 
     prep_output = _latest("canonical_labeled_training_*.csv")
@@ -318,7 +540,13 @@ def main() -> int:
     print("\nEnd-to-end retraining complete")
     print(f"  model: {args.model_path}")
     print(f"  report: {report_path}")
-    print(f"  accuracy: {metrics['accuracy']:.4f}")
+    print(f"  accuracy (default): {metrics['accuracy']:.4f}")
+    print(
+        "  threshold policy: "
+        f"decision_threshold={metrics['decision_threshold']:.4f}, "
+        f"class1_recall={metrics['threshold_metrics']['recall_1']:.4f}, "
+        f"class1_precision={metrics['threshold_metrics']['precision_1']:.4f}"
+    )
 
     return 0
 

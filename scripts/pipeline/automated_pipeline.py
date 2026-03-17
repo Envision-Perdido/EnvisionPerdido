@@ -28,9 +28,6 @@ import joblib
 import numpy as np
 import pandas as pd
 
-# Global configuration for classification thresholds
-CONFIDENCE_THRESHOLD = 0.75
-
 # Add scripts directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -39,6 +36,12 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from env_loader import load_env, validate_env_config
 
 load_env()
+
+# Global configuration for classification thresholds
+CONFIDENCE_THRESHOLD = float(os.getenv("CONFIDENCE_THRESHOLD", "0.75"))
+MODEL_DECISION_THRESHOLD = float(os.getenv("MODEL_DECISION_THRESHOLD", "0.0"))
+REVIEW_MARGIN = float(os.getenv("REVIEW_MARGIN", "0.35"))
+
 # Import logger and metrics
 from logger import PipelineMetrics, get_logger
 
@@ -62,7 +65,13 @@ OUTPUT_DIR = BASE_DIR / "output" / "pipeline"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # Model caching for performance
-_MODEL_CACHE = {"model": None, "vectorizer": None}
+_MODEL_CACHE = {
+    "model": None,
+    "vectorizer": None,
+    "decision_threshold": MODEL_DECISION_THRESHOLD,
+    "review_margin": REVIEW_MARGIN,
+    "confidence_threshold": CONFIDENCE_THRESHOLD,
+}
 
 
 def load_model_and_vectorizer():
@@ -91,11 +100,21 @@ def load_model_and_vectorizer():
             pipeline = model_data["pipe"]
             _MODEL_CACHE["model"] = pipeline
             _MODEL_CACHE["vectorizer"] = "UNIFIED_PIPELINE"  # Marker for unified format
+            _MODEL_CACHE["decision_threshold"] = float(
+                model_data.get("decision_threshold", MODEL_DECISION_THRESHOLD)
+            )
+            _MODEL_CACHE["review_margin"] = float(model_data.get("review_margin", REVIEW_MARGIN))
+            _MODEL_CACHE["confidence_threshold"] = float(
+                model_data.get("confidence_threshold", CONFIDENCE_THRESHOLD)
+            )
             log("Loaded new unified pipeline model")
         elif isinstance(model_data, Pipeline):
             # New format but directly stored as Pipeline
             _MODEL_CACHE["model"] = model_data
             _MODEL_CACHE["vectorizer"] = "UNIFIED_PIPELINE"
+            _MODEL_CACHE["decision_threshold"] = MODEL_DECISION_THRESHOLD
+            _MODEL_CACHE["review_margin"] = REVIEW_MARGIN
+            _MODEL_CACHE["confidence_threshold"] = CONFIDENCE_THRESHOLD
             log("Loaded unified pipeline model (direct)")
         else:
             # Old format: legacy model structure
@@ -104,6 +123,9 @@ def load_model_and_vectorizer():
                 return None, None
             _MODEL_CACHE["model"] = model_data
             _MODEL_CACHE["vectorizer"] = joblib.load(VECTORIZER_PATH)
+            _MODEL_CACHE["decision_threshold"] = MODEL_DECISION_THRESHOLD
+            _MODEL_CACHE["review_margin"] = REVIEW_MARGIN
+            _MODEL_CACHE["confidence_threshold"] = CONFIDENCE_THRESHOLD
             log("Loaded legacy separate model and vectorizer")
 
     return _MODEL_CACHE["model"], _MODEL_CACHE["vectorizer"]
@@ -164,7 +186,9 @@ def classify_events_batch(
     vectorizer: object,
     batch_size: int = 500,
     verbose: bool = True,
-) -> tuple[np.ndarray, np.ndarray]:
+    decision_threshold: float = 0.0,
+    return_decision_scores: bool = False,
+) -> tuple[np.ndarray, np.ndarray] | tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Classify events in batches for better memory efficiency.
 
     Uses batch processing to vectorize and classify events, reducing peak memory
@@ -179,11 +203,12 @@ def classify_events_batch(
         verbose: Whether to log progress (default: True).
 
     Returns:
-        Tuple of (predictions, confidence_scores) arrays.
+        Tuple of (predictions, confidence_scores), and optionally decision scores.
     """
     n_events = len(events_df)
     all_predictions = np.zeros(n_events, dtype=int)
     all_confidences = np.zeros(n_events, dtype=float)
+    all_decision_scores = np.zeros(n_events, dtype=float)
 
     # Check if using new unified pipeline format
     use_unified_pipeline = vectorizer == "UNIFIED_PIPELINE"
@@ -228,27 +253,76 @@ def classify_events_batch(
             X_text = build_features(batch)
             X = vectorizer.transform(X_text)
 
-        # Predict on batch
-        batch_predictions = model.predict(X)
-        all_predictions[i:end_idx] = batch_predictions
+        expected_size = end_idx - i
 
-        # Get confidence scores (use decision_function for SVM)
+        # Predict on batch and collect decision scores for threshold policy.
         if hasattr(model, "decision_function"):
             decision_scores = model.decision_function(X)
+            decision_scores = np.asarray(decision_scores).reshape(-1)
+            if len(decision_scores) != expected_size:
+                if len(decision_scores) > expected_size:
+                    decision_scores = decision_scores[:expected_size]
+                elif len(decision_scores) == 0:
+                    decision_scores = np.zeros(expected_size, dtype=float)
+                else:
+                    decision_scores = np.pad(
+                        decision_scores,
+                        (0, expected_size - len(decision_scores)),
+                        mode="edge",
+                    )
+
+            # Apply tuned threshold only when explicitly shifted from 0.0.
+            if decision_threshold != 0.0:
+                batch_predictions = (decision_scores >= decision_threshold).astype(int)
+            else:
+                batch_predictions = model.predict(X)
+                batch_predictions = np.asarray(batch_predictions).reshape(-1)
+                if len(batch_predictions) != expected_size:
+                    if len(batch_predictions) > expected_size:
+                        batch_predictions = batch_predictions[:expected_size]
+                    elif len(batch_predictions) == 0:
+                        batch_predictions = np.zeros(expected_size, dtype=int)
+                    else:
+                        batch_predictions = np.pad(
+                            batch_predictions,
+                            (0, expected_size - len(batch_predictions)),
+                            mode="edge",
+                        )
+
+            all_decision_scores[i:end_idx] = decision_scores
+
             # Convert decision function to confidence-like score (sigmoid transform)
             # For binary classification, values range approximately [-inf, +inf]
             # Use absolute value to measure distance from decision boundary (0)
             # Normalize to [0, 1] using sigmoid applied to absolute value
             batch_confidences = 1 / (1 + np.exp(-np.abs(decision_scores)))
         else:
+            batch_predictions = model.predict(X)
+            batch_predictions = np.asarray(batch_predictions).reshape(-1)
+            if len(batch_predictions) != expected_size:
+                if len(batch_predictions) > expected_size:
+                    batch_predictions = batch_predictions[:expected_size]
+                elif len(batch_predictions) == 0:
+                    batch_predictions = np.zeros(expected_size, dtype=int)
+                else:
+                    batch_predictions = np.pad(
+                        batch_predictions,
+                        (0, expected_size - len(batch_predictions)),
+                        mode="edge",
+                    )
+            all_decision_scores[i:end_idx] = np.nan
             # Fallback if decision_function not available
             batch_confidences = np.ones(len(batch_predictions)) * 0.5
+
+        all_predictions[i:end_idx] = batch_predictions
 
         all_confidences[i:end_idx] = batch_confidences
 
         if verbose and (i + batch_size) % (batch_size * 5) == 0:
             log(f"  Progress: {min(i + batch_size, n_events)}/{n_events} events classified")
 
+    if return_decision_scores:
+        return all_predictions, all_confidences, all_decision_scores
     return all_predictions, all_confidences
 
 
@@ -459,20 +533,39 @@ def classify_events(events_df: pd.DataFrame) -> pd.DataFrame | None:
     if model is None or vectorizer is None:
         return None
 
+    decision_threshold = float(_MODEL_CACHE.get("decision_threshold", MODEL_DECISION_THRESHOLD))
+    review_margin = float(_MODEL_CACHE.get("review_margin", REVIEW_MARGIN))
+    confidence_threshold = float(_MODEL_CACHE.get("confidence_threshold", CONFIDENCE_THRESHOLD))
+
     log(f"Classifying {len(events_df)} events (using batch processing)...")
+    log(
+        "Using threshold policy: "
+        f"decision_threshold={decision_threshold:.4f}, "
+        f"review_margin={review_margin:.4f}, "
+        f"confidence_threshold={confidence_threshold:.4f}"
+    )
 
     # Use batch classification for better memory efficiency
-    predictions, confidence = classify_events_batch(
-        events_df, model, vectorizer, batch_size=500, verbose=True
+    predictions, confidence, decision_scores = classify_events_batch(
+        events_df,
+        model,
+        vectorizer,
+        batch_size=500,
+        verbose=True,
+        decision_threshold=decision_threshold,
+        return_decision_scores=True,
     )
 
     events_df["is_community_event"] = predictions
     events_df["confidence"] = confidence
+    events_df["decision_score"] = decision_scores
 
-    # Add review flag for low confidence predictions
-    # Events below this score need manual review due to low model confidence.
-    # Use a single shared threshold across metrics, UI, and review logic.
-    events_df["needs_review"] = events_df["confidence"] < CONFIDENCE_THRESHOLD
+    # Review policy:
+    # 1) low model confidence, OR
+    # 2) close to decision threshold (borderline class assignment)
+    low_confidence = events_df["confidence"] < confidence_threshold
+    near_threshold = (events_df["decision_score"] - decision_threshold).abs() < review_margin
+    events_df["needs_review"] = low_confidence | near_threshold
 
     community_count = predictions.sum()
     log(
@@ -493,7 +586,8 @@ def classify_events(events_df: pd.DataFrame) -> pd.DataFrame | None:
         f"median={confidence_stats['median']:.3f}, std={confidence_stats['std']:.3f}"
     )
     log(
-        f"Events flagged for review (confidence < {CONFIDENCE_THRESHOLD}): {needs_review_count}/{len(events_df)} "
+        f"Events flagged for review (confidence < {confidence_threshold:.2f} OR near threshold ±{review_margin:.2f}): "
+        f"{needs_review_count}/{len(events_df)} "
         f"({100 * needs_review_count / len(events_df):.1f}%)"
     )
 
@@ -594,7 +688,7 @@ def generate_review_html(community_events_df: pd.DataFrame, stats: dict) -> str:
     # Build rows more efficiently
     for _, event in community_events_df.iterrows():
         confidence = event["confidence"]
-        confidence_class = "high-confidence" if confidence >= 0.75 else "low-confidence"
+        confidence_class = "high-confidence" if confidence >= CONFIDENCE_THRESHOLD else "low-confidence"
         row_class = "review-needed" if event["needs_review"] else ""
         status = "Review Needed" if event["needs_review"] else "High Confidence"
 
@@ -1064,9 +1158,9 @@ def main():
         log("\nStep 4: Filtering community events...")
         community_events = classified_df[classified_df["is_community_event"] == 1].copy()
 
-        # Track events needing review (confidence < 0.75)
+        # Track events needing review (threshold policy)
         if "confidence" in classified_df.columns:
-            needs_review = len(classified_df[classified_df["confidence"] < 0.75])
+            needs_review = int(classified_df["needs_review"].sum()) if "needs_review" in classified_df.columns else 0
             metrics.add_needs_review(needs_review)
 
         # Filter out events longer than 60 days (likely recurring stubs or data errors)
