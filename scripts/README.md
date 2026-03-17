@@ -7,37 +7,51 @@ This directory contains all Python automation scripts for the EnvisionPerdido ca
 ### Main Scripts (Root Level)
 
 **Core Pipeline:**
-- `automated_pipeline.py` - Main orchestrator: scrape → classify → email → upload
-- `Envision_Perdido_DataCollection.py` - Perdido Chamber event scraper
-- `wren_haven_scraper.py` - Wren Haven Homestead event scraper
-- `wordpress_uploader.py` - Upload events to WordPress EventON calendar
-- `health_check.py` - Monitor system health and send alerts
+- `automated_pipeline.py` - Compatibility wrapper for pipeline orchestrator
+- `Envision_Perdido_DataCollection.py` - Compatibility wrapper for the Perdido Chamber scraper
+- `wren_haven_scraper.py` - Compatibility wrapper for Wren Haven scraper
+- `multi_calendar_scraper.py` - Compatibility wrapper for the multi-source scraper CLI
+- `wordpress_uploader.py` - Compatibility wrapper for WordPress uploader
+- `health_check.py` - Compatibility wrapper for health checks
 
 **Utilities:**
-- `logger.py` - Structured logging with JSON output
-- `env_loader.py` - Cross-platform environment variable loader
-- `event_normalizer.py` - Event enrichment and normalization
-- `venue_registry.py` - Venue name resolution
-- `tag_taxonomy.py` - Event tag vocabulary
-- `browser_bootstrap.py` - Playwright helper for API discovery
+- `logger.py` - Compatibility wrapper for structured logging utilities
+- `env_loader.py` - Compatibility wrapper for environment loading
+- `event_normalizer.py` - Compatibility wrapper for event normalization
+- `venue_registry.py` - Compatibility wrapper for venue resolution
+- `tag_taxonomy.py` - Compatibility wrapper for tag taxonomy
+- `browser_bootstrap.py` - Compatibility wrapper for bootstrap helpers
 
 **Machine Learning:**
-- `svm_train_from_file.py` - Train SVM classifier
-- `svm_tag_events.py` - Apply trained model to tag events
-- `auto_label_and_train.py` - Automated training pipeline
-- `smart_label_helper.py` - Predict labels with confidence scores
-- `fill_recurring_labels.py` - Propagate labels across series
-- `merge_and_propagate_labels.py` - Merge and propagate labels
-- `events_to_labelset.py` - Convert events to training format
-- `modelViewer.py` - Inspect trained models
+- `svm_train_from_file.py` - Compatibility wrapper for SVM training
+- `svm_tag_events.py` - Compatibility wrapper for SVM tagging
+- `auto_label_and_train.py` - Compatibility wrapper for automated training
+- `events_to_labelset.py` - Compatibility wrapper for labelset generation
+- `consolidate_training_data.py` - Compatibility wrapper for dataset consolidation
+- `audit_datasets.py` - Compatibility wrapper for dataset audits
+- `modelViewer.py` - Compatibility wrapper for model inspection
 
 **Setup & Deployment:**
-- `run_pipeline_with_smoketest.py` - Pipeline wrapper with safety checks
-- `setup_image_mapper.py` - Initialize image mapping directories
+- `run_pipeline_with_smoketest.py` - Compatibility wrapper with safety checks
+- `setup_image_mapper.py` - Compatibility wrapper for image mapping setup
+
+**Shell scripts (compatibility wrappers — originals in subfolders):**
+- `deploy-and-run.sh` → `ops/deploy-and-run.sh`
+- `load_env.sh` → `ops/load_env.sh`
+- `verify_security.sh` → `ops/verify_security.sh`
+- `verify-setup.sh` → `ops/verify-setup.sh`
+- `new-branch.sh` → `dev/new-branch.sh`
+- `new-branch.ps1` → `dev/new-branch.ps1`
+- `run_delete_all_events.sh` → `maintenance/run_delete_all_events.sh`
 
 ### Subdirectories
 
-- **[dev/](dev/)** - Testing and debugging scripts
+- **[pipeline/](pipeline/)** - Pipeline execution, health checks, uploads, and pipeline utilities
+- **[ml/](ml/)** - Training, labeling, dataset consolidation, and model utilities
+- **[tooling/](tooling/)** - Shared utilities (env loading, logging, normalization, taxonomy, bootstrap)
+- **[scrapers/](scrapers/)** - Source scraping implementations (Perdido, Wren Haven, multi-source)
+- **[ops/](ops/)** - Operational shell scripts: deployment, env loading, and setup verification
+- **[dev/](dev/)** - Developer tooling: debugging scripts and git branch helpers
 - **[maintenance/](maintenance/)** - Administrative and maintenance scripts
 - **[windows/](windows/)** - Windows-specific batch files and PowerShell scripts
 - **[macos/](macos/)** - macOS-specific shell scripts
@@ -57,6 +71,11 @@ python scripts/wordpress_uploader.py
 Run with safety checks (recommended):
 ```bash
 python scripts/run_pipeline_with_smoketest.py
+```
+
+Scrape and consolidate multi-source events for labeling:
+```bash
+python scripts/multi_calendar_scraper.py --config data/community_calendar_sources.json --target-events 10000
 ```
 
 ## 📖 Documentation

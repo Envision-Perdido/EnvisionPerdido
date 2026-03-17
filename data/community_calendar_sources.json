@@ -1,0 +1,69 @@
+{
+  "sources": [
+    {
+      "name": "perdido_chamber",
+      "start_urls": [
+        "https://business.perdidochamber.com/events/calendar"
+      ],
+      "allowed_domains": [
+        "business.perdidochamber.com"
+      ],
+      "listing": {
+        "event_link_selector": "a[href*='/events/details']",
+        "next_page_selector": "a[rel='next']"
+      },
+      "detail": {
+        "title_selector": "h1, .gz-page-title, .event-title",
+        "date_selector": "time, .event-time, .date, [itemprop='startDate']",
+        "end_date_selector": "[itemprop='endDate']",
+        "location_selector": "[itemprop='location'], .event-location, .location",
+        "description_selector": "[itemprop='description'], .event-description, .description",
+        "category_selector": ".event-category, [itemprop='eventType']"
+      }
+    },
+    {
+      "name": "sample_community_calendar_1",
+      "enabled": false,
+      "start_urls": [
+        "https://example.org/community-events"
+      ],
+      "allowed_domains": [
+        "example.org"
+      ],
+      "listing": {
+        "event_link_selector": "a.event-link, a[href*='/events/']",
+        "next_page_selector": "a.next, a[rel='next']"
+      },
+      "detail": {
+        "title_selector": "h1, .event-title",
+        "date_selector": "time, .event-date, .event-time",
+        "end_date_selector": ".event-end, [itemprop='endDate']",
+        "location_selector": ".event-location, [itemprop='location']",
+        "description_selector": ".event-description, [itemprop='description']",
+        "category_selector": ".event-category"
+      }
+    },
+    {
+      "name": "sample_community_calendar_2",
+      "enabled": false,
+      "start_urls": [
+        "https://example.net/calendar"
+      ],
+      "allowed_domains": [
+        "example.net"
+      ],
+      "listing": {
+        "event_link_selector": "article.event a[href], a[href*='/calendar/event']",
+        "next_page_selector": "a.pagination-next"
+      },
+      "detail": {
+        "title_selector": "h1, .entry-title, .event-title",
+        "date_selector": "time, .event-meta time, .date-display-single",
+        "end_date_selector": ".event-end-date",
+        "location_selector": ".tribe-events-venue, .event-location",
+        "description_selector": ".entry-content, .event-description",
+        "category_selector": ".event-categories a"
+      }
+    }
+  ]
+}
