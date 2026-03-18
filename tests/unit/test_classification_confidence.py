@@ -46,7 +46,7 @@ class TestConfidenceCalculation:
         Regression test for the bug where raw (unsigned) decision scores were
         used, giving sigmoid(-2) ≈ 0.12 instead of ~0.88.
         """
-        from scripts.automated_pipeline import classify_events_batch
+        from scripts.pipeline.automated_pipeline import classify_events_batch
 
         mock_model = self._make_mock_model(predictions=[0], decision_scores=[-2.0])
         mock_vec = MagicMock()
@@ -64,7 +64,7 @@ class TestConfidenceCalculation:
     def test_symmetric_scores_yield_equal_confidence(self):
         """Events with decision scores +d and -d are equally far from the
         boundary: their confidence should be identical regardless of class."""
-        from scripts.automated_pipeline import classify_events_batch
+        from scripts.pipeline.automated_pipeline import classify_events_batch
 
         mock_model = self._make_mock_model(predictions=[1, 0], decision_scores=[1.5, -1.5])
         mock_vec = MagicMock()
@@ -81,7 +81,7 @@ class TestConfidenceCalculation:
     def test_borderline_prediction_has_lower_confidence_than_confident(self):
         """A prediction near the decision boundary (|score| ≈ 0) must have
         lower confidence than a prediction far from it."""
-        from scripts.automated_pipeline import classify_events_batch
+        from scripts.pipeline.automated_pipeline import classify_events_batch
 
         mock_model = self._make_mock_model(predictions=[0, 0], decision_scores=[-2.0, -0.1])
         mock_vec = MagicMock()
@@ -101,7 +101,7 @@ class TestConfidenceCalculation:
         events must *not* exceed the CONFIDENCE_THRESHOLD check that triggers
         the needs_review flag (i.e. confidence must be >= CONFIDENCE_THRESHOLD).
         """
-        from scripts.automated_pipeline import CONFIDENCE_THRESHOLD, classify_events_batch
+        from scripts.pipeline.automated_pipeline import CONFIDENCE_THRESHOLD, classify_events_batch
 
         # Simulate a batch of confidently non-community events
         n = 5

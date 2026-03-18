@@ -35,4 +35,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     exit(0 if not missing else 1)"
 
 # Default command: run the pipeline
-CMD ["python", "scripts/automated_pipeline.py"]
+CMD ["python", "scripts/pipeline/automated_pipeline.py"]

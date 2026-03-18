@@ -273,7 +273,7 @@ def classify_events_batch(
 
             # Apply tuned threshold only when explicitly shifted from 0.0.
             if decision_threshold != 0.0:
-                batch_predictions = (decision_scores >= decision_threshold).astype(int)
+                batch_predictions = (decision_scores <= decision_threshold).astype(int)
             else:
                 batch_predictions = model.predict(X)
                 batch_predictions = np.asarray(batch_predictions).reshape(-1)

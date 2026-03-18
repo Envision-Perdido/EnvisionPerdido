@@ -2,7 +2,7 @@
 
 from unittest.mock import patch
 
-from scripts.automated_pipeline import scrape_events
+from scripts.pipeline.automated_pipeline import scrape_events
 
 
 class TestScraperErrorIsolation:

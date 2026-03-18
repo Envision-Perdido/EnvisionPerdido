@@ -121,7 +121,7 @@ else
 fi
 
 # Run the pipeline and capture exit code
-if python scripts/automated_pipeline.py; then
+if python scripts/pipeline/automated_pipeline.py; then
     log_info "✓ Pipeline completed successfully"
     log_info "Outputs:"
     log_info "  CSV: output/pipeline/calendar_upload_*.csv"
