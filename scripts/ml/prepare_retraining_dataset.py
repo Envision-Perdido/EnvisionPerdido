@@ -18,6 +18,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from scripts.ml.training_support import ensure_source_column
+
 
 BASE_DIR = Path(__file__).parent.parent.parent
 DEFAULT_LABELED_DIR = BASE_DIR / "data" / "labeled"
@@ -145,6 +147,7 @@ def build_artifacts(input_files: list[Path], output_dir: Path, review_limit: int
         raise SystemExit("No rows loaded from input files")
 
     normalized = _normalize_columns(combined)
+    normalized = ensure_source_column(normalized)
     normalized = _dedupe(normalized)
     normalized = _ensure_event_id(normalized)
 

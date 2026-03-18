@@ -27,6 +27,7 @@ from pathlib import Path
 import joblib
 import numpy as np
 import pandas as pd
+from scripts.ml.training_support import compute_confidence, normalize_event_text_series
 
 # Add scripts directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -174,9 +175,7 @@ def build_features(df: pd.DataFrame) -> list[str]:
     location = df.get("location", pd.Series()).fillna("").astype(str)
     category = df.get("category", pd.Series()).fillna("").astype(str)
 
-    features = (
-        (title + " " + description + " " + location + " " + category).str.split().str.join(" ")
-    )
+    features = normalize_event_text_series(title + " " + description + " " + location + " " + category)
     return features.tolist()
 
 
@@ -220,7 +219,7 @@ def classify_events_batch(
         if use_unified_pipeline:
             # New unified pipeline format: build all required features
             # The pipeline expects: text, hour, is_weekend, venue_library, venue_park, venue_church, venue_museum
-            text = (
+            text = normalize_event_text_series(
                 batch.get("title", pd.Series()).fillna("")
                 + " "
                 + batch.get("description", pd.Series()).fillna("")
@@ -273,7 +272,7 @@ def classify_events_batch(
 
             # Apply tuned threshold only when explicitly shifted from 0.0.
             if decision_threshold != 0.0:
-                batch_predictions = (decision_scores <= decision_threshold).astype(int)
+                batch_predictions = (decision_scores >= decision_threshold).astype(int)
             else:
                 batch_predictions = model.predict(X)
                 batch_predictions = np.asarray(batch_predictions).reshape(-1)
@@ -295,7 +294,7 @@ def classify_events_batch(
             # For binary classification, values range approximately [-inf, +inf]
             # Use absolute value to measure distance from decision boundary (0)
             # Normalize to [0, 1] using sigmoid applied to absolute value
-            batch_confidences = 1 / (1 + np.exp(-np.abs(decision_scores)))
+            batch_confidences = compute_confidence(decision_scores)
         else:
             batch_predictions = model.predict(X)
             batch_predictions = np.asarray(batch_predictions).reshape(-1)

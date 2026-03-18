@@ -358,6 +358,7 @@ def inspect_misclassifications(
     X_test: pd.DataFrame,
     y_test: np.ndarray,
     raw_data_df: pd.DataFrame,
+    decision_threshold: float = 0.0,
     top_n: int = 20,
     output_dir: Optional[Path] = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -385,7 +386,7 @@ def inspect_misclassifications(
         descending absolute decision score.
     """
     scores = _decision_scores(model, X_test)
-    y_pred = (scores >= 0).astype(int)
+    y_pred = (scores >= decision_threshold).astype(int)
 
     # Locate the most informative text column present in raw_data_df
     _text_candidates = ["title", "description", "text", "event_title"]
@@ -721,6 +722,7 @@ def main(
     vectorizer=None,
     output_dir: Optional[Path] = None,
     top_n: int = 20,
+    decision_threshold: float = 0.0,
 ) -> None:
     """Run all diagnostics in sequence and save outputs to *output_dir*.
 
@@ -794,6 +796,7 @@ def main(
     print("[5/7] False positive / false negative inspection")
     inspect_misclassifications(
         model, X_test, y_test, raw_data_df,
+        decision_threshold=decision_threshold,
         top_n=top_n,
         output_dir=out / "misclassifications",
     )

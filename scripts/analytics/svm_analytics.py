@@ -31,6 +31,11 @@ from sklearn.model_selection import GroupShuffleSplit, train_test_split
 from sklearn.pipeline import Pipeline
 
 from scripts.ml.svm_train_from_file import build_features, make_series_id
+from scripts.ml.training_support import (
+    binary_metrics,
+    compute_confidence,
+    threshold_sweep as shared_threshold_sweep,
+)
 
 
 BASE_DIR = Path(__file__).parent.parent.parent
@@ -125,49 +130,18 @@ def _load_model(path: Path) -> tuple[Pipeline, dict[str, float]]:
     return pipe, policy
 
 
-def _compute_confidence(scores: np.ndarray) -> np.ndarray:
-    return 1 / (1 + np.exp(-np.abs(scores)))
-
-
-def _binary_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> dict[str, float]:
-    precision, recall, f1, _ = precision_recall_fscore_support(
-        y_true, y_pred, labels=[0, 1], zero_division=0
-    )
-    acc = float(accuracy_score(y_true, y_pred))
-    return {
-        "accuracy": acc,
-        "precision_0": float(precision[0]),
-        "recall_0": float(recall[0]),
-        "f1_0": float(f1[0]),
-        "precision_1": float(precision[1]),
-        "recall_1": float(recall[1]),
-        "f1_1": float(f1[1]),
-    }
-
-
 def _threshold_sweep(
     y_true: np.ndarray,
     scores: np.ndarray,
     confidence_threshold: float,
+    review_margin: float,
 ) -> pd.DataFrame:
-    thresholds = np.unique(np.concatenate([scores, np.array([0.0])]))
-    rows = []
-    for t in thresholds:
-        y_pred = (scores >= t).astype(int)
-        metrics = _binary_metrics(y_true, y_pred)
-        confidence = _compute_confidence(scores)
-        needs_review = np.mean((confidence < confidence_threshold) | (np.abs(scores - t) < 0.35))
-        rows.append(
-            {
-                "threshold": float(t),
-                "accuracy": metrics["accuracy"],
-                "precision_1": metrics["precision_1"],
-                "recall_1": metrics["recall_1"],
-                "f1_1": metrics["f1_1"],
-                "review_rate": float(needs_review),
-            }
-        )
-    return pd.DataFrame(rows).sort_values("threshold")
+    return shared_threshold_sweep(
+        y_true=y_true,
+        scores=scores,
+        confidence_threshold=confidence_threshold,
+        review_margin=review_margin,
+    )
 
 
 def _top_features(pipe: Pipeline, top_n: int = 20) -> pd.DataFrame:
@@ -248,7 +222,7 @@ def _plot_threshold_tradeoff(sweep_df: pd.DataFrame, decision_threshold: float, 
 
 
 def _plot_confidence(scores: np.ndarray, output_path: Path) -> None:
-    conf = _compute_confidence(scores)
+    conf = compute_confidence(scores)
     plt.figure(figsize=(8, 5))
     sns.histplot(conf, bins=30, kde=True)
     plt.xlabel("Confidence")
@@ -463,12 +437,17 @@ def main() -> int:
     y_pred_base = pipe.predict(X_eval)
     y_pred_tuned = (decision_scores >= policy["decision_threshold"]).astype(int)
 
-    base_metrics = _binary_metrics(y_eval, y_pred_base)
-    tuned_metrics = _binary_metrics(y_eval, y_pred_tuned)
+    base_metrics = binary_metrics(y_eval, y_pred_base)
+    tuned_metrics = binary_metrics(y_eval, y_pred_tuned)
     tuned_metrics["y_pred"] = y_pred_tuned
 
-    sweep_df = _threshold_sweep(y_eval, decision_scores, policy["confidence_threshold"])
-    conf = _compute_confidence(decision_scores)
+    sweep_df = _threshold_sweep(
+        y_eval,
+        decision_scores,
+        policy["confidence_threshold"],
+        policy["review_margin"],
+    )
+    conf = compute_confidence(decision_scores)
     review_rate = float(
         np.mean(
             (conf < policy["confidence_threshold"])

@@ -8,6 +8,8 @@ import joblib
 import numpy as np
 import pandas as pd
 
+from scripts.ml.training_support import compute_confidence, normalize_event_text_series
+
 
 def load_any(p: Path) -> pd.DataFrame:
     """Load events from CSV or JSON file."""
@@ -24,7 +26,7 @@ def load_any(p: Path) -> pd.DataFrame:
 
 def build_features(df: pd.DataFrame, title_col: str, desc_col: str, start_col: str, loc_col: str):
     """Build feature matrix matching training format."""
-    text = df[title_col].fillna("") + " " + df[desc_col].fillna("")
+    text = normalize_event_text_series(df[title_col].fillna("") + " " + df[desc_col].fillna(""))
     dt = pd.to_datetime(df[start_col], errors="coerce", utc=True)
     hour = dt.dt.hour.fillna(-1).astype(int)
     dow = dt.dt.dayofweek.fillna(-1).astype(int)
@@ -75,10 +77,15 @@ def main():
 
     print(f"Loading model from {model_path}...")
     model_data = joblib.load(model_path)
-    pipe = model_data["pipe"]
+    pipe = model_data["pipe"] if isinstance(model_data, dict) and "pipe" in model_data else model_data
+    decision_threshold = (
+        float(model_data.get("decision_threshold", 0.0))
+        if isinstance(model_data, dict)
+        else 0.0
+    )
 
     # Get column mappings from model metadata
-    cols = model_data.get("columns", {})
+    cols = model_data.get("columns", {}) if isinstance(model_data, dict) else {}
     title_col = cols.get("title", "title")
     desc_col = cols.get("desc", "description")
     start_col = cols.get("start", "start")
@@ -100,18 +107,17 @@ def main():
 
     # Predict
     print("Classifying events...")
-    predictions = pipe.predict(X)
+    if hasattr(pipe, "decision_function"):
+        decision_scores = np.asarray(pipe.decision_function(X), dtype=float).ravel()
+        predictions = (decision_scores >= decision_threshold).astype(int)
+    else:
+        decision_scores = np.asarray(pipe.predict(X), dtype=float).ravel()
+        predictions = decision_scores.astype(int)
     df["predicted_label"] = predictions
 
     # Add confidence scores if requested
     if args.confidence:
-        # Get decision function scores (distance from hyperplane)
-        decision_scores = pipe.decision_function(X)
-        # Confidence = sigmoid of |score|: near the boundary (|score|≈0) → 0.5
-        # (uncertain), far from boundary (|score|≫0) → 1.0 (certain).
-        # The absolute value is used so that class-0 predictions (negative raw
-        # scores) yield high confidence when the model is sure, not low.
-        confidence = 1 / (1 + np.exp(-np.abs(decision_scores)))
+        confidence = compute_confidence(decision_scores)
         df["prediction_confidence"] = confidence
 
     # Count predictions

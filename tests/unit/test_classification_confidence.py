@@ -122,3 +122,25 @@ class TestConfidenceCalculation:
             f"{CONFIDENCE_THRESHOLD} (max={confidences.max():.4f}). "
             "This indicates the confidence calculation does not use |score|."
         )
+
+    def test_tuned_threshold_uses_score_greater_than_or_equal(self):
+        """Shifted thresholds must use score >= threshold for class-1."""
+        from scripts.pipeline.automated_pipeline import classify_events_batch
+
+        mock_model = self._make_mock_model(
+            predictions=[0, 0, 0],
+            decision_scores=[-0.3, 0.2, 0.8],
+        )
+        mock_vec = MagicMock()
+        mock_vec.transform.return_value = MagicMock(shape=(3, 10))
+
+        df = _make_df(3)
+        predictions, _ = classify_events_batch(
+            df,
+            mock_model,
+            mock_vec,
+            batch_size=10,
+            decision_threshold=0.15,
+        )
+
+        assert predictions.tolist() == [0, 1, 1]

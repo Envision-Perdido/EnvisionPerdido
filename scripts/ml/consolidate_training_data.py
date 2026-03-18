@@ -14,6 +14,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from scripts.ml.training_support import ensure_source_column
+
 BASE_DIR = Path(__file__).parent.parent.parent
 RAW_DIR = BASE_DIR / "data" / "raw"
 PROCESSED_DIR = BASE_DIR / "data" / "processed"
@@ -50,6 +52,7 @@ def load_and_consolidate():
     for csv_file in sorted(RAW_DIR.glob("*.csv")):
         try:
             df = pd.read_csv(csv_file)
+            df["_source_file"] = csv_file.name
             print(f"  Loaded: {csv_file.name} ({len(df)} events)")
             all_events.append(df)
         except Exception as e:
@@ -61,6 +64,7 @@ def load_and_consolidate():
             continue  # Skip output file if it exists
         try:
             df = pd.read_csv(csv_file)
+            df["_source_file"] = csv_file.name
             print(f"  Loaded: {csv_file.name} ({len(df)} events)")
             all_events.append(df)
         except Exception as e:
@@ -70,6 +74,7 @@ def load_and_consolidate():
     for csv_file in sorted(LABELED_DIR.glob("*.csv")):
         try:
             df = pd.read_csv(csv_file)
+            df["_source_file"] = csv_file.name
             print(f"  Loaded: {csv_file.name} ({len(df)} events)")
             all_events.append(df)
         except Exception as e:
@@ -81,6 +86,7 @@ def load_and_consolidate():
 
     # Combine all
     combined = pd.concat(all_events, ignore_index=True, sort=False)
+    combined = ensure_source_column(combined)
     print(f"\n[Consolidating] Total events before dedup: {len(combined)}")
 
     # Deduplicate. Keep rows with authoritative labels first so labels are not

@@ -16,6 +16,8 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import LinearSVC
 
+from scripts.ml.training_support import ensure_source_column, normalize_event_text_series
+
 
 def load_any(p: Path) -> pd.DataFrame:
     if p.suffix.lower() == ".csv":
@@ -60,7 +62,7 @@ def make_series_id(
 
 
 def build_features(df: pd.DataFrame, title_col: str, desc_col: str, start_col: str, loc_col: str):
-    text = df[title_col].fillna("") + " " + df[desc_col].fillna("")
+    text = normalize_event_text_series(df[title_col].fillna("") + " " + df[desc_col].fillna(""))
     dt = pd.to_datetime(df[start_col], errors="coerce", utc=True)
     hour = dt.dt.hour.fillna(-1).astype(int)
     dow = dt.dt.dayofweek.fillna(-1).astype(int)
@@ -119,6 +121,7 @@ def main():
 
     p = Path(args.input).expanduser().resolve()
     df = load_any(p)
+    df = ensure_source_column(df)
 
     # ensure columns exist
     for c in [args.title, args.desc, args.start, args.loc]:
