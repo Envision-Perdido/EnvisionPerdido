@@ -102,12 +102,12 @@ verify:
 dry-run: verify
 	@echo "[INFO] Running pipeline in DRY RUN mode (AUTO_UPLOAD=false)..."
 	@echo "[INFO] Events will be reviewed but NOT uploaded to WordPress"
-	$(ACTIVATE) && AUTO_UPLOAD=false python scripts/automated_pipeline.py
+	$(ACTIVATE) && AUTO_UPLOAD=false python scripts/pipeline/automated_pipeline.py
 
 # Full pipeline (requires explicit AUTO_UPLOAD setting)
 run-pipeline: verify
 	@echo "[INFO] Running full pipeline with uploads..."
-	$(ACTIVATE) && python scripts/automated_pipeline.py
+	$(ACTIVATE) && python scripts/pipeline/automated_pipeline.py
 
 # Interactive uploader
 run-uploader: verify

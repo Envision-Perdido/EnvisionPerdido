@@ -43,7 +43,7 @@ services:
     working_dir: /app
     
     # Run the pipeline
-    command: python scripts/automated_pipeline.py
+    command: python scripts/pipeline/automated_pipeline.py
     
     # Restart policy
     restart: "no"

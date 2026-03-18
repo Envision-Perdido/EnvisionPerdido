@@ -165,7 +165,7 @@ class TestBatchClassification:
 
     def test_classify_events_batch_shapes(self):
         """Test that batch classification returns correct output shapes."""
-        from scripts.automated_pipeline import classify_events_batch
+        from scripts.pipeline.automated_pipeline import classify_events_batch
 
         # Create mock objects
         mock_model = MagicMock()
@@ -209,7 +209,7 @@ class TestBatchClassification:
         Previously the code applied sigmoid to the raw score, making every
         class-0 confidence < 0.5 and causing them all to be flagged for review.
         """
-        from scripts.automated_pipeline import classify_events_batch
+        from scripts.pipeline.automated_pipeline import classify_events_batch
 
         mock_model = MagicMock()
         mock_vectorizer = MagicMock()
