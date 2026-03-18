@@ -1,0 +1,21 @@
+feature,weight,direction
+is_weekend,0.4895145382687273,community
+hour,-0.43779684616662623,non_community
+club,-0.3498206673034502,non_community
+business,-0.3461926458812558,non_community
+meeting,-0.32239944176307833,non_community
+wine,0.30512744934086694,community
+room,0.27376680558799,community
+limited,0.2530039574119862,community
+speaker,-0.25053524702160723,non_community
+community,-0.24817117370485542,non_community
+dinner,0.24618407540013015,community
+local,-0.24290575306724616,non_community
+green,0.23718969331534456,community
+leadership,-0.23355236993613873,non_community
+member,-0.2331994462999996,non_community
+will be,0.2300215886135844,community
+white,0.22867663645516728,community
+information,-0.22389256424694623,non_community
+chefs,0.2218488834112189,community
+dining,0.2218488834112189,community
