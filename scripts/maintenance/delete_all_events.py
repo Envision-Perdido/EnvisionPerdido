@@ -21,8 +21,8 @@ from pathlib import Path
 import requests
 from requests.auth import HTTPBasicAuth
 
-# Add scripts directory to path and load environment
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# Add project root to path so wrapper imports like scripts.tooling.* resolve
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from env_loader import load_env
 
 load_env()
