@@ -87,6 +87,7 @@ def create_session_with_retries(
 
 
 BASE = "https://business.perdidochamber.com"
+SOURCE_NAME = "perdido_chamber"
 
 # Month view of calendar
 MONTH_URL = "https://business.perdidochamber.com/events/calendar/2025-09-01"
@@ -328,7 +329,8 @@ def parse_calendar_to_events(cal, source_ics: str, source_page: str | None = Non
             "category": category,
             "last_modified": _dt_to_iso(component.get("LAST-MODIFIED")),
             "created": _dt_to_iso(component.get("CREATED")),
-            # provencence
+            "source": SOURCE_NAME,
+            # provenance
             "source_ics": source_ics,
             "source_page": source_page,
         }

@@ -42,6 +42,7 @@ load_env()
 CONFIDENCE_THRESHOLD = float(os.getenv("CONFIDENCE_THRESHOLD", "0.75"))
 MODEL_DECISION_THRESHOLD = float(os.getenv("MODEL_DECISION_THRESHOLD", "0.0"))
 REVIEW_MARGIN = float(os.getenv("REVIEW_MARGIN", "0.35"))
+MODEL_DECISION_THRESHOLD_OVERRIDE_ENV = "MODEL_DECISION_THRESHOLD_OVERRIDE"
 
 # Import logger and metrics
 from logger import PipelineMetrics, get_logger
@@ -70,8 +71,14 @@ _MODEL_CACHE = {
     "model": None,
     "vectorizer": None,
     "decision_threshold": MODEL_DECISION_THRESHOLD,
+    "persisted_decision_threshold": MODEL_DECISION_THRESHOLD,
+    "decision_threshold_source": "default",
     "review_margin": REVIEW_MARGIN,
     "confidence_threshold": CONFIDENCE_THRESHOLD,
+    "model_format": "unknown",
+    "model_path": str(MODEL_PATH),
+    "model_size_kb": 0.0,
+    "model_modified": "unknown",
 }
 
 
@@ -94,6 +101,12 @@ def load_model_and_vectorizer():
             return None, None
 
         model_data = joblib.load(MODEL_PATH)
+        model_stat = MODEL_PATH.stat()
+        _MODEL_CACHE["model_path"] = str(MODEL_PATH)
+        _MODEL_CACHE["model_size_kb"] = round(model_stat.st_size / 1024, 1)
+        _MODEL_CACHE["model_modified"] = datetime.fromtimestamp(
+            model_stat.st_mtime
+        ).strftime("%Y-%m-%d %H:%M:%S")
 
         # Check if this is the new unified pipeline format
         if isinstance(model_data, dict) and "pipe" in model_data:
@@ -101,21 +114,23 @@ def load_model_and_vectorizer():
             pipeline = model_data["pipe"]
             _MODEL_CACHE["model"] = pipeline
             _MODEL_CACHE["vectorizer"] = "UNIFIED_PIPELINE"  # Marker for unified format
-            _MODEL_CACHE["decision_threshold"] = float(
+            _MODEL_CACHE["persisted_decision_threshold"] = float(
                 model_data.get("decision_threshold", MODEL_DECISION_THRESHOLD)
             )
             _MODEL_CACHE["review_margin"] = float(model_data.get("review_margin", REVIEW_MARGIN))
             _MODEL_CACHE["confidence_threshold"] = float(
                 model_data.get("confidence_threshold", CONFIDENCE_THRESHOLD)
             )
+            _MODEL_CACHE["model_format"] = "unified_pipeline_bundle"
             log("Loaded new unified pipeline model")
         elif isinstance(model_data, Pipeline):
             # New format but directly stored as Pipeline
             _MODEL_CACHE["model"] = model_data
             _MODEL_CACHE["vectorizer"] = "UNIFIED_PIPELINE"
-            _MODEL_CACHE["decision_threshold"] = MODEL_DECISION_THRESHOLD
+            _MODEL_CACHE["persisted_decision_threshold"] = MODEL_DECISION_THRESHOLD
             _MODEL_CACHE["review_margin"] = REVIEW_MARGIN
             _MODEL_CACHE["confidence_threshold"] = CONFIDENCE_THRESHOLD
+            _MODEL_CACHE["model_format"] = "unified_pipeline_direct"
             log("Loaded unified pipeline model (direct)")
         else:
             # Old format: legacy model structure
@@ -124,11 +139,13 @@ def load_model_and_vectorizer():
                 return None, None
             _MODEL_CACHE["model"] = model_data
             _MODEL_CACHE["vectorizer"] = joblib.load(VECTORIZER_PATH)
-            _MODEL_CACHE["decision_threshold"] = MODEL_DECISION_THRESHOLD
+            _MODEL_CACHE["persisted_decision_threshold"] = MODEL_DECISION_THRESHOLD
             _MODEL_CACHE["review_margin"] = REVIEW_MARGIN
             _MODEL_CACHE["confidence_threshold"] = CONFIDENCE_THRESHOLD
+            _MODEL_CACHE["model_format"] = "legacy_model_plus_vectorizer"
             log("Loaded legacy separate model and vectorizer")
 
+    _apply_decision_threshold_policy()
     return _MODEL_CACHE["model"], _MODEL_CACHE["vectorizer"]
 
 
@@ -158,6 +175,56 @@ def log(message):
         logger.warning(message)
     else:
         logger.info(message)
+
+
+def _read_threshold_override() -> float | None:
+    """Read an optional runtime decision-threshold override from the environment."""
+    raw_override = os.getenv(MODEL_DECISION_THRESHOLD_OVERRIDE_ENV)
+    if raw_override is None or raw_override.strip() == "":
+        return None
+    try:
+        return float(raw_override)
+    except ValueError:
+        log(
+            "Warning: ignoring invalid "
+            f"{MODEL_DECISION_THRESHOLD_OVERRIDE_ENV}={raw_override!r}"
+        )
+        return None
+
+
+def _apply_decision_threshold_policy() -> None:
+    """Refresh the active decision threshold from persisted policy or env override."""
+    persisted_threshold = float(
+        _MODEL_CACHE.get("persisted_decision_threshold", MODEL_DECISION_THRESHOLD)
+    )
+    override = _read_threshold_override()
+    if override is not None:
+        _MODEL_CACHE["decision_threshold"] = override
+        _MODEL_CACHE["decision_threshold_source"] = (
+            f"env:{MODEL_DECISION_THRESHOLD_OVERRIDE_ENV}"
+        )
+    else:
+        _MODEL_CACHE["decision_threshold"] = persisted_threshold
+        _MODEL_CACHE["decision_threshold_source"] = "model_artifact"
+
+
+def _log_active_model_configuration() -> None:
+    """Emit a compact summary of the active model artifact and threshold policy."""
+    log(
+        "Active model artifact: "
+        f"path={_MODEL_CACHE.get('model_path', MODEL_PATH)}; "
+        f"format={_MODEL_CACHE.get('model_format', 'unknown')}; "
+        f"size_kb={_MODEL_CACHE.get('model_size_kb', 0.0)}; "
+        f"modified={_MODEL_CACHE.get('model_modified', 'unknown')}"
+    )
+    log(
+        "Active threshold policy: "
+        f"persisted_threshold={float(_MODEL_CACHE.get('persisted_decision_threshold', MODEL_DECISION_THRESHOLD)):.4f}; "
+        f"active_threshold={float(_MODEL_CACHE.get('decision_threshold', MODEL_DECISION_THRESHOLD)):.4f}; "
+        f"source={_MODEL_CACHE.get('decision_threshold_source', 'unknown')}; "
+        f"review_margin={float(_MODEL_CACHE.get('review_margin', REVIEW_MARGIN)):.4f}; "
+        f"confidence_threshold={float(_MODEL_CACHE.get('confidence_threshold', CONFIDENCE_THRESHOLD)):.4f}"
+    )
 
 
 def build_features(df: pd.DataFrame) -> list[str]:
@@ -532,6 +599,8 @@ def classify_events(events_df: pd.DataFrame) -> pd.DataFrame | None:
     if model is None or vectorizer is None:
         return None
 
+    _log_active_model_configuration()
+
     decision_threshold = float(_MODEL_CACHE.get("decision_threshold", MODEL_DECISION_THRESHOLD))
     review_margin = float(_MODEL_CACHE.get("review_margin", REVIEW_MARGIN))
     confidence_threshold = float(_MODEL_CACHE.get("confidence_threshold", CONFIDENCE_THRESHOLD))
@@ -567,8 +636,25 @@ def classify_events(events_df: pd.DataFrame) -> pd.DataFrame | None:
     events_df["needs_review"] = low_confidence | near_threshold
 
     community_count = predictions.sum()
+    zero_threshold_predictions = (decision_scores >= 0.0).astype(int)
+    zero_threshold_community_count = int(zero_threshold_predictions.sum())
+    threshold_flips = int(np.count_nonzero(predictions != zero_threshold_predictions))
     log(
         f"Classification complete: {community_count} community events, {len(events_df) - community_count} non-community events"
+    )
+    log(
+        "Decision score distribution: "
+        f"min={float(events_df['decision_score'].min()):.4f}, "
+        f"max={float(events_df['decision_score'].max()):.4f}, "
+        f"mean={float(events_df['decision_score'].mean()):.4f}"
+    )
+    log(
+        "Threshold comparison: "
+        f"active_threshold={decision_threshold:.4f} -> "
+        f"{community_count} community / {len(events_df) - community_count} non-community; "
+        "zero_threshold=0.0000 -> "
+        f"{zero_threshold_community_count} community / {len(events_df) - zero_threshold_community_count} non-community; "
+        f"flips_due_to_threshold={threshold_flips}"
     )
 
     # Show confidence distribution for diagnostic purposes

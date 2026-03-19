@@ -18,6 +18,9 @@ from sklearn.svm import LinearSVC
 
 from scripts.ml.training_support import ensure_source_column, normalize_event_text_series
 
+BASE_DIR = Path(__file__).parent.parent.parent
+DEFAULT_MODEL_PATH = BASE_DIR / "data" / "artifacts" / "event_classifier_model.pkl"
+
 
 def load_any(p: Path) -> pd.DataFrame:
     if p.suffix.lower() == ".csv":
@@ -94,7 +97,11 @@ def main():
         description="Train SVM to classify community-oriented events (CSV or JSON input)."
     )
     ap.add_argument("--input", required=True, help="Path to perdido_events.csv or .json")
-    ap.add_argument("--model-path", default="models/community_svm.pkl")
+    ap.add_argument(
+        "--model-path",
+        default=str(DEFAULT_MODEL_PATH),
+        help="Output model path. Defaults to the production artifact used by the pipeline.",
+    )
 
     # column names in your file
     ap.add_argument("--id", default="uid")
