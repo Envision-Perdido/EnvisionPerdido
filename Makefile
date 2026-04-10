@@ -3,16 +3,6 @@
 # Default target
 .DEFAULT_GOAL := help
 
-# Determine OS
-UNAME_S := $(shell uname -s)
-ifeq ($(UNAME_S),Linux)
-    ACTIVATE := . .venvEnvisionPerdido/bin/activate
-else ifeq ($(UNAME_S),Darwin)
-    ACTIVATE := . .venvEnvisionPerdido/bin/activate
-else
-    ACTIVATE := . .venvEnvisionPerdido\Scripts\activate
-endif
-
 help:
 	@echo "EnvisionPerdido Makefile Targets:"
 	@echo ""
@@ -41,43 +31,45 @@ help:
 
 # Create virtual environment and install dependencies
 setup:
-	@echo "[INFO] Creating virtual environment..."
-	python3 -m venv .venvEnvisionPerdido
-	@echo "[INFO] Installing dependencies..."
-	$(ACTIVATE) && pip install --upgrade pip && pip install -r requirements.txt
+	@if ! command -v uv >/dev/null 2>&1; then \
+		echo "[ERROR] uv is not installed. Install from https://docs.astral.sh/uv/getting-started/installation/"; \
+		exit 1; \
+	fi
+	@echo "[INFO] Creating .venv and syncing dependencies with uv..."
+	uv sync
 	@echo "[✓] Setup complete! Run 'make verify' to check configuration."
 
 # Install dependencies into existing venv
 install:
-	@if [ ! -d .venvEnvisionPerdido ]; then \
-		echo "[ERROR] Virtual environment not found. Run 'make setup' first."; \
+	@if ! command -v uv >/dev/null 2>&1; then \
+		echo "[ERROR] uv is not installed. Install from https://docs.astral.sh/uv/getting-started/installation/"; \
 		exit 1; \
 	fi
-	@echo "[INFO] Installing dependencies..."
-	$(ACTIVATE) && pip install --upgrade pip && pip install -r requirements.txt
+	@echo "[INFO] Syncing dependencies..."
+	uv sync
 	@echo "[✓] Dependencies installed."
 
 # Run tests
 test:
-	@if [ ! -d .venvEnvisionPerdido ]; then \
+	@if [ ! -d .venv ]; then \
 		echo "[ERROR] Virtual environment not found. Run 'make setup' first."; \
 		exit 1; \
 	fi
 	@echo "[INFO] Running pytest suite..."
-	$(ACTIVATE) && python -m pytest tests/ -v
+	uv run python -m pytest tests/ -v
 
 # Run linter
 lint:
-	@if [ ! -d .venvEnvisionPerdido ]; then \
+	@if [ ! -d .venv ]; then \
 		echo "[ERROR] Virtual environment not found. Run 'make setup' first."; \
 		exit 1; \
 	fi
 	@echo "[INFO] Running ruff linter..."
-	$(ACTIVATE) && ruff check scripts/
+	uv run ruff check scripts/
 
 # Verify setup
 verify:
-	@if [ ! -d .venvEnvisionPerdido ]; then \
+	@if [ ! -d .venv ]; then \
 		echo "[ERROR] Virtual environment not found. Run 'make setup' first."; \
 		exit 1; \
 	fi
@@ -102,27 +94,27 @@ verify:
 dry-run: verify
 	@echo "[INFO] Running pipeline in DRY RUN mode (AUTO_UPLOAD=false)..."
 	@echo "[INFO] Events will be reviewed but NOT uploaded to WordPress"
-	$(ACTIVATE) && AUTO_UPLOAD=false python scripts/pipeline/automated_pipeline.py
+	AUTO_UPLOAD=false uv run python scripts/pipeline/automated_pipeline.py
 
 # Full pipeline (requires explicit AUTO_UPLOAD setting)
 run-pipeline: verify
 	@echo "[INFO] Running full pipeline with uploads..."
-	$(ACTIVATE) && python scripts/pipeline/automated_pipeline.py
+	uv run python scripts/pipeline/automated_pipeline.py
 
 # Interactive uploader
 run-uploader: verify
 	@echo "[INFO] Starting interactive WordPress uploader..."
 	@echo "[INFO] Uploader will run in dry-run mode first. Review before uploading."
-	$(ACTIVATE) && python scripts/wordpress_uploader.py
+	uv run python scripts/wordpress_uploader.py
 
 # Regenerate descriptions with OpenAI (dry-run preview)
 regenerate-descriptions-dry-run:
-	@if [ ! -d .venvEnvisionPerdido ]; then \
+	@if [ ! -d .venv ]; then \
 		echo "[ERROR] Virtual environment not found. Run 'make setup' first."; \
 		exit 1; \
 	fi
 	@echo "[INFO] DRY RUN: Previewing description regeneration (no API calls)..."
-	$(ACTIVATE) && python scripts/regenerate_descriptions.py --dry-run --sync --model gpt-4o-mini
+	uv run python scripts/regenerate_descriptions.py --dry-run --sync --model gpt-4o-mini
 
 # Regenerate descriptions with OpenAI (full enhancement, batch API for cost savings)
 regenerate-descriptions: verify
@@ -132,7 +124,7 @@ regenerate-descriptions: verify
 	fi
 	@echo "[INFO] Regenerating event descriptions with OpenAI (Batch API, cached)..."
 	@echo "[INFO] Configuration: top-n=100, min-confidence=0.75, use-cache=true"
-	$(ACTIVATE) && python scripts/regenerate_descriptions.py --batch --top-n 100 --min-confidence 0.75 --model gpt-4o-mini
+	uv run python scripts/regenerate_descriptions.py --batch --top-n 100 --min-confidence 0.75 --model gpt-4o-mini
 
 # Regenerate descriptions with sync API (immediate results, no caching)
 regenerate-descriptions-sync: verify
@@ -141,6 +133,6 @@ regenerate-descriptions-sync: verify
 		exit 1; \
 	fi
 	@echo "[INFO] Regenerating event descriptions with OpenAI (Sync API, immediate)..."
-	$(ACTIVATE) && python scripts/regenerate_descriptions.py --sync --top-n 100 --min-confidence 0.75 --model gpt-4o-mini
+	uv run python scripts/regenerate_descriptions.py --sync --top-n 100 --min-confidence 0.75 --model gpt-4o-mini
 
 .SILENT: help

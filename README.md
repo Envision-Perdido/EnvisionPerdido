@@ -16,18 +16,21 @@ This system automatically:
 ### Local Development (Windows)
 
 ```powershell
-# Activate environment
+# Install uv once (if needed):
+# powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+
+# Create/sync local environment from lockfile
 cd path\to\EnvisionPerdido
-.\.venvEnvisionPerdido\Scripts\Activate.ps1
+uv sync
 
 # Run the pipeline
-python scripts\automated_pipeline.py
+uv run python scripts\automated_pipeline.py
 
 # Upload events to WordPress
-python scripts\wordpress_uploader.py
+uv run python scripts\wordpress_uploader.py
 
 # Health check
-python scripts\health_check.py
+uv run python scripts\health_check.py
 ```
 
 ### Remote Deployment (Linux/macOS via make.com)
@@ -110,12 +113,13 @@ See [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md) for the complete stru
 
 ## Requirements
 
-- Python 3.13+ with virtual environment
+- Python 3.13+
+- uv (recommended package/environment manager)
 - WordPress site with EventON plugin
 - Gmail account for email notifications (or SMTP server)
 - Windows Task Scheduler (for automation)
 
-See `requirements.txt` for Python dependencies.
+Dependencies are managed in `pyproject.toml` and pinned in `uv.lock`.
 
 ## Configuration
 
@@ -166,8 +170,8 @@ See `.github/workflows/` for configuration and [docs/CI_CD_GUIDE.md](docs/CI_CD_
 Install dependencies and run the unit test suite from the project root:
 
 ```bash
-pip install -r requirements.txt pytest
-python -m pytest tests/unit -v --tb=short
+uv sync
+uv run python -m pytest tests/unit -v --tb=short
 ```
 
 Tests are organized under `tests/`:
@@ -182,7 +186,7 @@ Use pytest markers to skip slow or network-dependent tests:
 
 ```bash
 # Run only tests that are not slow/network/integration
-python -m pytest tests/unit -v --tb=short -m "not slow and not network and not integration"
+uv run python -m pytest tests/unit -v --tb=short -m "not slow and not network and not integration"
 ```
 
 ## Deployment on make.com
@@ -215,7 +219,7 @@ cp .env.example .env
 # Edit with your WordPress & email credentials
 nano .env
 
-# Install dependencies (creates venv and installs from requirements.txt)
+# Install dependencies (creates .venv and syncs from pyproject.toml + uv.lock)
 make setup
 
 # Verify everything is configured correctly
@@ -263,7 +267,7 @@ From the remote server (or via make.com SSH):
 
 ```bash
 make help           # Show all available targets
-make setup          # Create venv and install dependencies
+make setup          # Create .venv and sync dependencies with uv
 make verify         # Check setup (env, artifacts, packages)
 make test           # Run pytest suite
 make lint           # Run ruff linter
