@@ -9,7 +9,7 @@ Features:
 - Fallback to sync API for immediate results
 
 Usage (standalone):
-    python scripts/regenerate_descriptions.py [OPTIONS]
+    python scripts/pipeline/regenerate_descriptions.py [OPTIONS]
 
 Options:
     --batch              Use OpenAI Batch API (async, cheaper)

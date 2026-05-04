@@ -3,7 +3,7 @@
 ### Step 1: Run the Automated Pipeline (Weekly/Monthly)
 
 ```powershell
-python scripts\automated_pipeline.py
+uv run python scripts\pipeline\automated_pipeline.py
 ```
 
 **What it does:**
@@ -26,7 +26,7 @@ python scripts\automated_pipeline.py
 ### Step 3: Upload to WordPress (After Approval)
 
 ```powershell
-python scripts\wordpress_uploader.py
+uv run python scripts\pipeline\wordpress_uploader.py
 ```
 
 **What it does:**
@@ -93,8 +93,8 @@ To run automatically every Monday at 9 AM:
 2. Create Basic Task → "Community Events Pipeline"
 3. Trigger: Weekly, Monday, 9:00 AM
 4. Action: Start a program
-   - Program: `path\to\EnvisionPerdido\.venvEnvisionPerdido\Scripts\python.exe`
-   - Arguments: `scripts\automated_pipeline.py`
+   - Program: `path\to\EnvisionPerdido\.venv\Scripts\python.exe`
+   - Arguments: `scripts\pipeline\automated_pipeline.py`
    - Start in: `path\to\EnvisionPerdido`
 
 ---
@@ -110,8 +110,8 @@ To run automatically every Monday at 9 AM:
 
 ## File Locations
 
-- **Pipeline Script**: `scripts/automated_pipeline.py`
-- **Uploader Script**: `scripts/wordpress_uploader.py`
+- **Pipeline Script**: `scripts/pipeline/automated_pipeline.py`
+- **Uploader Script**: `scripts/pipeline/wordpress_uploader.py`
 - **ML Model**: `data/artifacts/event_classifier_model.pkl` (96.47% accurate)
 - **Output Files**: `output/pipeline/calendar_upload_*.csv`
 

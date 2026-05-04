@@ -37,7 +37,7 @@ jobs:
           EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
           RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
         run: |
-          python scripts/health_check.py
+          python scripts/pipeline/health_check.py
       
       - name: Notify on failure
         if: failure()

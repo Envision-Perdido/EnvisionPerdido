@@ -1320,7 +1320,7 @@ def main():
         else:
             log("\n" + "=" * 80)
             log("AUTO_UPLOAD disabled - manual upload required")
-            log(f"Use: python scripts/wordpress_uploader.py {calendar_csv}")
+            log(f"Use: python scripts/pipeline/wordpress_uploader.py {calendar_csv}")
             log("=" * 80)
 
         # Final summary with total time

@@ -25,7 +25,7 @@ The scraper:
 
 Just run the pipeline as normal:
 ```powershell
-python scripts/run_pipeline_with_smoketest.py
+uv run python scripts/pipeline/run_pipeline_with_smoketest.py
 ```
 
 Images will be:
@@ -44,10 +44,10 @@ Use your supervisor's approved images instead of scraped images.
 
 ```powershell
 # Initialize image directories
-python scripts/setup_image_mapper.py init
+uv run python scripts/tooling/setup_image_mapper.py init
 
 # Create mapping template from latest events
-python scripts/setup_image_mapper.py create-template
+uv run python scripts/tooling/setup_image_mapper.py create-template
 ```
 
 ### Steps
@@ -69,7 +69,7 @@ Concert 2026,concert_2026.jpg,Event promotion image
 
 **3. Run Pipeline**
 ```powershell
-python scripts/run_pipeline_with_smoketest.py
+uv run python scripts/pipeline/run_pipeline_with_smoketest.py
 ```
 
 The pipeline automatically:
@@ -79,17 +79,17 @@ The pipeline automatically:
 
 **4. Upload to WordPress**
 ```powershell
-python scripts/wordpress_uploader.py output/pipeline/calendar_upload_*.csv
+uv run python scripts/pipeline/wordpress_uploader.py output/pipeline/calendar_upload_*.csv
 ```
 
 ### Check Status
 
 ```powershell
 # See image statistics
-python scripts/setup_image_mapper.py stats
+uv run python scripts/tooling/setup_image_mapper.py stats
 
 # Verify all images exist
-python scripts/setup_image_mapper.py verify
+uv run python scripts/tooling/setup_image_mapper.py verify
 ```
 
 The uploader supports:

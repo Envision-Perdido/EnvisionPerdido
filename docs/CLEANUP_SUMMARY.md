@@ -108,7 +108,7 @@ scripts/
 All references to moved scripts were updated in:
 - `.github/workflows/smoketest.yml` - CI workflow
 - `scripts/run_pipeline_with_smoketest.sh` - Shell wrapper
-- `scripts/run_pipeline_with_smoketest.py` - Python wrapper
+- `scripts/pipeline/run_pipeline_with_smoketest.py` - Smoke-test runner
 - `scripts/run_delete_all_events.sh` - Delete wrapper
 - `docs/COMMANDS.md` - Command reference
 - `docs/LIVE_TESTS.md` - Testing instructions

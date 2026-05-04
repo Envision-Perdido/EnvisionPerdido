@@ -24,13 +24,13 @@ cd path\to\EnvisionPerdido
 uv sync
 
 # Run the pipeline
-uv run python scripts\automated_pipeline.py
+uv run python scripts\pipeline\automated_pipeline.py
 
 # Upload events to WordPress
-uv run python scripts\wordpress_uploader.py
+uv run python scripts\pipeline\wordpress_uploader.py
 
 # Health check
-uv run python scripts\health_check.py
+uv run python scripts\pipeline\health_check.py
 ```
 
 ### Remote Deployment (Linux/macOS via make.com)
@@ -46,14 +46,14 @@ cd EnvisionPerdido
 cp .env.example .env
 nano .env  # Add your WordPress & email credentials
 
-# 3. Verify setup (optional but recommended)
-make verify
+# 3. Sync dependencies
+uv sync
 
 # 4. Test in dry-run mode (safe, no uploads)
-make dry-run
+AUTO_UPLOAD=false uv run python scripts/pipeline/automated_pipeline.py
 
 # 5. Enable full automation (make.com will call this)
-make run-pipeline
+uv run python scripts/pipeline/automated_pipeline.py
 ```
 
 **make.com Configuration Example:**
@@ -63,12 +63,12 @@ make run-pipeline
     ↓
 [SSH Module: Execute command]
     Host: your-server.example.com
-    Command: cd /home/ubuntu/EnvisionPerdido && make dry-run
+    Command: cd /home/ubuntu/EnvisionPerdido && AUTO_UPLOAD=false uv run python scripts/pipeline/automated_pipeline.py
     ↓
 [Conditional: Check exit code = 0]
     ↓
 [SSH Module: Execute command]
-    Command: cd /home/ubuntu/EnvisionPerdido && make run-pipeline
+    Command: cd /home/ubuntu/EnvisionPerdido && uv run python scripts/pipeline/automated_pipeline.py
     ↓
 [Email: Send completion notification]
 ```
@@ -220,13 +220,13 @@ cp .env.example .env
 nano .env
 
 # Install dependencies (creates .venv and syncs from pyproject.toml + uv.lock)
-make setup
+uv sync
 
 # Verify everything is configured correctly
-make verify
+uv run python scripts/pipeline/health_check.py
 ```
 
-Once `make verify` passes, the server is ready for make.com integration.
+Once `uv run python scripts/pipeline/health_check.py` passes, the server is ready for make.com integration.
 
 ### make.com Webhook/Scenario Configuration
 
@@ -243,7 +243,7 @@ In **make.com**, create a scenario with the following modules:
    - **Private Key**: [upload your SSH key]
    - **Command**: 
      ```bash
-     cd /home/ubuntu/EnvisionPerdido && make dry-run
+         cd /home/ubuntu/EnvisionPerdido && AUTO_UPLOAD=false uv run python scripts/pipeline/automated_pipeline.py
      ```
 
 3. **Conditional Check**:
@@ -254,26 +254,25 @@ In **make.com**, create a scenario with the following modules:
    - Same host/credentials as step 2
    - **Command**:
      ```bash
-     cd /home/ubuntu/EnvisionPerdido && make run-pipeline
+         cd /home/ubuntu/EnvisionPerdido && uv run python scripts/pipeline/automated_pipeline.py
      ```
 
 5. **Notification** (Email module):
    - Send completion summary to supervisors
    - Include exit status and logs
 
-### Available make Targets
+### Available Deployment Commands
 
 From the remote server (or via make.com SSH):
 
 ```bash
-make help           # Show all available targets
-make setup          # Create .venv and sync dependencies with uv
-make verify         # Check setup (env, artifacts, packages)
-make test           # Run pytest suite
-make lint           # Run ruff linter
-make dry-run        # Safe test run (AUTO_UPLOAD=false, no uploads)
-make run-pipeline   # Full pipeline with WordPress uploads
-make run-uploader   # Interactive uploader (manual review)
+uv sync
+uv run python scripts/pipeline/health_check.py
+AUTO_UPLOAD=false uv run python scripts/pipeline/automated_pipeline.py
+uv run python scripts/pipeline/automated_pipeline.py
+uv run python -m pytest tests/unit -v --tb=short
+uv run ruff check scripts/
+uv run python scripts/pipeline/wordpress_uploader.py
 ```
 
 ### Monitoring & Logs
@@ -300,7 +299,7 @@ make.com will capture stdout/stderr from SSH commands. Configure email notificat
 
 **Pipeline exits with error:**
 - SSH into server: `cd EnvisionPerdido && tail -50 output/logs/*.log`
-- Run `make verify` to check setup
+- Run `uv run python scripts/pipeline/health_check.py` to check setup
 - Ensure `.env` is filled with valid credentials
 
 **No events scraped/classified:**
@@ -308,5 +307,5 @@ make.com will capture stdout/stderr from SSH commands. Configure email notificat
 - Verify model artifacts exist: `ls -la data/artifacts/`
 - Review full log: `cat output/logs/automated_pipeline_*.log | grep -i error`
 
-For debugging during development, use `make dry-run` to test without uploading to WordPress.
+For debugging during development, use `AUTO_UPLOAD=false uv run python scripts/pipeline/automated_pipeline.py` to test without uploading to WordPress.
 

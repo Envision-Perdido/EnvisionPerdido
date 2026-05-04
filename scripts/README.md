@@ -7,12 +7,12 @@ This directory contains all Python automation scripts for the EnvisionPerdido ca
 ### Main Scripts (Root Level)
 
 **Core Pipeline:**
-- `automated_pipeline.py` - Compatibility wrapper for pipeline orchestrator
-- `Envision_Perdido_DataCollection.py` - Compatibility wrapper for the Perdido Chamber scraper
-- `wren_haven_scraper.py` - Compatibility wrapper for Wren Haven scraper
-- `multi_calendar_scraper.py` - Compatibility wrapper for the multi-source scraper CLI
-- `wordpress_uploader.py` - Compatibility wrapper for WordPress uploader
-- `health_check.py` - Compatibility wrapper for health checks
+- `pipeline/automated_pipeline.py` - Main pipeline orchestrator
+- `scrapers/perdido_chamber_scraper.py` - Perdido Chamber scraper implementation
+- `scrapers/wren_haven_scraper.py` - Wren Haven scraper implementation
+- `scrapers/multi_calendar_scraper.py` - Multi-source scraper CLI implementation
+- `pipeline/wordpress_uploader.py` - WordPress uploader
+- `pipeline/health_check.py` - Health checks
 
 **Utilities:**
 - `logger.py` - Compatibility wrapper for structured logging utilities
@@ -23,19 +23,19 @@ This directory contains all Python automation scripts for the EnvisionPerdido ca
 - `browser_bootstrap.py` - Compatibility wrapper for bootstrap helpers
 
 **Machine Learning:**
-- `svm_train_from_file.py` - Compatibility wrapper for SVM training
-- `svm_tag_events.py` - Compatibility wrapper for SVM tagging
-- `svm_analytics.py` - Compatibility wrapper for SVM analytics graphs + markdown report
-- `auto_label_and_train.py` - Compatibility wrapper for automated training
-- `events_to_labelset.py` - Compatibility wrapper for labelset generation
-- `consolidate_training_data.py` - Compatibility wrapper for dataset consolidation
-- `retrain_end_to_end.py` - Compatibility wrapper for chained retraining + evaluation report
-- `audit_datasets.py` - Compatibility wrapper for dataset audits
-- `modelViewer.py` - Compatibility wrapper for model inspection
+- `ml/svm_train_from_file.py` - SVM training
+- `ml/svm_tag_events.py` - SVM tagging
+- `analytics/svm_analytics.py` - SVM analytics graphs + markdown report
+- `ml/auto_label_and_train.py` - Automated training
+- `ml/events_to_labelset.py` - Labelset generation
+- `ml/consolidate_training_data.py` - Dataset consolidation
+- `ml/retrain_end_to_end.py` - Chained retraining + evaluation report
+- `ml/audit_datasets.py` - Dataset audits
+- `ml/modelViewer.py` - Model inspection
 
 **Setup & Deployment:**
-- `run_pipeline_with_smoketest.py` - Compatibility wrapper with safety checks
-- `setup_image_mapper.py` - Compatibility wrapper for image mapping setup
+- `pipeline/run_pipeline_with_smoketest.py` - Safety checks wrapper
+- `tooling/setup_image_mapper.py` - Image mapping setup
 
 **Shell scripts (compatibility wrappers — originals in subfolders):**
 - `deploy-and-run.sh` → `ops/deploy-and-run.sh`
@@ -62,17 +62,17 @@ This directory contains all Python automation scripts for the EnvisionPerdido ca
 
 Run the main pipeline:
 ```bash
-python scripts/automated_pipeline.py
+python scripts/pipeline/automated_pipeline.py
 ```
 
 Upload events to WordPress:
 ```bash
-python scripts/wordpress_uploader.py
+python scripts/pipeline/wordpress_uploader.py
 ```
 
 Run with safety checks (recommended):
 ```bash
-python scripts/run_pipeline_with_smoketest.py
+python scripts/pipeline/run_pipeline_with_smoketest.py
 ```
 
 Scrape and consolidate multi-source events for labeling:
@@ -82,7 +82,7 @@ python scripts/multi_calendar_scraper.py --config data/community_calendar_source
 
 Run end-to-end retraining with recall-target threshold policy:
 ```bash
-python scripts/retrain_end_to_end.py \
+python scripts/ml/retrain_end_to_end.py \
 	--target-class1-recall 0.92 \
 	--min-class1-precision 0.68 \
 	--review-margin 0.40
@@ -90,7 +90,7 @@ python scripts/retrain_end_to_end.py \
 
 Generate SVM analytics report and graphs:
 ```bash
-python scripts/svm_analytics.py
+python scripts/analytics/svm_analytics.py
 ```
 
 ## 📖 Documentation

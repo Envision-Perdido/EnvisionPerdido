@@ -74,7 +74,7 @@ events_df = enrich_events_dataframe(events_df)  # Add tags, paid/free, venue dat
 kept_df, filtered_df = filter_events_dataframe(events_df)  # Apply filters
 ```
 
-### WordPress Uploader (`scripts/wordpress_uploader.py`)
+### WordPress Uploader (`scripts/pipeline/wordpress_uploader.py`)
 Enhanced `parse_event_metadata()` to include:
 - Normalized location (`normalized_location` → canonical venue name)
 - Venue ID (`venue_id` → custom meta field `_venue_id`)
@@ -198,7 +198,7 @@ Venue(
    - Integrated enrichment in `classify_events()`
    - Added filtering step with logging
 
-2. **`scripts/wordpress_uploader.py`**
+2. **`scripts/pipeline/wordpress_uploader.py`**
    - Enhanced `parse_event_metadata()` for new fields
    - Added `_set_event_tags()` helper
    - Tag handling in `create_event()`

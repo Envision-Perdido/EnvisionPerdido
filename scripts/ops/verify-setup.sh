@@ -34,15 +34,15 @@ fi
 log_info ".env file exists"
 
 # Check virtual environment
-if [ ! -d .venvEnvisionPerdido ]; then
-    log_error "Virtual environment not found at .venvEnvisionPerdido"
-    log_warn "Create with: make setup"
+if [ ! -d .venv ]; then
+    log_error "Virtual environment not found at .venv"
+    log_warn "Create with: uv sync"
     exit 1
 fi
 log_info "Virtual environment exists"
 
 # Activate and check Python
-. .venvEnvisionPerdido/bin/activate
+. .venv/bin/activate
 
 PYTHON_VERSION=$(python --version 2>&1)
 log_info "Python: $PYTHON_VERSION"
@@ -62,7 +62,7 @@ if [ ${#missing_packages[@]} -gt 0 ]; then
     for pkg in "${missing_packages[@]}"; do
         echo "  - $pkg"
     done
-    log_warn "Install with: make install"
+    log_warn "Install with: uv sync"
     exit 1
 fi
 log_info "All required Python packages installed"
@@ -122,5 +122,5 @@ echo ""
 echo "==================================="
 log_info "Setup verification complete!"
 log_info "You can now run:"
-log_info "  make dry-run       # Safe test (no uploads)"
-log_info "  make run-pipeline  # Full automation"
+log_info "  AUTO_UPLOAD=false uv run python scripts/pipeline/automated_pipeline.py  # Safe test (no uploads)"
+log_info "  uv run python scripts/pipeline/automated_pipeline.py                    # Full automation"

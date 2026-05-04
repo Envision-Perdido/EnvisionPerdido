@@ -133,9 +133,9 @@ python scripts\health_check.py
 **Key Components**:
 - **Scraper**: `Envision_Perdido_DataCollection.py`
 - **Model**: `data/artifacts/event_classifier_model.pkl` + `event_vectorizer.pkl`
-- **Pipeline**: `scripts/automated_pipeline.py`
-- **Uploader**: `scripts/wordpress_uploader.py`
-- **Health Check**: `scripts/health_check.py`
+- **Pipeline**: `scripts/pipeline/automated_pipeline.py`
+- **Uploader**: `scripts/pipeline/wordpress_uploader.py`
+- **Health Check**: `scripts/pipeline/health_check.py`
 - **WordPress Plugin**: `plugins/eventon-rest-api-meta.php`
 
 ## Next Steps
