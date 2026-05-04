@@ -507,9 +507,6 @@ class WordPressEventUploader:
         except OSError as e:  # File access errors
             log(f"   Warning: Error uploading image: {e}")
             return None
-        except requests.RequestException as e:  # Network errors
-            log(f"   Warning: Error uploading image: {e}")
-            return None
 
     def create_event(self, event_row: pd.Series, image_column: str = "image_url") -> int | None:
         """Create a single event in WordPress.
@@ -844,11 +841,11 @@ class WordPressEventUploader:
         return published_count
 
 
-def setup_wordpress_credentials() -> dict[str, str]:
+def setup_wordpress_credentials() -> tuple[str, str, str]:
     """Interactive setup for WordPress credentials.
 
     Returns:
-        Dictionary with site_url, username, and app_password.
+        Tuple with site_url, username, and app_password.
     """
     print("\n" + "=" * 80)
     print("WORDPRESS CREDENTIALS SETUP")
