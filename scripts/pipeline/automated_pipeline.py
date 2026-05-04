@@ -27,11 +27,12 @@ from pathlib import Path
 import joblib
 import numpy as np
 import pandas as pd
-from scripts.ml.training_support import compute_confidence, normalize_event_text_series
 
 # Add scripts directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+from scripts.ml.training_support import compute_confidence, normalize_event_text_series
 
 # Load environment variables
 from env_loader import load_env, validate_env_config
