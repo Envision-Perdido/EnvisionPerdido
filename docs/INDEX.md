@@ -23,6 +23,11 @@ Start here if you're new to the project:
 - **[EVENTON_PLUGIN_INSTALL](EVENTON_PLUGIN_INSTALL.md)** - Installing the EventON REST API plugin
 - **[IMAGE_UPLOAD_GUIDE](IMAGE_UPLOAD_GUIDE.md)** - Automatic and manual image handling
 
+##  Remote Handoffs
+
+- **[remote-handoffs/README](remote-handoffs/README.md)** - External handoff bundles and repo-specific implementation notes
+- **[Play Perdido Implementation Plan](remote-handoffs/event-engine-bundle/IMPLEMENTATION_PLAN.md)** - Enforcement plan for the Play Perdido ingest and copy contract
+
 ##  Machine Learning & Classification
 
 - **[SVM_USAGE_GUIDE](SVM_USAGE_GUIDE.md)** - Training and using the classification model
