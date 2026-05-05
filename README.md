@@ -80,12 +80,12 @@ For complete setup instructions, see [Deployment on make.com](#deployment-on-mak
 All detailed documentation is in the `docs/` folder. See **[docs/INDEX.md](docs/INDEX.md)** for a complete navigation guide.
 
 **Quick Links:**
-- **[Quick Start Guide](docs/QUICKSTART.md)** - Get started in 5 minutes
+- **[Quick Start Guide](docs/CROSS_PLATFORM_SETUP.md)** - Get started in 5 minutes
 - **[Project Structure](docs/PROJECT_STRUCTURE.md)** - Folder organization and file locations
 - **[WordPress Integration](docs/WORDPRESS_INTEGRATION_GUIDE.md)** - Calendar upload workflow
 - **[GitHub Secrets Setup](docs/GITHUB_SECRETS.md)** - Required secrets and variables before going public
 - **[Contributing](CONTRIBUTING.md)** - Development workflow and branching strategy
-- **[Critical Issues](CRITICAL_ISSUES.md)** - Known blockers and production issues
+- **[CI/CD Guide](docs/CI_CD_GUIDE.md)** - GitHub Actions workflows, test strategy, and known issues
 
 ## Project Structure
 
@@ -143,7 +143,7 @@ $env:RECIPIENT_EMAIL = "your_email@gmail.com"
 
 ## Next Steps
 
-1. Review [docs/QUICKSTART.md](docs/QUICKSTART.md)
+1. Review [docs/CROSS_PLATFORM_SETUP.md](docs/CROSS_PLATFORM_SETUP.md)
 2. Set up credentials (WordPress + Email)
 3. Test the pipeline
 4. Schedule automation with Task Scheduler

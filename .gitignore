@@ -42,6 +42,21 @@ output/pipeline/*.json
 data/cache/media_hash_cache.json
 data/cache/**/*.html
 
+# Generated ML artifacts (train to regenerate; never commit)
+models/*.pkl
+data/artifacts/*.pkl
+
+# Stock event images (re-downloadable; inflate repo size)
+data/event_images/*.jpg
+data/event_images/*.jpeg
+data/event_images/*.png
+data/event_images/*.webp
+
+# Timestamped intermediate training snapshots (retain only golden labeled dataset)
+data/processed/canonical_labeled_training_*.csv
+data/raw/perdido_events_backup*.csv
+data/raw/perdido_events_sept*.csv
+
 # Pipeline logs (generated at runtime)
 regenerate_descriptions/*.log
 scripts.pipeline.regenerate_descriptions/*.log

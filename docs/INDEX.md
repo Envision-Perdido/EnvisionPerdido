@@ -6,22 +6,20 @@ Start here if you're new to the project:
 
 - **[README](../README.md)** - Project overview and quick setup
 - **[README: Using Codex In This Repo](../README.md)** - Local Codex skills and example prompts for build, setup, upload, health checks, and shell access
-- **[QUICKSTART](QUICKSTART.md)** - Step-by-step guide to run the pipeline
+- **[QUICKSTART](CROSS_PLATFORM_SETUP.md)** - Step-by-step guide to run the pipeline (see CROSS_PLATFORM_SETUP)
 - **[PROJECT_STRUCTURE](PROJECT_STRUCTURE.md)** - Folder organization and file locations
 
 ##  Setup & Configuration
 
 - **[CROSS_PLATFORM_SETUP](CROSS_PLATFORM_SETUP.md)** - Complete setup guide for Windows and macOS
-- **[QUICK_REFERENCE](QUICK_REFERENCE.md)** - TL;DR version of setup instructions
-- **[AUTOMATION_SETUP](AUTOMATION_SETUP.md)** - Scheduling the pipeline with Task Scheduler
-- **[COMMANDS](COMMANDS.md)** - Common commands reference
+- **[COMMANDS](COMMANDS.md)** - Common commands reference (covers quick reference and automation setup)
 - **[GITHUB_SECRETS](GITHUB_SECRETS.md)** - All GitHub secrets and variables required before making the repo public
 
 ##  WordPress Integration
 
 - **[WORDPRESS_INTEGRATION_GUIDE](WORDPRESS_INTEGRATION_GUIDE.md)** - Complete WordPress upload workflow
 - **[EVENTON_PLUGIN_INSTALL](EVENTON_PLUGIN_INSTALL.md)** - Installing the EventON REST API plugin
-- **[IMAGE_UPLOAD_GUIDE](IMAGE_UPLOAD_GUIDE.md)** - Automatic and manual image handling
+- **[IMAGE_UPLOAD_GUIDE](WORDPRESS_INTEGRATION_GUIDE.md#images)** - Automatic and manual image handling (see WORDPRESS_INTEGRATION_GUIDE)
 
 ##  Machine Learning & Classification
 
@@ -29,25 +27,19 @@ Start here if you're new to the project:
 
 ##  Architecture & Implementation
 
-- **[ARCHITECTURE_DIAGRAMS](ARCHITECTURE_DIAGRAMS.md)** - System architecture and data flow diagrams
+- **[ARCHITECTURE_AND_DATAFLOW](ARCHITECTURE_AND_DATAFLOW.md)** - System architecture and data flow diagrams
 - **[SOURCES_INTEGRATION_SUMMARY](SOURCES_INTEGRATION_SUMMARY.md)** - Integration patterns for event sources
-- **[WREN_HAVEN_SETUP](WREN_HAVEN_SETUP.md)** - Wren Haven Homestead integration details
-- **[EVENT_NORMALIZATION_IMPLEMENTATION](EVENT_NORMALIZATION_IMPLEMENTATION.md)** - Event enrichment features
+- **[EVENT_NORMALIZATION_QUICK_REFERENCE](EVENT_NORMALIZATION_QUICK_REFERENCE.md)** - Event enrichment features and normalization
 - **[EVENT_NORMALIZATION_QUICK_REFERENCE](EVENT_NORMALIZATION_QUICK_REFERENCE.md)** - Quick reference for normalization
 
 ##  Testing & CI/CD
 
 - **[CI_CD_GUIDE](CI_CD_GUIDE.md)** - GitHub Actions workflows and automated testing
-- **[LIVE_TESTS](LIVE_TESTS.md)** - Running tests against a real WordPress site
-
-##  Known Issues
-
-- **[CRITICAL_ISSUES](../CRITICAL_ISSUES.md)** - Current blockers and production issues
+- **[LIVE_TESTS](CI_CD_GUIDE.md#live-tests)** - Running tests against a real WordPress site (see CI_CD_GUIDE)
 
 ##  Contributing
 
-- **[CONTRIBUTING](../CONTRIBUTING.md)** - Development workflow and contribution guidelines
-- **[BRANCHING_QUICK_REFERENCE](../BRANCHING_QUICK_REFERENCE.md)** - Git branching strategy
+- **[CONTRIBUTING](CONTRIBUTING.md)** - Development workflow and contribution guidelines (includes branching strategy)
 
 ##  Archive
 

@@ -22,9 +22,16 @@ import sys
 from datetime import UTC, datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from pathlib import Path
 
 import requests
 from requests.auth import HTTPBasicAuth
+
+# Load credentials from platform env files before reading os.getenv()
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from env_loader import load_env  # noqa: E402
+
+load_env()
 
 
 def log(msg: str) -> None:

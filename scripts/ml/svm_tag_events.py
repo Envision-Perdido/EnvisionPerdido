@@ -1,54 +1,25 @@
 #!/usr/bin/env python3
 # scripts/svm_tag_events.py
 import argparse
-import json
 from pathlib import Path
 
 import joblib
 import numpy as np
 import pandas as pd
 
-from scripts.ml.training_support import compute_confidence, normalize_event_text_series
+from scripts.ml.training_support import (
+    build_structured_features,
+    compute_confidence,
+    load_any,
+    normalize_event_text_series,
+)
 
 
-def load_any(p: Path) -> pd.DataFrame:
-    """Load events from CSV or JSON file."""
-    if p.suffix.lower() == ".csv":
-        return pd.read_csv(p)
-    if p.suffix.lower() == ".json":
-        with open(p, encoding="utf-8") as f:
-            data = json.load(f)
-        if isinstance(data, dict) and "events" in data:
-            data = data["events"]
-        return pd.json_normalize(data)
-    raise SystemExit("Input must be .csv or .json")
-
-
-def build_features(df: pd.DataFrame, title_col: str, desc_col: str, start_col: str, loc_col: str):
-    """Build feature matrix matching training format."""
-    text = normalize_event_text_series(df[title_col].fillna("") + " " + df[desc_col].fillna(""))
-    dt = pd.to_datetime(df[start_col], errors="coerce", utc=True)
-    hour = dt.dt.hour.fillna(-1).astype(int)
-    dow = dt.dt.dayofweek.fillna(-1).astype(int)
-    is_weekend = dow.between(5, 6).astype(int)
-
-    loc = df[loc_col].fillna("").str.lower()
-    venue_library = loc.str.contains(r"\blibrary\b").astype(int)
-    venue_park = loc.str.contains(r"\bpark\b").astype(int)
-    venue_church = loc.str.contains(r"\bchurch\b").astype(int)
-    venue_museum = loc.str.contains(r"\bmuseum\b|gallery").astype(int)
-
-    X = pd.DataFrame(
-        {
-            "text": text,
-            "hour": hour,
-            "is_weekend": is_weekend,
-            "venue_library": venue_library,
-            "venue_park": venue_park,
-            "venue_church": venue_church,
-            "venue_museum": venue_museum,
-        }
-    )
+def build_features(
+    df: pd.DataFrame, title_col: str, desc_col: str, start_col: str, loc_col: str
+) -> pd.DataFrame:
+    """Thin wrapper around the canonical structured feature builder."""
+    X, _ = build_structured_features(df, title_col, desc_col, start_col, loc_col)
     return X
 
 
