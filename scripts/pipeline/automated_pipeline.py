@@ -258,17 +258,13 @@ def main() -> None:
         log(f"Step 4 (Filtering) completed in {time.time() - step_start:.1f}s")
         log(f"Found {len(community_events)} community events")
 
-        # ------------------------------------------------------------------
-        # Step 5 · Export
-        # ------------------------------------------------------------------
+        #  Export
         step_start = time.time()
         log("\nStep 5: Exporting events for calendar...")
         calendar_csv = export_stage.export_for_calendar(community_events, format="csv")
         log(f"Step 5 (Export) completed in {time.time() - step_start:.1f}s")
 
-        # ------------------------------------------------------------------
-        # Step 6 · Email review digest
-        # ------------------------------------------------------------------
+        # Email review digest
         step_start = time.time()
         sender = os.getenv("SENDER_EMAIL", "")
         if sender and sender != "your_email@example.com":
@@ -279,9 +275,7 @@ def main() -> None:
             log("Email not configured. Skipping email notification.")
             log(f"Review file manually at: {calendar_csv}")
 
-        # ------------------------------------------------------------------
-        # Step 7 · Upload to WordPress (if enabled)
-        # ------------------------------------------------------------------
+        #  Upload to WordPress (if enabled)
         auto_upload = os.getenv("AUTO_UPLOAD", "true").lower() in {"true", "1", "yes"}
 
         if auto_upload and len(community_events) > 0:
