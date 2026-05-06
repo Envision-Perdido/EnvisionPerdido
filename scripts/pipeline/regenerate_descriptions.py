@@ -9,7 +9,7 @@ Features:
 - Fallback to sync API for immediate results
 
 Usage (standalone):
-    python scripts/regenerate_descriptions.py [OPTIONS]
+    python scripts/pipeline/regenerate_descriptions.py [OPTIONS]
 
 Options:
     --batch              Use OpenAI Batch API (async, cheaper)
@@ -49,8 +49,10 @@ except ImportError:
 
 # Add scripts directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from logger import get_logger
+from scripts.tooling.env_loader import load_env  # noqa: E402
+from scripts.tooling.logger import get_logger
 
+load_env()
 logger = get_logger(__name__)
 
 # Cache configuration

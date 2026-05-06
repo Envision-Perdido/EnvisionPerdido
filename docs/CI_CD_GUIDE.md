@@ -125,7 +125,7 @@ The test suite includes:
 **File:** `.github/workflows/health-check.yml`
 
 ### What it does
-- Runs `scripts/health_check.py` to verify system health
+- Runs `scripts/pipeline/health_check.py` to verify system health
 - Tests WordPress connectivity and authentication
 - Validates email/SMTP configuration
 - Sends alerts on failures
@@ -445,7 +445,7 @@ pytest tests/ -v --tb=short
 3. Verify user has appropriate permissions
 4. Test credentials locally:
    ```bash
-   python scripts/health_check.py
+   python scripts/pipeline/health_check.py
    ```
 
 ### Linting fails with too many errors

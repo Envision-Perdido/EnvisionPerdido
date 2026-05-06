@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # scripts/svm_train_from_file.py
 import argparse
-import json
 import re
 from pathlib import Path
 
@@ -16,22 +15,16 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import LinearSVC
 
-from scripts.ml.training_support import ensure_source_column, normalize_event_text_series
+from scripts.ml.training_support import (
+    build_structured_features,
+    ensure_source_column,
+    load_any,
+    normalize_event_text_series,
+)
 
 BASE_DIR = Path(__file__).parent.parent.parent
 DEFAULT_MODEL_PATH = BASE_DIR / "data" / "artifacts" / "event_classifier_model.pkl"
 
-
-def load_any(p: Path) -> pd.DataFrame:
-    if p.suffix.lower() == ".csv":
-        return pd.read_csv(p)
-    if p.suffix.lower() == ".json":
-        with open(p, encoding="utf-8") as f:
-            data = json.load(f)
-        if isinstance(data, dict) and "events" in data:
-            data = data["events"]
-        return pd.json_normalize(data)
-    raise SystemExit("Input must be .csv or .json")
 
 
 def _norm_url(u: str) -> str:
@@ -64,32 +57,11 @@ def make_series_id(
     return series_id.fillna("")
 
 
-def build_features(df: pd.DataFrame, title_col: str, desc_col: str, start_col: str, loc_col: str):
-    text = normalize_event_text_series(df[title_col].fillna("") + " " + df[desc_col].fillna(""))
-    dt = pd.to_datetime(df[start_col], errors="coerce", utc=True)
-    hour = dt.dt.hour.fillna(-1).astype(int)
-    dow = dt.dt.dayofweek.fillna(-1).astype(int)
-    is_weekend = dow.between(5, 6).astype(int)
-
-    loc = df[loc_col].fillna("").str.lower()
-    venue_library = loc.str.contains(r"\blibrary\b").astype(int)
-    venue_park = loc.str.contains(r"\bpark\b").astype(int)
-    venue_church = loc.str.contains(r"\bchurch\b").astype(int)
-    venue_museum = loc.str.contains(r"\bmuseum\b|gallery").astype(int)
-
-    X = pd.DataFrame(
-        {
-            "text": text,
-            "hour": hour,
-            "is_weekend": is_weekend,
-            "venue_library": venue_library,
-            "venue_park": venue_park,
-            "venue_church": venue_church,
-            "venue_museum": venue_museum,
-        }
-    )
-    num_cols = ["hour", "is_weekend", "venue_library", "venue_park", "venue_church", "venue_museum"]
-    return X, num_cols
+def build_features(
+    df: pd.DataFrame, title_col: str, desc_col: str, start_col: str, loc_col: str
+):
+    """Thin wrapper around the canonical structured feature builder."""
+    return build_structured_features(df, title_col, desc_col, start_col, loc_col)
 
 
 def main():

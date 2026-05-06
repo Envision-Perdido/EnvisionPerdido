@@ -12,7 +12,7 @@ Use this skill when the task is to upload events to WordPress from the repositor
 Run from the repository root:
 
 ```bash
-docker compose run --rm app python scripts/wordpress_uploader.py
+docker compose run --rm app python scripts/pipeline/wordpress_uploader.py
 ```
 
 ## Preconditions

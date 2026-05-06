@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 # Import the logger we'll create
-from scripts.logger import PipelineLogger, PipelineMetrics, get_logger, reset_logger
+from scripts.tooling.logger import PipelineLogger, PipelineMetrics, get_logger, reset_logger
 
 
 class TestPipelineMetrics:

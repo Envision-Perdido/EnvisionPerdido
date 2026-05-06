@@ -10,7 +10,7 @@ This script:
 Works on both Windows and macOS (cross-platform).
 
 Usage:
-  python scripts/run_pipeline_with_smoketest.py
+    python scripts/pipeline/run_pipeline_with_smoketest.py
 
 Environment Variables:
   AUTO_UPLOAD    - Set to "true" to auto-upload (default: "false")

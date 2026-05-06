@@ -3,12 +3,122 @@
 
 from __future__ import annotations
 
+import json
 import re
+from pathlib import Path
 from urllib.parse import urlparse
 
 import numpy as np
 import pandas as pd
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support
+
+
+# ---------------------------------------------------------------------------
+# Shared I/O helpers
+# ---------------------------------------------------------------------------
+
+
+def load_any(p: "Path | str") -> pd.DataFrame:
+    """Load events from a CSV or JSON file into a DataFrame.
+
+    JSON files may be a bare list or a dict with an ``"events"`` key.
+    Nested dicts are flattened via :func:`pandas.json_normalize`.
+    """
+    p = Path(p)
+    if p.suffix.lower() == ".csv":
+        return pd.read_csv(p)
+    if p.suffix.lower() == ".json":
+        with open(p, encoding="utf-8") as f:
+            data = json.load(f)
+        if isinstance(data, dict) and "events" in data:
+            data = data["events"]
+        return pd.json_normalize(data)
+    raise SystemExit("Input must be .csv or .json")
+
+
+# ---------------------------------------------------------------------------
+# Shared feature engineering
+# ---------------------------------------------------------------------------
+
+
+def build_structured_features(
+    df: pd.DataFrame,
+    title_col: str = "title",
+    desc_col: str = "description",
+    start_col: str = "start_date",
+    loc_col: str = "location",
+) -> "tuple[pd.DataFrame, list[str]]":
+    """Build the canonical structured feature matrix used by training and tagging.
+
+    Returns a ``(X, num_cols)`` tuple where *X* is a DataFrame containing a
+    ``"text"`` column plus numeric venue/time features, and *num_cols* lists
+    the names of the numeric columns.  Both training and inference should call
+    this function so that the feature schema never diverges.
+
+    .. note::
+        ``automated_pipeline.py`` currently uses a text-only
+        ``build_features()`` for compatibility with older model checkpoints.
+        New model artifacts should be trained with this function and loaded
+        via the unified pipeline format so the full feature set is used at
+        inference time.
+    """
+    text = normalize_event_text_series(
+        df.get(title_col, pd.Series(dtype=str)).fillna("")
+        + " "
+        + df.get(desc_col, pd.Series(dtype=str)).fillna("")
+    )
+    dt = pd.to_datetime(df.get(start_col, pd.Series(dtype=str)), errors="coerce", utc=True)
+    hour = dt.dt.hour.fillna(-1).astype(int)
+    dow = dt.dt.dayofweek.fillna(-1).astype(int)
+    is_weekend = dow.between(5, 6).astype(int)
+
+    loc = df.get(loc_col, pd.Series(dtype=str)).fillna("").str.lower()
+    venue_library = loc.str.contains(r"\blibrary\b", regex=True).astype(int)
+    venue_park = loc.str.contains(r"\bpark\b", regex=True).astype(int)
+    venue_church = loc.str.contains(r"\bchurch\b", regex=True).astype(int)
+    venue_museum = loc.str.contains(r"\bmuseum\b|gallery", regex=True).astype(int)
+
+    num_cols = ["hour", "is_weekend", "venue_library", "venue_park", "venue_church", "venue_museum"]
+    X = pd.DataFrame(
+        {
+            "text": text,
+            "hour": hour,
+            "is_weekend": is_weekend,
+            "venue_library": venue_library,
+            "venue_park": venue_park,
+            "venue_church": venue_church,
+            "venue_museum": venue_museum,
+        }
+    )
+    return X, num_cols
+
+
+def build_text_features(
+    df: pd.DataFrame,
+    title_col: str = "title",
+    desc_col: str = "description",
+    loc_col: str = "location",
+    cat_col: str = "category",
+) -> list[str]:
+    """Build plain-text feature strings for legacy (non-structured) model formats.
+
+    This is the text-only counterpart of :func:`build_structured_features`.
+    It is used by the pipeline when loading a model artifact that was trained
+    without structured (hour/venue) features, i.e., the legacy separate
+    ``model.pkl + vectorizer.pkl`` format.
+
+    .. note::
+        New model artifacts should be trained with :func:`build_structured_features`
+        so that structured features are available at inference time.
+    """
+    title = df.get(title_col, pd.Series(dtype=str)).fillna("").astype(str)
+    description = df.get(desc_col, pd.Series(dtype=str)).fillna("").astype(str)
+    location = df.get(loc_col, pd.Series(dtype=str)).fillna("").astype(str)
+    category = df.get(cat_col, pd.Series(dtype=str)).fillna("").astype(str)
+    features = normalize_event_text_series(
+        title + " " + description + " " + location + " " + category
+    )
+    return features.tolist()
 
 
 SHORTCUT_STOP_PHRASES: tuple[str, ...] = (

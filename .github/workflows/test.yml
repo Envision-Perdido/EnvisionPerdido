@@ -10,22 +10,25 @@ jobs:
   test:
     name: Run Tests
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
       - name: Set up Python 3.13
         uses: actions/setup-python@v5
         with:
           python-version: '3.13'
-      
+
       - name: Install dependencies
+        run: uv sync
+
+      - name: Run unit + smoke tests
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pytest
-      
-      - name: Run unit tests
-        run: |
-          pytest tests/unit -v --tb=short
+          uv run pytest tests/unit tests/smoke -v --tb=short \
+            -m "not network and not slow and not integration"

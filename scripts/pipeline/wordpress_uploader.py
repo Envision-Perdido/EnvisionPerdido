@@ -22,13 +22,14 @@ from requests.adapters import HTTPAdapter
 from requests.auth import HTTPBasicAuth
 from urllib3.util.retry import Retry
 
-# Add scripts directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# Add project root to path so 'scripts' package is importable regardless of cwd
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 # Load environment variables
-from env_loader import load_env
+from scripts.tooling.env_loader import load_env, validate_env_config
 
 load_env()
+validate_env_config()
 
 # WordPress Configuration
 WORDPRESS_CONFIG = {
@@ -531,9 +532,6 @@ class WordPressEventUploader:
         except OSError as e:  # File access errors
             log(f"   Warning: Error uploading image: {e}")
             return None
-        except requests.RequestException as e:  # Network errors
-            log(f"   Warning: Error uploading image: {e}")
-            return None
 
     def create_event(self, event_row: pd.Series, image_column: str = "image_url") -> int | None:
         """Create a single event in WordPress.
@@ -868,11 +866,11 @@ class WordPressEventUploader:
         return published_count
 
 
-def setup_wordpress_credentials() -> dict[str, str]:
+def setup_wordpress_credentials() -> tuple[str, str, str]:
     """Interactive setup for WordPress credentials.
 
     Returns:
-        Dictionary with site_url, username, and app_password.
+        Tuple with site_url, username, and app_password.
     """
     print("\n" + "=" * 80)
     print("WORDPRESS CREDENTIALS SETUP")

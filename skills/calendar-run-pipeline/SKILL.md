@@ -30,4 +30,4 @@ docker compose run --rm app python scripts/automated_pipeline.py
 ## Notes
 
 - This is the documented Docker entrypoint for the main scrape -> classify -> email -> upload flow.
-- If the user wants a safer wrapper with smoke tests, consider `scripts/run_pipeline_with_smoketest.py`, but the README-documented command is `scripts/automated_pipeline.py`.
+- If the user wants a safer wrapper with smoke tests, consider `scripts/pipeline/run_pipeline_with_smoketest.py`, but the README-documented command is `scripts/pipeline/automated_pipeline.py`.
