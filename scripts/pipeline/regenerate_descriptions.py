@@ -49,8 +49,10 @@ except ImportError:
 
 # Add scripts directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
+from scripts.tooling.env_loader import load_env  # noqa: E402
 from scripts.tooling.logger import get_logger
 
+load_env()
 logger = get_logger(__name__)
 
 # Cache configuration

@@ -25,51 +25,105 @@ build/
 .cache/
 coverage/
 
-# Project-specific: organized structure
-plugins/builds/
-*.zip
-output/logs/
-container-data/
+# ============================================================================
+# PROJECT-SPECIFIC: Credentials & Secrets (NEVER commit!)
+# ============================================================================
 
-# Credentials (NEVER commit these!)
+# Platform-specific environment files (contain passwords)
 scripts/windows/env.ps1
 scripts/macos/env.sh
 ~/.secrets/envision_env.*
-output/pipeline/*.csv
-output/pipeline/*.json
 
-# Runtime cache (generated, not source)
-data/cache/media_hash_cache.json
+# ============================================================================
+# GENERATED ARTIFACTS (Re-generatable; do not commit for size/cleanliness)
+# ============================================================================
+
+# ML models (trained via scripts/ml/; regenerate with training pipeline)
+models/**/*.pkl
+models/**/*.pkl.bak
+data/artifacts/**/*.pkl
+data/artifacts/**/*.pkl.bak
+
+# Vectorizers and other trained components
+data/artifacts/event_vectorizer*
+data/artifacts/*_vectorizer*
+
+# Runtime cache (rebuilt on next run; very large)
+data/cache/
 data/cache/**/*.html
+data/cache/**/*.json
+media_hash_cache.json
 
-# Generated ML artifacts (train to regenerate; never commit)
-models/*.pkl
-data/artifacts/*.pkl
+# Event images (re-downloadable from original sources)
+data/event_images/**/*.jpg
+data/event_images/**/*.jpeg
+data/event_images/**/*.png
+data/event_images/**/*.webp
 
-# Stock event images (re-downloadable; inflate repo size)
-data/event_images/*.jpg
-data/event_images/*.jpeg
-data/event_images/*.png
-data/event_images/*.webp
+# ============================================================================
+# OUTPUT & LOGS (Generated at runtime; do not commit)
+# ============================================================================
 
-# Timestamped intermediate training snapshots (retain only golden labeled dataset)
-data/processed/canonical_labeled_training_*.csv
-data/raw/perdido_events_backup*.csv
-data/raw/perdido_events_sept*.csv
-
-# Pipeline logs (generated at runtime)
-regenerate_descriptions/*.log
-scripts.pipeline.regenerate_descriptions/*.log
+# Pipeline execution artifacts
+output/
+output/logs/**/*.log
+output/logs/**/*.json
+output/pipeline/**/*.csv
+output/pipeline/**/*.json
 output/analytics/
 
-# Ignore ad-hoc debug scripts (contain creds; do not commit)
+# Regeneration/enhancement logs
+regenerate_descriptions/**/*.log
+scripts/pipeline/regenerate_descriptions/**/*.log
+
+# ============================================================================
+# DATA FILES (Source-of-truth or intermediate; selective rules)
+# ============================================================================
+
+# Intermediate/development CSVs (keep only consolidated_events_labeled.csv as source-of-truth)
+data/processed/canonical_labeled_training_*.csv
+data/processed/training_snapshot_*.csv
+data/raw/perdido_events_backup*.csv
+data/raw/perdido_events_sept*.csv
+data/labeled/*_backup.csv
+data/labeled/*_old.csv
+
+# NOTE: data/labeled/consolidated_events_labeled.csv is the source-of-truth
+# and should be committed; other CSVs in this section are intermediates
+
+# ============================================================================
+# PLUGINS & BUILDS
+# ============================================================================
+
+# Plugin builds and distributions
+plugins/builds/
+plugins/**/*.zip
+plugins/**/*.tar.gz
+
+# Container runtime data
+container-data/
+
+# ============================================================================
+# DEBUG & TESTING (Local-only scripts with embedded creds)
+# ============================================================================
+
+# Debug scripts that contain credentials (do not commit)
 check_*.py
 !scripts/dev/check_evcal_srow.py
 compare_events.py
 fix_eventon_metadata.py
+test_wordpress_upload.py
+debug_*.py
 
-# Secrets (local env for automation; do not commit)
-scripts/windows/env.ps1
+# Test fixtures with large data (re-generatable)
+tests/fixtures/**/*.csv
+tests/fixtures/**/*.pkl
+tests/fixtures/**/*.json
 
-# Local virtual environment
+# ============================================================================
+# IDE & LOCAL DEVELOPMENT
+# ============================================================================
+
 .venvEnvisionPerdido/
+.ipynb_checkpoints/
+*.egg-info/
