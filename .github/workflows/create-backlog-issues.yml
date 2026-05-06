@@ -1,0 +1,22 @@
+name: Create Backlog Issues
+
+# Run once manually after enabling repo read/write permissions for GITHUB_TOKEN.
+# Actions > "Create Backlog Issues" > "Run workflow"
+on:
+  workflow_dispatch:
+
+jobs:
+  create-issues:
+    name: Create all 22 backlog issues
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create issues via gh CLI
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/ops/create-backlog-issues.sh
