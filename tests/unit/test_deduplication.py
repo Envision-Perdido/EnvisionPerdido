@@ -36,11 +36,17 @@ class DummySession:
         # Simulate /ajde_events query by UID
         if "/ajde_events" in url and "params" in kwargs:
             params = kwargs["params"]
-            if params.get("meta_key") == "_event_uid":
-                uid = params.get("meta_value")
-                if uid in self.events_by_uid:
-                    # Return existing event
-                    return DummyResponse(200, [{"id": self.events_by_uid[uid]}])
+            uid = params.get("event_uid") or params.get("_event_uid") or params.get("meta_value")
+            if uid and uid in self.events_by_uid:
+                return DummyResponse(
+                    200,
+                    [
+                        {
+                            "id": self.events_by_uid[uid],
+                            "meta": {"_event_uid": uid},
+                        }
+                    ],
+                )
 
         return DummyResponse(200, [])
 

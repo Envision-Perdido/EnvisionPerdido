@@ -143,21 +143,45 @@ class WordPressEventUploader:
         if not uid:
             return None
 
-        try:
-            response = self.session.get(
-                f"{self.api_base}/ajde_events",
-                auth=self.auth,
-                params={
-                    "meta_key": "_event_uid",
-                    "meta_value": uid,
-                    "per_page": 1,
-                },
-            )
+        def _response_uid(event: dict) -> str | None:
+            meta = event.get("meta")
+            if isinstance(meta, dict):
+                response_uid = meta.get("_event_uid")
+                if response_uid:
+                    return str(response_uid)
+            return None
 
-            if response.status_code == 200:
+        try:
+            query_variants = [
+                {"event_uid": uid, "per_page": 1},
+                {"_event_uid": uid, "per_page": 1},
+                {"meta_key": "_event_uid", "meta_value": uid, "per_page": 1},
+            ]
+
+            for params in query_variants:
+                response = self.session.get(
+                    f"{self.api_base}/ajde_events",
+                    auth=self.auth,
+                    params=params,
+                )
+
+                if response.status_code != 200:
+                    continue
+
                 events = response.json()
-                if events and len(events) > 0:
-                    return events[0]["id"]
+                if not events:
+                    continue
+
+                event = events[0]
+                response_uid = _response_uid(event)
+                if response_uid == uid:
+                    return event["id"]
+
+                log(
+                    "Warning: UID lookup returned a mismatched event "
+                    f"(requested={uid}, returned={response_uid}, id={event.get('id')})."
+                )
+                return None
 
             return None
         except requests.RequestException as e:

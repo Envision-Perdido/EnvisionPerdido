@@ -174,6 +174,28 @@ def extract_cost_text(description: str = "") -> str | None:
 # EVENT FILTERING
 # ============================================================================
 
+UNWANTED_FEED_PATTERNS = [
+    ("FILTER_OWA", r"\bowa\b"),
+    ("FILTER_TROPIC_FALLS", r"\btropic\s+falls\b"),
+    ("FILTER_GULF_SHORES", r"\bgulf\s+shores\b"),
+    ("FILTER_ORANGE_BEACH", r"\borange\s+beach\b"),
+    ("FILTER_ONECLUB", r"\boneclub\b"),
+    ("FILTER_GULF_STATE_PARK", r"\bgulf\s+state\s+park\b"),
+    ("FILTER_RIBBON_CUTTING", r"\bribbon[\s-]*cutting\b"),
+    ("FILTER_BAR45", r"\bbar45\b"),
+    ("FILTER_BROWN_BAG_LUNCH", r"\bbrown\s+bag\s+lunch\b"),
+    ("FILTER_LUNCH_SERIES", r"\blunch\s+series\b"),
+    ("FILTER_SANDERS_BEACH", r"\bsanders\s+beach\b"),
+    ("FILTER_EVERMAN_COOP", r"\bever'?man\s+coop\b"),
+    ("FILTER_NOTEBOOKLM", r"\bnotebooklm\b"),
+    ("FILTER_SMALL_BUSINESS", r"\bsmall\s+business\b"),
+    ("FILTER_VIRTUAL_EVENT", r"\bvirtual\s+event\b"),
+    ("FILTER_NETWORKING", r"\bnetworking\b"),
+    ("FILTER_MONTHLY_MEETING", r"\bmonthly\s+meeting\b"),
+    ("FILTER_BOARD_OF_DIRECTORS", r"\bboard\s+of\s+directors\b"),
+    ("FILTER_COMMITTEE", r"\bcommittee\b"),
+]
+
 
 def should_filter_brandon_styles_owa(
     title: str = "", location: str = "", description: str = ""
@@ -213,6 +235,20 @@ def should_filter_brandon_styles_owa(
     return False
 
 
+def get_unwanted_feed_filter_reason(
+    title: str = "", location: str = "", description: str = ""
+) -> str | None:
+    """Return the first configured unwanted-feed filter reason that matches."""
+    combined_text = " ".join([title or "", location or "", description or ""])
+    text_lower = combined_text.lower()
+
+    for reason, pattern in UNWANTED_FEED_PATTERNS:
+        if re.search(pattern, text_lower):
+            return reason
+
+    return None
+
+
 def get_filter_reason(title: str = "", location: str = "", description: str = "") -> str | None:
     """
     Get filter reason if event should be filtered.
@@ -222,6 +258,10 @@ def get_filter_reason(title: str = "", location: str = "", description: str = ""
     """
     if should_filter_brandon_styles_owa(title, location, description):
         return "FILTER_BRANDON_STYLES_OWA_AL"
+
+    unwanted_reason = get_unwanted_feed_filter_reason(title, location, description)
+    if unwanted_reason:
+        return unwanted_reason
 
     return None
 

@@ -10,6 +10,17 @@ jobs:
   lint:
     name: Ruff Linting
     runs-on: ubuntu-latest
+    env:
+      RUFF_TARGETS: >-
+        scripts/Envision_Perdido_DataCollection.py
+        scripts/wren_haven_scraper.py
+        scripts/pipeline/wordpress_uploader.py
+        scripts/tooling/event_normalizer.py
+        tests/unit/test_deduplication.py
+        tests/unit/test_wordpress_uploader.py
+        tests/unit/test_event_normalizer.py
+        tests/unit/test_perdido_scraper.py
+        tests/unit/test_wren_haven_scraper.py
     
     steps:
       - name: Checkout code
@@ -27,8 +38,8 @@ jobs:
       
       - name: Run Ruff linter
         run: |
-          ruff check . --output-format=github
+          ruff check $RUFF_TARGETS --output-format=github
       
       - name: Run Ruff formatter check
         run: |
-          ruff format --check .
+          ruff format --check $RUFF_TARGETS

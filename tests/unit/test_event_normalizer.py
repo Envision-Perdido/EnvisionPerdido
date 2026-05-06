@@ -13,6 +13,7 @@ from scripts.event_normalizer import (
     enrich_event,
     extract_cost_text,
     get_filter_reason,
+    get_unwanted_feed_filter_reason,
     should_filter_brandon_styles_owa,
 )
 
@@ -167,6 +168,101 @@ class TestBrandonStylesFilter(unittest.TestCase):
         """Test filter reason is returned."""
         reason = get_filter_reason(title="Brandon Styles", location="OWA, Foley, AL")
         self.assertEqual(reason, "FILTER_BRANDON_STYLES_OWA_AL")
+
+
+class TestUnwantedFeedFilters(unittest.TestCase):
+    """Test deterministic unwanted-feed exclusion rules."""
+
+    def test_filter_owa_keyword(self):
+        """Test OWA events are filtered by keyword."""
+        reason = get_unwanted_feed_filter_reason(
+            title="Summer Concert Series",
+            location="OWA Parks, Foley, AL",
+        )
+        self.assertEqual(reason, "FILTER_OWA")
+
+    def test_filter_ribbon_cutting_variants(self):
+        """Test ribbon cutting matches both spaced and hyphenated forms."""
+        spaced = get_unwanted_feed_filter_reason(title="Ribbon Cutting - New Business")
+        hyphenated = get_unwanted_feed_filter_reason(title="Ribbon-cutting Celebration")
+        self.assertEqual(spaced, "FILTER_RIBBON_CUTTING")
+        self.assertEqual(hyphenated, "FILTER_RIBBON_CUTTING")
+
+    def test_filter_gulf_shores_keyword(self):
+        """Test Gulf Shores events are filtered by keyword."""
+        reason = get_unwanted_feed_filter_reason(
+            title="Community Mixer",
+            location="Gulf Shores, AL",
+        )
+        self.assertEqual(reason, "FILTER_GULF_SHORES")
+
+    def test_filter_networking_keyword(self):
+        """Test networking events are filtered by keyword."""
+        reason = get_unwanted_feed_filter_reason(
+            title="Spring Networking Breakfast",
+            description="Meet local professionals and grow your business.",
+        )
+        self.assertEqual(reason, "FILTER_NETWORKING")
+
+    def test_filter_lunch_series_keyword(self):
+        """Test lunch series events are filtered by keyword."""
+        reason = get_unwanted_feed_filter_reason(
+            title="LeadHer Lunch Series - May 2026",
+            description="Monthly lunch series for business leaders.",
+        )
+        self.assertEqual(reason, "FILTER_LUNCH_SERIES")
+
+    def test_filter_sanders_beach_keyword(self):
+        """Test Sanders Beach events are filtered by keyword."""
+        reason = get_unwanted_feed_filter_reason(
+            title="Sunset Social",
+            location="Sanders Beach Community Center",
+        )
+        self.assertEqual(reason, "FILTER_SANDERS_BEACH")
+
+    def test_filter_everman_coop_keyword(self):
+        """Test Ever'man Coop events are filtered by keyword."""
+        reason = get_unwanted_feed_filter_reason(
+            title="Ever'man Coop Cooking Demo",
+        )
+        self.assertEqual(reason, "FILTER_EVERMAN_COOP")
+
+    def test_filter_notebooklm_keyword(self):
+        """Test NotebookLM events are filtered by keyword."""
+        reason = get_unwanted_feed_filter_reason(
+            title="NotebookLM for Beginners",
+            description="Hands-on AI note research workshop.",
+        )
+        self.assertEqual(reason, "FILTER_NOTEBOOKLM")
+
+    def test_filter_monthly_meeting_keyword(self):
+        """Test monthly meeting events are filtered by keyword."""
+        reason = get_unwanted_feed_filter_reason(
+            title="Monthly Meeting - Civic Association",
+        )
+        self.assertEqual(reason, "FILTER_MONTHLY_MEETING")
+
+    def test_filter_board_of_directors_keyword(self):
+        """Test board of directors events are filtered by keyword."""
+        reason = get_unwanted_feed_filter_reason(
+            title="Board of Directors Retreat",
+            description="Quarterly board planning session.",
+        )
+        self.assertEqual(reason, "FILTER_BOARD_OF_DIRECTORS")
+
+    def test_filter_reason_integrates_unwanted_keywords(self):
+        """Test generic filter reason returns unwanted-feed filter reason."""
+        reason = get_filter_reason(title="Virtual Event for Small Business Owners")
+        self.assertEqual(reason, "FILTER_SMALL_BUSINESS")
+
+    def test_nonmatching_event_not_filtered(self):
+        """Test events without configured keywords are not filtered."""
+        reason = get_unwanted_feed_filter_reason(
+            title="Sunset Cleanup at Perdido Key",
+            location="Flora-Bama",
+            description="Join neighbors for a beach cleanup.",
+        )
+        self.assertIsNone(reason)
 
 
 class TestCostTextExtraction(unittest.TestCase):
