@@ -20,6 +20,7 @@ Start here if you're new to the project:
 ##  WordPress Integration
 
 - **[WORDPRESS_INTEGRATION_GUIDE](WORDPRESS_INTEGRATION_GUIDE.md)** - Complete WordPress upload workflow
+- **[WORDPRESS_EVENT_API_SPEC](WORDPRESS_EVENT_API_SPEC.md)** - Exact EventON create payload and field mapping used by the uploader
 - **[EVENTON_PLUGIN_INSTALL](EVENTON_PLUGIN_INSTALL.md)** - Installing the EventON REST API plugin
 - **[IMAGE_UPLOAD_GUIDE](IMAGE_UPLOAD_GUIDE.md)** - Automatic and manual image handling
 
