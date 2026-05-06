@@ -19,8 +19,3 @@ if __name__ == "__main__":
     import runpy
 
     runpy.run_module("scripts.tooling.logger", run_name="__main__")
-
-if __name__ == "__main__":
-    import runpy
-
-    runpy.run_module("scripts.tooling.logger", run_name="__main__")

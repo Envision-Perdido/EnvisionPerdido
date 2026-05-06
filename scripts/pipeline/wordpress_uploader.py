@@ -26,7 +26,7 @@ from urllib3.util.retry import Retry
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Load environment variables
-from env_loader import load_env, validate_env_config
+from scripts.tooling.env_loader import load_env, validate_env_config
 
 load_env()
 validate_env_config()

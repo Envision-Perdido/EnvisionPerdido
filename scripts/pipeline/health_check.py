@@ -29,7 +29,7 @@ from requests.auth import HTTPBasicAuth
 
 # Load credentials from platform env files before reading os.getenv()
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from env_loader import load_env  # noqa: E402
+from scripts.tooling.env_loader import load_env  # noqa: E402
 
 load_env()
 

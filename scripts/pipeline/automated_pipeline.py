@@ -36,7 +36,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 # Environment loading
 # ---------------------------------------------------------------------------
 
-from env_loader import load_env, validate_env_config  # noqa: E402
+from scripts.tooling.env_loader import load_env, validate_env_config  # noqa: E402
 
 load_env()
 
@@ -44,7 +44,7 @@ load_env()
 # Logger / metrics
 # ---------------------------------------------------------------------------
 
-from logger import PipelineMetrics, get_logger  # noqa: E402
+from scripts.tooling.logger import PipelineMetrics, get_logger  # noqa: E402
 from scripts.ml.training_support import build_text_features, normalize_event_text_series  # noqa: E402
 
 # ---------------------------------------------------------------------------

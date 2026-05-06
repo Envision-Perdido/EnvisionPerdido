@@ -30,14 +30,14 @@ def export_for_calendar(
     Returns:
         Path to the output file, or ``None`` on error / unsupported format.
     """
-    logger.info("Exporting %d events (format=%s)...", len(community_events_df), format)
+    logger.info(f"Exporting {len(community_events_df)} events (format={format})...")
 
     image_count = int(
         community_events_df.get("image_url", pd.Series())
         .apply(lambda x: pd.notna(x))
         .sum()
     )
-    logger.info("Events with images: %d/%d", image_count, len(community_events_df))
+    logger.info(f"Events with images: {image_count}/{len(community_events_df)}")
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     df = community_events_df.copy()
@@ -45,18 +45,18 @@ def export_for_calendar(
     if format == "csv":
         path = OUTPUT_DIR / f"calendar_upload_{timestamp}.csv"
         df.to_csv(path, index=False)
-        logger.info("CSV export saved to %s", path)
+        logger.info(f"CSV export saved to {path}")
         return path
 
     if format == "json":
         path = OUTPUT_DIR / f"calendar_upload_{timestamp}.json"
         df.to_json(path, orient="records", indent=2)
-        logger.info("JSON export saved to %s", path)
+        logger.info(f"JSON export saved to {path}")
         return path
 
     if format == "ical":
         logger.warning("iCal export is not yet implemented.")
         return None
 
-    logger.error("Unsupported export format: %s", format)
+    logger.error(f"Unsupported export format: {format}")
     return None

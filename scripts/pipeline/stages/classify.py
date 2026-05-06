@@ -88,21 +88,20 @@ def _apply_threshold_policy() -> None:
 
 
 def _log_model_config() -> None:
+    path = _MODEL_CACHE.get("model_path", MODEL_PATH)
+    fmt = _MODEL_CACHE.get("model_format", "unknown")
+    size_kb = _MODEL_CACHE.get("model_size_kb", 0.0)
+    modified = _MODEL_CACHE.get("model_modified", "unknown")
+    logger.info(f"Active model: path={path}  format={fmt}  size_kb={size_kb:.1f}  modified={modified}")
+
+    persisted = float(_MODEL_CACHE.get("persisted_decision_threshold", MODEL_DECISION_THRESHOLD))
+    active = float(_MODEL_CACHE.get("decision_threshold", MODEL_DECISION_THRESHOLD))
+    source = _MODEL_CACHE.get("decision_threshold_source", "unknown")
+    margin = float(_MODEL_CACHE.get("review_margin", REVIEW_MARGIN))
+    conf_thresh = float(_MODEL_CACHE.get("confidence_threshold", CONFIDENCE_THRESHOLD))
     logger.info(
-        "Active model: path=%s  format=%s  size_kb=%.1f  modified=%s",
-        _MODEL_CACHE.get("model_path", MODEL_PATH),
-        _MODEL_CACHE.get("model_format", "unknown"),
-        _MODEL_CACHE.get("model_size_kb", 0.0),
-        _MODEL_CACHE.get("model_modified", "unknown"),
-    )
-    logger.info(
-        "Threshold policy: persisted=%.4f  active=%.4f  source=%s  "
-        "review_margin=%.4f  confidence_threshold=%.4f",
-        float(_MODEL_CACHE.get("persisted_decision_threshold", MODEL_DECISION_THRESHOLD)),
-        float(_MODEL_CACHE.get("decision_threshold", MODEL_DECISION_THRESHOLD)),
-        _MODEL_CACHE.get("decision_threshold_source", "unknown"),
-        float(_MODEL_CACHE.get("review_margin", REVIEW_MARGIN)),
-        float(_MODEL_CACHE.get("confidence_threshold", CONFIDENCE_THRESHOLD)),
+        f"Threshold policy: persisted={persisted:.4f}  active={active:.4f}  source={source}  "
+        f"review_margin={margin:.4f}  confidence_threshold={conf_thresh:.4f}"
     )
 
 
@@ -275,7 +274,7 @@ def classify_events_batch(
         all_confidences[i:end] = batch_conf
 
         if verbose and (i + batch_size) % (batch_size * 5) == 0:
-            logger.info("  Progress: %d/%d events classified", min(i + batch_size, n), n)
+            logger.info(f"  Progress: {min(i + batch_size, n)}/{n} events classified")
 
     if return_decision_scores:
         return all_predictions, all_confidences, all_decision_scores
@@ -306,11 +305,8 @@ def classify_events(events_df: pd.DataFrame) -> pd.DataFrame | None:
     confidence_threshold = float(_MODEL_CACHE.get("confidence_threshold", CONFIDENCE_THRESHOLD))
 
     logger.info(
-        "Classifying %d events — threshold=%.4f  review_margin=%.4f  conf_threshold=%.4f",
-        len(events_df),
-        decision_threshold,
-        review_margin,
-        confidence_threshold,
+        f"Classifying {len(events_df)} events — threshold={decision_threshold:.4f}  "
+        f"review_margin={review_margin:.4f}  conf_threshold={confidence_threshold:.4f}"
     )
 
     predictions, confidence, decision_scores = classify_events_batch(
@@ -335,12 +331,8 @@ def classify_events(events_df: pd.DataFrame) -> pd.DataFrame | None:
     zero_preds = (decision_scores >= 0.0).astype(int)
     flips = int(np.count_nonzero(predictions != zero_preds))
     logger.info(
-        "Classification complete: %d community / %d non-community  "
-        "threshold_flips=%d  needs_review=%d",
-        community_count,
-        len(events_df) - community_count,
-        flips,
-        int(events_df["needs_review"].sum()),
+        f"Classification complete: {community_count} community / {len(events_df) - community_count} "
+        f"non-community  threshold_flips={flips}  needs_review={int(events_df['needs_review'].sum())}"
     )
 
     return events_df

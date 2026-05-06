@@ -37,14 +37,12 @@ def enrich_and_filter(
 
     kept_df, filtered_df = event_normalizer.filter_events_dataframe(enriched)
     if len(filtered_df) > 0:
-        logger.info("Filtered out %d events:", len(filtered_df))
+        logger.info(f"Filtered out {len(filtered_df)} events:")
         for _, event in filtered_df.iterrows():
-            logger.info(
-                "  FILTERED: %s at %s — %s",
-                event.get("title", "Unknown"),
-                event.get("location", "Unknown"),
-                event.get("filter_reason", "Unknown"),
-            )
+            title = event.get("title", "Unknown")
+            location = event.get("location", "Unknown")
+            reason = event.get("filter_reason", "Unknown")
+            logger.info(f"  FILTERED: {title} at {location} — {reason}")
 
     return kept_df, filtered_df
 
@@ -64,7 +62,7 @@ def assign_event_images(events_df: pd.DataFrame) -> pd.DataFrame:
         Same DataFrame with ``image_url`` column added.
     """
     if not IMAGE_CONFIG_PATH.exists():
-        logger.warning("Image config not found (%s); skipping image assignment.", IMAGE_CONFIG_PATH)
+        logger.warning(f"Image config not found ({IMAGE_CONFIG_PATH}); skipping image assignment.")
         events_df = events_df.copy()
         events_df["image_url"] = None
         return events_df
@@ -76,7 +74,7 @@ def assign_event_images(events_df: pd.DataFrame) -> pd.DataFrame:
     min_threshold = config.get("config", {}).get("min_score_threshold", 0)
 
     if not images_config:
-        logger.warning("No images configured in %s; skipping.", IMAGE_CONFIG_PATH)
+        logger.warning(f"No images configured in {IMAGE_CONFIG_PATH}; skipping.")
         events_df = events_df.copy()
         events_df["image_url"] = None
         return events_df
@@ -114,9 +112,5 @@ def assign_event_images(events_df: pd.DataFrame) -> pd.DataFrame:
     events_df = events_df.copy()
     events_df["image_url"] = assigned
     assigned_count = sum(1 for img in assigned if img is not None)
-    logger.info(
-        "Image assignment complete: %d/%d events assigned images.",
-        assigned_count,
-        len(events_df),
-    )
+    logger.info(f"Image assignment complete: {assigned_count}/{len(events_df)} events assigned images.")
     return events_df

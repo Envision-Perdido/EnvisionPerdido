@@ -23,7 +23,7 @@ from requests.auth import HTTPBasicAuth
 
 # Add scripts directory to path and load environment
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from env_loader import load_env
+from scripts.tooling.env_loader import load_env
 
 load_env()
 
