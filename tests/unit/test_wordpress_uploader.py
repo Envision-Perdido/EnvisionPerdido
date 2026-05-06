@@ -36,11 +36,13 @@ class DummySession:
     def get(self, url, timeout=30, auth=None, params=None):
         self.get_calls.append(url)
         # For UID queries, return empty (no duplicates found)
-        if params and params.get("meta_key") == "_event_uid":
+        if url.endswith("/ajde_events") and params:
             return DummyResponse(200, [])
         # For media search queries, return empty (no existing media by default)
         if url.endswith("/media") and params and "search" in params:
             return DummyResponse(200, [])
+        if "/media/" in url:
+            return DummyResponse(200, {"source_url": "https://example.org/image.jpg"})
         return DummyResponse(200, {"name": "Test Location"})
 
 
