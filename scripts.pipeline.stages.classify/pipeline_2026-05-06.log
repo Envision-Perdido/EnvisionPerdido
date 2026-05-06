@@ -82,3 +82,63 @@
 {"timestamp": "2026-05-06T05:52:51.986107", "level": "INFO", "message": "\n================================================================================", "logger": "EnvisionPerdido", "taskName": null}
 {"timestamp": "2026-05-06T05:52:51.986192", "level": "INFO", "message": "[PASS]PASS] ALL PIPELINE STAGES COMPLETED SUCCESSFULLY", "logger": "EnvisionPerdido", "taskName": null}
 {"timestamp": "2026-05-06T05:52:51.986273", "level": "INFO", "message": "================================================================================", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-06T06:25:34.619956", "level": "INFO", "message": "================================================================================", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-06T06:25:34.620311", "level": "INFO", "message": "END-TO-END PIPELINE STAGE TEST", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-06T06:25:34.620466", "level": "INFO", "message": "================================================================================", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-06T06:25:34.621305", "level": "INFO", "message": "[OK] Created test DataFrame with 3 events", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-06T06:25:34.621463", "level": "INFO", "message": "\n--- Stage 1: Classify ---", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-06T06:25:34.621595", "level": "INFO", "message": "Loading trained model...", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-06T06:25:34.701537", "level": "INFO", "message": "Loaded unified pipeline bundle model.", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-06T06:25:34.701796", "level": "INFO", "message": "Active model: path=C:\\Users\\Jacob\\EnvisionPerdido\\data\\artifacts\\event_classifier_model.pkl  format=unified_pipeline_bundle  size_kb=38.0  modified=2026-04-01 15:17:56", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-06T06:25:34.705275", "level": "INFO", "message": "Threshold policy: persisted=-0.5890  active=-0.5890  source=model_artifact  review_margin=0.4000  confidence_threshold=0.7500", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-06T06:25:34.705459", "level": "INFO", "message": "Classifying 3 events \u2014 threshold=-0.5890  review_margin=0.4000  conf_threshold=0.7500", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-06T06:25:34.719532", "level": "INFO", "message": "Classification complete: 3 community / 0 non-community  threshold_flips=3  needs_review=3", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-06T06:25:34.719768", "level": "INFO", "message": "[OK] Classified 3 events", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-06T06:25:34.720155", "level": "INFO", "message": "  Community: 3, Non-community: 0", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-06T06:25:34.720291", "level": "INFO", "message": "\n--- Stage 2b: Enrich & Filter ---", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-06T06:25:34.721685", "level": "INFO", "message": "Enriching events with tags, paid/free status, and venue information...", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-06T06:25:34.733089", "level": "INFO", "message": "Enrichment complete.", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-06T06:25:34.734506", "level": "INFO", "message": "[OK] Kept: 3, Filtered: 0", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-06T06:25:34.737006", "level": "INFO", "message": "Image assignment complete: 3/3 events assigned images.", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-06T06:25:34.737194", "level": "INFO", "message": "[OK] Image assignment complete", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-06T06:25:34.737622", "level": "INFO", "message": "[OK] 3 community events", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-06T06:25:34.737759", "level": "INFO", "message": "\n--- Stage 3: Export ---", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-06T06:25:34.737875", "level": "INFO", "message": "Exporting 3 events (format=csv)...", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-06T06:25:34.738209", "level": "INFO", "message": "Events with images: 3/3", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-06T06:25:34.743319", "level": "INFO", "message": "CSV export saved to C:\\Users\\Jacob\\EnvisionPerdido\\output\\pipeline\\calendar_upload_20260506_062534.csv", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-06T06:25:34.743670", "level": "INFO", "message": "[OK] Exported to C:\\Users\\Jacob\\EnvisionPerdido\\output\\pipeline\\calendar_upload_20260506_062534.csv", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-06T06:25:34.743988", "level": "INFO", "message": "\n--- Stage 4: Notify (simulated) ---", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-06T06:25:34.744453", "level": "INFO", "message": "[OK] Email would contain: {'total_events': 3, 'community_events': 3, 'non_community_events': 0, 'needs_review': 3}", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-06T06:25:34.744664", "level": "INFO", "message": "\n================================================================================", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-06T06:25:34.744863", "level": "INFO", "message": "[PASS]PASS] ALL PIPELINE STAGES COMPLETED SUCCESSFULLY", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-06T06:25:34.745102", "level": "INFO", "message": "================================================================================", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-06T06:27:54.176731", "level": "INFO", "message": "================================================================================", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-06T06:27:54.177126", "level": "INFO", "message": "END-TO-END PIPELINE STAGE TEST", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-06T06:27:54.177285", "level": "INFO", "message": "================================================================================", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-06T06:27:54.178125", "level": "INFO", "message": "[OK] Created test DataFrame with 3 events", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-06T06:27:54.178277", "level": "INFO", "message": "\n--- Stage 1: Classify ---", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-06T06:27:54.178407", "level": "INFO", "message": "Loading trained model...", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-06T06:27:54.256311", "level": "INFO", "message": "Loaded unified pipeline bundle model.", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-06T06:27:54.256529", "level": "INFO", "message": "Active model: path=C:\\Users\\Jacob\\EnvisionPerdido\\data\\artifacts\\event_classifier_model.pkl  format=unified_pipeline_bundle  size_kb=38.0  modified=2026-04-01 15:17:56", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-06T06:27:54.256865", "level": "INFO", "message": "Threshold policy: persisted=-0.5890  active=-0.5890  source=model_artifact  review_margin=0.4000  confidence_threshold=0.7500", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-06T06:27:54.257015", "level": "INFO", "message": "Classifying 3 events \u2014 threshold=-0.5890  review_margin=0.4000  conf_threshold=0.7500", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-06T06:27:54.269501", "level": "INFO", "message": "Classification complete: 3 community / 0 non-community  threshold_flips=3  needs_review=3", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-06T06:27:54.269730", "level": "INFO", "message": "[OK] Classified 3 events", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-06T06:27:54.270089", "level": "INFO", "message": "  Community: 3, Non-community: 0", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-06T06:27:54.270226", "level": "INFO", "message": "\n--- Stage 2b: Enrich & Filter ---", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-06T06:27:54.271553", "level": "INFO", "message": "Enriching events with tags, paid/free status, and venue information...", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-06T06:27:54.282660", "level": "INFO", "message": "Enrichment complete.", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-06T06:27:54.284896", "level": "INFO", "message": "[OK] Kept: 3, Filtered: 0", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-06T06:27:54.288912", "level": "INFO", "message": "Image assignment complete: 3/3 events assigned images.", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-06T06:27:54.289196", "level": "INFO", "message": "[OK] Image assignment complete", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-06T06:27:54.289889", "level": "INFO", "message": "[OK] 3 community events", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-06T06:27:54.290160", "level": "INFO", "message": "\n--- Stage 3: Export ---", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-06T06:27:54.290284", "level": "INFO", "message": "Exporting 3 events (format=csv)...", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-06T06:27:54.290737", "level": "INFO", "message": "Events with images: 3/3", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-06T06:27:54.296980", "level": "INFO", "message": "CSV export saved to C:\\Users\\Jacob\\EnvisionPerdido\\output\\pipeline\\calendar_upload_20260506_062754.csv", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-06T06:27:54.297327", "level": "INFO", "message": "[OK] Exported to C:\\Users\\Jacob\\EnvisionPerdido\\output\\pipeline\\calendar_upload_20260506_062754.csv", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-06T06:27:54.297646", "level": "INFO", "message": "\n--- Stage 4: Notify (simulated) ---", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-06T06:27:54.297992", "level": "INFO", "message": "[OK] Email would contain: {'total_events': 3, 'community_events': 3, 'non_community_events': 0, 'needs_review': 3}", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-06T06:27:54.298120", "level": "INFO", "message": "\n================================================================================", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-06T06:27:54.298230", "level": "INFO", "message": "[PASS]PASS] ALL PIPELINE STAGES COMPLETED SUCCESSFULLY", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-06T06:27:54.298340", "level": "INFO", "message": "================================================================================", "logger": "EnvisionPerdido", "taskName": null}

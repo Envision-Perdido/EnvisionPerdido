@@ -193,17 +193,17 @@ def _send(subject: str, html: str, cfg: dict, attachment: Path | None = None) ->
                 )
                 msg.attach(part)
         except OSError as exc:
-            logger.warning("Could not attach %s: %s", attachment, exc)
+            logger.warning(f"Could not attach {attachment}: {exc}")
 
     try:
         with smtplib.SMTP(cfg["smtp_server"], cfg["smtp_port"]) as server:
             server.starttls()
             server.login(cfg["sender_email"], cfg["sender_password"])
             server.send_message(msg)
-        logger.info("Email sent to %s.", cfg["recipient_email"])
+        logger.info(f"Email sent to {cfg['recipient_email']}.")
         return True
     except smtplib.SMTPException as exc:
-        logger.error("Failed to send email: %s", exc)
+        logger.error(f"Failed to send email: {exc}")
         return False
 
 

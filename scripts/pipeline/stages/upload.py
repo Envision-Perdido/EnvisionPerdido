@@ -33,21 +33,21 @@ def upload_to_wordpress(csv_path: Path) -> tuple[list | None, int | None]:
         logger.error("WordPress credentials not configured (WP_USERNAME / WP_APP_PASSWORD).")
         return None, None
 
-    logger.info("Connecting to WordPress at %s...", site_url)
+    logger.info(f"Connecting to WordPress at {site_url}...")
     uploader = WordPressEventUploader(site_url, username, app_password)
 
     if not uploader.test_connection():
         logger.error("WordPress connection failed.")
         return None, None
 
-    logger.info("Uploading events from %s...", csv_path)
+    logger.info(f"Uploading events from {csv_path}...")
     created_ids = uploader.upload_events_from_csv(csv_path, dry_run=False)
 
     if not created_ids:
         logger.info("No events were uploaded.")
         return [], 0
 
-    logger.info("Publishing %d events...", len(created_ids))
+    logger.info(f"Publishing {len(created_ids)} events...")
     published = uploader.publish_events(created_ids)
 
     return created_ids, published

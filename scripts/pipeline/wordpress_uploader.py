@@ -22,8 +22,8 @@ from requests.adapters import HTTPAdapter
 from requests.auth import HTTPBasicAuth
 from urllib3.util.retry import Retry
 
-# Add scripts directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# Add project root to path so 'scripts' package is importable regardless of cwd
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 # Load environment variables
 from scripts.tooling.env_loader import load_env, validate_env_config

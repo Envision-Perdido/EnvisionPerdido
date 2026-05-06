@@ -226,7 +226,7 @@ def main() -> None:
                 metrics.add_enhanced(changed_count)
             except Exception as exc:
                 log(f"Warning: Description enhancement failed: {exc}")
-                pipeline_logger.warning("OpenAI enhancement error: %s", exc)
+                pipeline_logger.warning(f"OpenAI enhancement error: {exc}")
         else:
             log("[SKIP] Step 3 (Enhancement): no OPENAI_API_KEY or module unavailable")
 
@@ -316,7 +316,7 @@ def main() -> None:
     except Exception as exc:
         log(f"CRITICAL ERROR: {exc}")
         metrics.add_error(str(exc))
-        pipeline_logger.error("Pipeline failed: %s", exc)
+        pipeline_logger.error(f"Pipeline failed: {exc}")
         pipeline_logger.info(metrics.get_summary())
         import traceback
 
