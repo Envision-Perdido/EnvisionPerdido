@@ -17,12 +17,27 @@ WrenHavenScraperError = _impl.WrenHavenScraperError
 
 # Re-export private helpers that are used by the unit tests. Star import does
 # not bring underscore-prefixed names into this compatibility wrapper.
-_fetch_events_html = _impl._fetch_events_html
-_load_cached_html = _impl._load_cached_html
-_parse_events_from_html = _impl._parse_events_from_html
-_save_cached_html = _impl._save_cached_html
-
 normalize_event = _impl.normalize_event
+
+
+def _fetch_events_html(force_refresh: bool = False) -> str:
+    """Compatibility wrapper for the implementation helper."""
+    return _impl._fetch_events_html(force_refresh=force_refresh)
+
+
+def _load_cached_html(force_refresh: bool = False) -> str | None:
+    """Compatibility wrapper for the implementation helper."""
+    return _impl._load_cached_html(force_refresh=force_refresh)
+
+
+def _parse_events_from_html(html: str) -> list[dict[str, Any]]:
+    """Compatibility wrapper for the implementation helper."""
+    return _impl._parse_events_from_html(html)
+
+
+def _save_cached_html(html: str) -> None:
+    """Compatibility wrapper for the implementation helper."""
+    _impl._save_cached_html(html)
 
 
 def scrape_wren_haven(

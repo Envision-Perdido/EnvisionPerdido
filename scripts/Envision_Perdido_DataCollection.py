@@ -38,8 +38,11 @@ def get_ics_url_from_event(event_url: str) -> str | None:
         resp = sess.head(new_format_url, timeout=15, allow_redirects=True)
         if resp.status_code == 200:
             return new_format_url
-    except requests.RequestException:
-        pass
+    except requests.RequestException as exc:
+        print(
+            f"HEAD check failed for new ICS format URL {new_format_url}: {exc}. "
+            "Trying fallback URL format."
+        )
 
     old_format_url = urljoin(BASE, f"/events/ical/{event_slug}.ics")
     try:
@@ -47,8 +50,11 @@ def get_ics_url_from_event(event_url: str) -> str | None:
         resp = sess.head(old_format_url, timeout=15, allow_redirects=True)
         if resp.status_code == 200:
             return old_format_url
-    except requests.RequestException:
-        pass
+    except requests.RequestException as exc:
+        print(
+            f"HEAD check failed for old ICS format URL {old_format_url}: {exc}. "
+            "Falling back to event page parsing."
+        )
 
     time.sleep(0.1)
     response = sess.get(event_url, timeout=30)
