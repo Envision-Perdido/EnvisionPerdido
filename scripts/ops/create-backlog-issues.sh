@@ -18,6 +18,9 @@
 set -euo pipefail
 
 REPO="Envision-Perdido/EnvisionPerdido"
+# Override these with env vars or the workflow_dispatch inputs if needed.
+PROJECT_NUMBER="${PROJECT_NUMBER:-1}"       # org project board number
+PROJECT_OWNER="${PROJECT_OWNER:-Envision-Perdido}"  # org that owns the project
 
 # ── 1. Ensure required labels exist ──────────────────────────────────────────
 
@@ -51,11 +54,18 @@ new_issue() {
   local title="$1" labels="$2" body="$3"
   echo ""
   echo "--> $title"
-  gh issue create \
+  local url
+  url=$(gh issue create \
     --repo "$REPO" \
     --title "$title" \
     --label "$labels" \
-    --body "$body"
+    --body "$body")
+  echo "    Created: $url"
+  gh project item-add "$PROJECT_NUMBER" \
+    --owner "$PROJECT_OWNER" \
+    --url "$url" \
+    && echo "    Added to project board" \
+    || echo "    WARNING: Could not add to project board (check PROJECT_PAT has 'project' scope)"
 }
 
 # ── 3. P0 issues ─────────────────────────────────────────────────────────────
@@ -399,11 +409,6 @@ new_issue \
 
 # ── 7. Done ───────────────────────────────────────────────────────────────────
 echo ""
-echo "==> All issues created."
-echo ""
-echo "Next steps:"
-echo "  1. Add issues to the project board:"
-echo "     gh project item-add 1 --owner Envision-Perdido --url <issue-url>"
-echo "  2. Or bulk-add via the GitHub Projects UI:"
-echo "     https://github.com/orgs/Envision-Perdido/projects/1"
+echo "==> All issues created and added to the project board."
+echo "    View board: https://github.com/orgs/Envision-Perdido/projects/${PROJECT_NUMBER}"
 echo ""
