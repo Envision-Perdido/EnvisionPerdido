@@ -25,6 +25,7 @@ dependencies = [
     "yellowbrick",
     "eli5",
     "setuptools",
+    "icalendar>=7.1.0",
 ]
 
 [dependency-groups]
