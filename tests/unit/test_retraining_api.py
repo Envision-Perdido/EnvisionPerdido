@@ -6,7 +6,7 @@ import io
 import json
 from pathlib import Path
 
-from scripts.pipeline.api_retraining import create_app
+from scripts.pipeline.api_retraining import _bundle_to_training_csv, create_app
 
 
 def _bundle_bytes(events: list[dict]) -> bytes:
@@ -162,3 +162,31 @@ def test_api_key_guard(monkeypatch, tmp_path):
         headers={"Authorization": "Bearer secret-key"},
     )
     assert allowed.status_code == 202
+
+
+def test_bundle_conversion_populates_series_id(monkeypatch, tmp_path):
+    _configure_temp_data_dirs(monkeypatch, tmp_path)
+
+    raw = {
+        "events": [
+            {
+                "event_id": "evt-series-1",
+                "title": "Beach Cleanup",
+                "actual_label": "community",
+                "predicted_label": "community",
+                "uid": "",
+                "series_id": "",
+            }
+        ]
+    }
+    bundle = tmp_path / "bundle.json"
+    bundle.write_text(json.dumps(raw), encoding="utf-8")
+
+    csv_path, count = _bundle_to_training_csv(bundle, "job-series-test")
+
+    assert count == 1
+    import pandas as pd
+
+    df = pd.read_csv(csv_path)
+    assert df.loc[0, "uid"] == "evt-series-1"
+    assert df.loc[0, "series_id"] == "evt-series-1"

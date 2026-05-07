@@ -132,6 +132,13 @@ def _bundle_to_training_csv(bundle_path: Path, job_id: str) -> tuple[Path, int]:
     if "event_id" in labeled.columns and (labeled["uid"] == "").all():
         labeled["uid"] = labeled["event_id"].astype(str)
 
+    # svm_train_from_file may run with --propagate-series-labels and expects
+    # non-empty series_id groups; empty/NaN values can erase labels in transform.
+    labeled["uid"] = labeled["uid"].fillna("").astype(str)
+    labeled["series_id"] = labeled["series_id"].fillna("").astype(str)
+    empty_series = labeled["series_id"].eq("")
+    labeled.loc[empty_series, "series_id"] = labeled.loc[empty_series, "uid"]
+
     labeled["label_source"] = labeled["label_source"].replace("", "manual_or_previous")
     labeled = ensure_source_column(labeled)
 
@@ -162,11 +169,21 @@ def _run_retrain_job(job_id: str, csv_input: Path) -> None:
     ]
 
     try:
+        env = os.environ.copy()
+        existing_pythonpath = env.get("PYTHONPATH", "")
+        base_path = str(BASE_DIR)
+        env["PYTHONPATH"] = (
+            f"{base_path}{os.pathsep}{existing_pythonpath}"
+            if existing_pythonpath
+            else base_path
+        )
+
         completed = subprocess.run(
             cmd,
             cwd=BASE_DIR,
             capture_output=True,
             text=True,
+            env=env,
         )
 
         if completed.returncode != 0:
