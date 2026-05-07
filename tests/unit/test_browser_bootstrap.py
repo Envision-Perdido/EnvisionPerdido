@@ -119,8 +119,7 @@ class TestCacheSaveLoad:
     def test_invalid_json_cache_returns_none(self, tmp_path):
         cache_key = _get_cache_key(_SOURCE, _DOMAIN)
         cache_file = tmp_path / f"{cache_key}.json"
-        cache_file.write_text("not valid json{{{{")
-
+        cache_file.write_text("{this is not valid json")
         with patch("scripts.tooling.browser_bootstrap._get_cache_dir", return_value=tmp_path):
             result = _load_cached_artifacts(_SOURCE, _DOMAIN)
 

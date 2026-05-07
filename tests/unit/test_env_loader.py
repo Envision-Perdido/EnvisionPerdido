@@ -153,10 +153,10 @@ class TestLoadEnv:
                 # The file has "from_file", but os.environ should win
                 assert loaded["EXISTING_VAR"] == "from_file"
 
-                # Simulate the load_env application logic
+                # Simulate the load_env application logic using monkeypatch for safe cleanup
                 for key, val in loaded.items():
                     if key not in os.environ:
-                        os.environ[key] = val
+                        monkeypatch.setenv(key, val)
 
                 assert os.environ["EXISTING_VAR"] == "already_set"
 
@@ -169,10 +169,9 @@ class TestLoadEnv:
 
         for key, val in loaded.items():
             if key not in os.environ:
-                os.environ[key] = val
+                monkeypatch.setenv(key, val)
 
         assert os.environ.get("BRAND_NEW_VAR") == "injected"
-        monkeypatch.delenv("BRAND_NEW_VAR", raising=False)
 
     def test_load_env_returns_false_when_no_file_found(self, monkeypatch):
         # Patch platform and ensure no env files exist
