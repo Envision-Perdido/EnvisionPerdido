@@ -18,11 +18,13 @@ Start here if you're new to the project:
 
 - **[WORDPRESS_INTEGRATION_GUIDE](WORDPRESS_INTEGRATION_GUIDE.md)** - Complete WordPress upload workflow
 - **[WORDPRESS_EVENT_API_SPEC](WORDPRESS_EVENT_API_SPEC.md)** - Exact EventON create payload and field mapping used by the uploader
+- **[PLAY_PERDIDO_API_POSTING_GUIDE](PLAY_PERDIDO_API_POSTING_GUIDE.md)** - How to post through the API while staying compliant with the Play Perdido contract
 - **[EVENTON_PLUGIN_INSTALL](EVENTON_PLUGIN_INSTALL.md)** - Installing the EventON REST API plugin
 - **[IMAGE_UPLOAD_GUIDE](WORDPRESS_INTEGRATION_GUIDE.md#images)** - Automatic and manual image handling (see WORDPRESS_INTEGRATION_GUIDE)
 
 ##  Remote Handoffs
 
+- **[EXTERNAL_EVENT_HANDOFF_EXPORT_SPEC](EXTERNAL_EVENT_HANDOFF_EXPORT_SPEC.md)** - Exact JSON bundle emitted by this repo for the external handoff workflow
 - **[remote-handoffs/README](remote-handoffs/README.md)** - External handoff bundles and repo-specific implementation notes
 - **[Play Perdido Implementation Plan](remote-handoffs/event-engine-bundle/IMPLEMENTATION_PLAN.md)** - Enforcement plan for the Play Perdido ingest and copy contract
 

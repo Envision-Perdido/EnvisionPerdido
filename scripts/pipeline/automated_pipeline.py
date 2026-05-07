@@ -65,7 +65,6 @@ from scripts.pipeline.stages import enrich as enrich_stage  # noqa: E402
 from scripts.pipeline.stages import export as export_stage  # noqa: E402
 from scripts.pipeline.stages import notify as notify_stage  # noqa: E402
 from scripts.pipeline.stages import scrape as scrape_stage  # noqa: E402
-from scripts.pipeline.stages import upload as upload_stage  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Shared constants
@@ -110,6 +109,233 @@ def log(message: str) -> None:
 # ---------------------------------------------------------------------------
 # Orchestrator
 # ---------------------------------------------------------------------------
+
+
+def _scrape_single_source(source: str, url: str | None) -> tuple[list[dict], str | None]:
+    """Scrape a single source (runs in thread pool for parallelization).
+
+    Args:
+        source: Source name ('perdido' or 'wren_haven')
+        url: URL to scrape (None for wren_haven)
+
+    Returns:
+        Tuple of (events_list, error_message)
+    """
+    try:
+        if source == "perdido":
+            events = Envision_Perdido_DataCollection.scrape_month(url)
+            return events, None
+        elif source == "wren_haven":
+            try:
+                from scripts import wren_haven_scraper
+
+                events = wren_haven_scraper.scrape_wren_haven()
+                return events, None
+            except ImportError as e:
+                return [], f"wren_haven_scraper not available (Playwright not installed?): {e}"
+        return [], f"Unknown source: {source}"
+    except Exception as e:
+        error_msg = f"Error scraping {source}: {e}"
+        return [], error_msg
+
+
+def assign_event_images(events_df: pd.DataFrame) -> pd.DataFrame:
+    """Assign images to events based on weighted keyword scoring.
+
+    Uses vectorized text operations and pre-processed keyword data for
+    efficient scoring. Assigns the highest-scoring image to each event.
+
+    Args:
+        events_df: DataFrame with event data.
+
+    Returns:
+        DataFrame with 'image_url' column added (absolute path or None).
+    """
+    if not IMAGE_CONFIG_PATH.exists():
+        log("Warning: Image config not found, skipping image assignment")
+        events_df["image_url"] = None
+        return events_df
+
+    log("Assigning images based on keyword scoring...")
+
+    # Load image keyword configuration
+    with open(IMAGE_CONFIG_PATH) as f:
+        config = json.load(f)
+
+    images_config = config.get("images", {})
+    min_threshold = config.get("config", {}).get("min_score_threshold", 0)
+
+    if not images_config:
+        log("Warning: No images configured, skipping image assignment")
+        events_df["image_url"] = None
+        return events_df
+
+    # Pre-process image configurations: create list of (image_file, keywords_list, weights_list)
+    image_specs = []
+    for image_file, image_data in images_config.items():
+        keywords = image_data.get("keywords", {})
+        if keywords:
+            image_specs.append((image_file, list(keywords.keys()), list(keywords.values())))
+
+    # Build event text once for all comparisons using vectorized operations
+    event_text = (
+        events_df.get("title", pd.Series()).fillna("").astype(str).str.lower()
+        + " "
+        + events_df.get("description", pd.Series()).fillna("").astype(str).str.lower()
+        + " "
+        + events_df.get("location", pd.Series()).fillna("").astype(str).str.lower()
+        + " "
+        + events_df.get("category", pd.Series()).fillna("").astype(str).str.lower()
+    )
+
+    # Score all images for all events at once
+    assigned_images = []
+    for idx, text in enumerate(event_text):
+        best_image = None
+        best_score = -1
+
+        # Score each image
+        for image_file, keywords, weights in image_specs:
+            score = sum(
+                weight for keyword, weight in zip(keywords, weights) if keyword.lower() in text
+            )
+
+            if score > best_score:
+                best_score = score
+                best_image = image_file
+
+        # Apply threshold
+        if best_score >= min_threshold and best_score > 0:
+            image_path = os.path.abspath(os.path.join(IMAGES_DIR, best_image))
+            assigned_images.append(image_path)
+        else:
+            assigned_images.append(None)
+
+    events_df["image_url"] = assigned_images
+
+    # Report statistics
+    assigned_count = sum(1 for img in assigned_images if img is not None)
+    log(f"Image assignment complete: {assigned_count}/{len(events_df)} events assigned images")
+
+    return events_df
+
+
+def classify_events(events_df: pd.DataFrame) -> pd.DataFrame | None:
+    """Classify events using trained SVM model.
+
+    Uses cached model loading and batch processing for efficiency.
+    Adds confidence scores and review flags.
+
+    Args:
+        events_df: DataFrame with event data.
+
+    Returns:
+        DataFrame with classification columns added, or None on error.
+    """
+    log("Loading trained model...")
+
+    model, vectorizer = load_model_and_vectorizer()
+    if model is None or vectorizer is None:
+        return None
+
+    _log_active_model_configuration()
+
+    decision_threshold = float(_MODEL_CACHE.get("decision_threshold", MODEL_DECISION_THRESHOLD))
+    review_margin = float(_MODEL_CACHE.get("review_margin", REVIEW_MARGIN))
+    confidence_threshold = float(_MODEL_CACHE.get("confidence_threshold", CONFIDENCE_THRESHOLD))
+
+    log(f"Classifying {len(events_df)} events (using batch processing)...")
+    log(
+        "Using threshold policy: "
+        f"decision_threshold={decision_threshold:.4f}, "
+        f"review_margin={review_margin:.4f}, "
+        f"confidence_threshold={confidence_threshold:.4f}"
+    )
+
+    # Use batch classification for better memory efficiency
+    predictions, confidence, decision_scores = classify_events_batch(
+        events_df,
+        model,
+        vectorizer,
+        batch_size=500,
+        verbose=True,
+        decision_threshold=decision_threshold,
+        return_decision_scores=True,
+    )
+
+    events_df["is_community_event"] = predictions
+    events_df["confidence"] = confidence
+    events_df["decision_score"] = decision_scores
+
+    # Review policy:
+    # 1) low model confidence, OR
+    # 2) close to decision threshold (borderline class assignment)
+    low_confidence = events_df["confidence"] < confidence_threshold
+    near_threshold = (events_df["decision_score"] - decision_threshold).abs() < review_margin
+    events_df["needs_review"] = low_confidence | near_threshold
+
+    community_count = predictions.sum()
+    zero_threshold_predictions = (decision_scores >= 0.0).astype(int)
+    zero_threshold_community_count = int(zero_threshold_predictions.sum())
+    threshold_flips = int(np.count_nonzero(predictions != zero_threshold_predictions))
+    log(
+        f"Classification complete: {community_count} community events, {len(events_df) - community_count} non-community events"
+    )
+    log(
+        "Decision score distribution: "
+        f"min={float(events_df['decision_score'].min()):.4f}, "
+        f"max={float(events_df['decision_score'].max()):.4f}, "
+        f"mean={float(events_df['decision_score'].mean()):.4f}"
+    )
+    log(
+        "Threshold comparison: "
+        f"active_threshold={decision_threshold:.4f} -> "
+        f"{community_count} community / {len(events_df) - community_count} non-community; "
+        "zero_threshold=0.0000 -> "
+        f"{zero_threshold_community_count} community / {len(events_df) - zero_threshold_community_count} non-community; "
+        f"flips_due_to_threshold={threshold_flips}"
+    )
+
+    # Show confidence distribution for diagnostic purposes
+    confidence_stats = {
+        "mean": events_df["confidence"].mean(),
+        "median": events_df["confidence"].median(),
+        "min": events_df["confidence"].min(),
+        "max": events_df["confidence"].max(),
+        "std": events_df["confidence"].std(),
+    }
+    needs_review_count = events_df["needs_review"].sum()
+    log(
+        f"Confidence distribution: mean={confidence_stats['mean']:.3f}, "
+        f"median={confidence_stats['median']:.3f}, std={confidence_stats['std']:.3f}"
+    )
+    log(
+        f"Events flagged for review (confidence < {confidence_threshold:.2f} OR near threshold ±{review_margin:.2f}): "
+        f"{needs_review_count}/{len(events_df)} "
+        f"({100 * needs_review_count / len(events_df):.1f}%)"
+    )
+
+    # Enrich events with tags, paid/free status, venue resolution
+    log("Enriching events with tags, paid/free status, and venue information...")
+    events_df = event_normalizer.enrich_events_dataframe(events_df)
+    log("Enrichment complete. Added tags, event types, and venue data.")
+
+    # Apply filters (Brandon Styles @ OWA, etc.)
+    kept_df, filtered_df = event_normalizer.filter_events_dataframe(events_df)
+    if len(filtered_df) > 0:
+        log(f"Filtered out {len(filtered_df)} events:")
+        for _, event in filtered_df.iterrows():
+            log(
+                f"  - FILTERED: {event.get('title', 'Unknown')} at {event.get('location', 'Unknown')} - Reason: {event.get('filter_reason', 'Unknown')}"
+            )
+
+    # Continue with kept events only
+    events_df = kept_df
+
+    # Assign images based on keyword scoring
+    events_df = assign_event_images(events_df)
+
+    return events_df
 
 
 def main() -> None:
@@ -263,8 +489,8 @@ def main() -> None:
 
         #  Export
         step_start = time.time()
-        log("\nStep 5: Exporting events for calendar...")
-        calendar_csv = export_stage.export_for_calendar(community_events, format="csv")
+        log("\nStep 5: Exporting external event handoff bundle...")
+        handoff_bundle = export_stage.export_external_handoff(community_events)
         log(f"Step 5 (Export) completed in {time.time() - step_start:.1f}s")
 
         # Email review digest
@@ -272,39 +498,17 @@ def main() -> None:
         sender = os.getenv("SENDER_EMAIL", "")
         if sender and sender != "your_email@example.com":
             log("\nStep 6: Sending email notification...")
-            notify_stage.send_review_email(community_events, classified_df, calendar_csv)
+            notify_stage.send_review_email(community_events, classified_df, handoff_bundle)
             log(f"Step 6 (Email) completed in {time.time() - step_start:.1f}s")
         else:
             log("Email not configured. Skipping email notification.")
-            log(f"Review file manually at: {calendar_csv}")
+            log(f"Review handoff bundle manually at: {handoff_bundle}")
 
-        #  Upload to WordPress (if enabled)
-        auto_upload = os.getenv("AUTO_UPLOAD", "true").lower() in {"true", "1", "yes"}
-
-        if auto_upload and len(community_events) > 0:
-            step_start = time.time()
-            log("\n" + "=" * 80)
-            log("Step 7: AUTO-UPLOAD ENABLED — Uploading to WordPress...")
-            log("=" * 80)
-
-            created_ids, published_count = upload_stage.upload_to_wordpress(calendar_csv)
-            log(f"Step 7 (Upload) completed in {time.time() - step_start:.1f}s")
-
-            if created_ids and published_count:
-                log(f"Successfully published {published_count} events to calendar")
-                metrics.add_uploaded(published_count)
-                notify_stage.send_upload_confirmation(community_events, created_ids, published_count)
-            elif created_ids is not None:
-                log("Upload completed but some events may not have published")
-                metrics.add_uploaded(len(created_ids))
-            else:
-                log("Upload failed — check WordPress credentials and connection")
-                metrics.add_error("WordPress upload failed")
-        else:
-            log("\n" + "=" * 80)
-            log("AUTO_UPLOAD disabled — manual upload required")
-            log(f"Use: uv run python scripts/pipeline/wordpress_uploader.py {calendar_csv}")
-            log("=" * 80)
+        log("\n" + "=" * 80)
+        log("Step 7: External handoff export complete")
+        log("Direct WordPress upload is intentionally skipped in this workflow.")
+        log(f"Use bundle: {handoff_bundle}")
+        log("=" * 80)
 
         # ------------------------------------------------------------------
         # Final summary
@@ -328,4 +532,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

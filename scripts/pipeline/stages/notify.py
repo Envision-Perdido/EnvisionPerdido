@@ -1,4 +1,4 @@
-"""Stage 4 — Email notification (review digest and upload confirmation)."""
+"""Stage 4 — Email notification for review digest and upload confirmation."""
 
 from __future__ import annotations
 
@@ -93,15 +93,15 @@ def generate_review_html(
     <div class="stat-item"><div class="stat-number">{stats["non_community_events"]}</div><div>Non-Community</div></div>
     <div class="stat-item"><div class="stat-number">{stats["needs_review"]}</div><div>Need Review</div></div>
   </div>
-  <h2>Community Events for Calendar Upload</h2>
+  <h2>Community Events for External Handoff</h2>
   <table>
     <thead><tr><th>Title</th><th>Date</th><th>Location</th><th>Confidence</th><th>Status</th></tr></thead>
     <tbody>{"".join(rows)}</tbody>
   </table>
   <h2>Next Steps</h2>
   <p>1. Review the events above, especially those flagged for review.</p>
-  <p>2. Download the attached CSV for detailed information.</p>
-  <p>3. Once approved, use the upload script to publish events to the calendar.</p>
+  <p>2. Download the attached handoff bundle for detailed source information.</p>
+  <p>3. Route the bundle through the external importer/editorial workflow before publish.</p>
   <p style="margin-top:30px;color:#7f8c8d;font-size:12px;">
     Automated email from the Community Event Classification System.
   </p>
@@ -215,9 +215,9 @@ def _send(subject: str, html: str, cfg: dict, attachment: Path | None = None) ->
 def send_review_email(
     community_events_df: pd.DataFrame,
     all_events_df: pd.DataFrame,
-    csv_path: Path,
+    export_path: Path,
 ) -> bool:
-    """Send the classification-review digest email with a CSV attachment."""
+    """Send the classification-review digest email with a handoff attachment."""
     logger.info("Preparing review email...")
     cfg = _email_config()
     stats = {
@@ -228,7 +228,7 @@ def send_review_email(
     }
     html = generate_review_html(community_events_df, stats)
     subject = f"Community Event Review - {stats['community_events']} Events Found"
-    return _send(subject, html, cfg, attachment=csv_path)
+    return _send(subject, html, cfg, attachment=export_path)
 
 
 def send_upload_confirmation(

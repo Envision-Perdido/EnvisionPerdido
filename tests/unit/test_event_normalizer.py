@@ -88,6 +88,25 @@ class TestPaidFreeDetection(unittest.TestCase):
         self.assertFalse(is_free)
         self.assertEqual(status, PaidStatus.PAID)
 
+    def test_drink_special_not_paid_admission(self):
+        """Test promotional drink pricing does not imply paid admission."""
+        is_free, status, event_type = detect_paid_or_free(
+            description="Join us after the run for $1 off pints and good vibes."
+        )
+        self.assertIsNone(is_free)
+        self.assertEqual(status, PaidStatus.UNKNOWN)
+        self.assertEqual(event_type, EventType.EVENT)
+
+    def test_explicit_cost_field_still_counts_as_paid(self):
+        """Test an explicit source cost field remains a strong paid signal."""
+        is_free, status, event_type = detect_paid_or_free(
+            description="Family fun for everyone.",
+            cost_text="$25 per person",
+        )
+        self.assertFalse(is_free)
+        self.assertEqual(status, PaidStatus.PAID)
+        self.assertEqual(event_type, EventType.PAID_EVENT)
+
     def test_free_with_rsvp(self):
         """Test 'free with RSVP' as free."""
         is_free, status, event_type = detect_paid_or_free(description="Free with RSVP by Friday")
@@ -219,6 +238,13 @@ class TestUnwantedFeedFilters(unittest.TestCase):
             location="Sanders Beach Community Center",
         )
         self.assertEqual(reason, "FILTER_SANDERS_BEACH")
+
+    def test_filter_frisky_mermaid_keyword(self):
+        """Test Frisky Mermaid events are filtered by keyword."""
+        reason = get_unwanted_feed_filter_reason(
+            title="Frisky Mermaid Live Music Night",
+        )
+        self.assertEqual(reason, "FILTER_FRISKY_MERMAID")
 
     def test_filter_everman_coop_keyword(self):
         """Test Ever'man Coop events are filtered by keyword."""

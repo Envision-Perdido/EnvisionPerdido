@@ -34,14 +34,26 @@ class EventType(Enum):
 # PAID/FREE DETECTION
 # ============================================================================
 
-# Price patterns to detect
+# Price patterns to detect only when they indicate actual admission or participation cost.
 PRICE_PATTERNS = [
-    r"\$\d+(?:\.\d{2})?",  # $10, $10.00
-    r"\d+(?:\.\d{2})?\s*(?:dollar|usd)",  # 10 dollars, 10.00 USD
     r"(?:pre-?sale|presale)",  # pre-sale, presale
-    r"(?:vip|ticket|admission).*(?:required|cost|price|fee|available|purchase)",
-    r"(?:cover|charge).*\$",
-    r"\$.*(?:ticket|admission|entry)",
+    r"(?:ticket|tickets|admission|registration|entry|cover|fee|fees|price|pricing|purchase|vip)\b",
+]
+
+# Direct paid-admission patterns.
+PAID_ADMISSION_PATTERNS = [
+    r"\b(?:tickets?|admission|registration|entry|cover|fee|fees)\b.{0,40}\$\d+(?:\.\d{2})?",
+    r"\$\d+(?:\.\d{2})?.{0,40}\b(?:tickets?|admission|registration|entry|cover|fee|fees)\b",
+    r"\b(?:ticket|tickets|admission|registration|entry)\s+(?:required|available|on sale)\b",
+    r"\bvip\s+tickets?\b",
+    r"\bpaid\s+admission\b",
+]
+
+# Price-like patterns that are usually promotions, not admission cost.
+PROMOTIONAL_PRICE_PATTERNS = [
+    r"\$\d+(?:\.\d{2})?.{0,30}\boff\b",
+    r"\$\d+(?:\.\d{2})?.{0,30}\b(?:pints?|beers?|drinks?|cocktails?|apps?|appetizers?|specials?)\b",
+    r"\b(?:drink|food|menu|happy\s+hour|specials?)\b.{0,30}\$\d+(?:\.\d{2})?",
 ]
 
 # Free indicators
@@ -96,6 +108,8 @@ def detect_paid_or_free(
     Returns:
         Tuple of (is_free: bool, paid_status: PaidStatus, event_type: EventType)
     """
+    explicit_cost_text = clean_text_for_price_detection(cost_text)
+
     # Combine all text for analysis
     text_parts = []
     if title:
@@ -115,8 +129,29 @@ def detect_paid_or_free(
     # Check for free indicators FIRST (higher priority)
     free_found = any(re.search(pattern, cleaned_text, re.IGNORECASE) for pattern in FREE_PATTERNS)
 
-    # Check for price indicators
-    paid_found = any(re.search(pattern, cleaned_text, re.IGNORECASE) for pattern in PRICE_PATTERNS)
+    promotional_price_found = any(
+        re.search(pattern, cleaned_text, re.IGNORECASE) for pattern in PROMOTIONAL_PRICE_PATTERNS
+    )
+
+    explicit_cost_has_price = bool(
+        explicit_cost_text
+        and re.search(
+            r"\$\d+(?:\.\d{2})?|\b\d+(?:\.\d{2})?\s*(?:dollar|usd)\b",
+            explicit_cost_text,
+            re.IGNORECASE,
+        )
+    )
+
+    paid_found = any(
+        re.search(pattern, cleaned_text, re.IGNORECASE) for pattern in PAID_ADMISSION_PATTERNS
+    )
+
+    if explicit_cost_has_price:
+        paid_found = True
+
+    keyword_paid_found = any(
+        re.search(pattern, cleaned_text, re.IGNORECASE) for pattern in PRICE_PATTERNS
+    )
 
     # Special case: $0 or $0.00 should be treated as FREE
     if re.search(r"\$0(?:\.00)?\b", cleaned_text):
@@ -138,6 +173,10 @@ def detect_paid_or_free(
         # Otherwise, if there's a price, treat as paid
         return False, PaidStatus.PAID, EventType.PAID_EVENT
     else:
+        if promotional_price_found and not explicit_cost_has_price:
+            return None, PaidStatus.UNKNOWN, EventType.EVENT
+        if keyword_paid_found and not paid_found and not free_found:
+            return None, PaidStatus.UNKNOWN, EventType.EVENT
         # Neither found - unknown
         return None, PaidStatus.UNKNOWN, EventType.EVENT
 
@@ -183,6 +222,7 @@ UNWANTED_FEED_PATTERNS = [
     ("FILTER_GULF_STATE_PARK", r"\bgulf\s+state\s+park\b"),
     ("FILTER_RIBBON_CUTTING", r"\bribbon[\s-]*cutting\b"),
     ("FILTER_BAR45", r"\bbar45\b"),
+    ("FILTER_FRISKY_MERMAID", r"\bfrisky\s+mermaid\b"),
     ("FILTER_BROWN_BAG_LUNCH", r"\bbrown\s+bag\s+lunch\b"),
     ("FILTER_LUNCH_SERIES", r"\blunch\s+series\b"),
     ("FILTER_SANDERS_BEACH", r"\bsanders\s+beach\b"),
@@ -288,8 +328,11 @@ def enrich_event(event_dict: dict) -> dict:
     Returns:
         Enriched event dictionary
     """
-    import tag_taxonomy
-    import venue_registry
+    try:
+        from scripts.tooling import tag_taxonomy, venue_registry
+    except ImportError:
+        import tag_taxonomy
+        import venue_registry
 
     enriched = event_dict.copy()
 
