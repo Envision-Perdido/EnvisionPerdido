@@ -7,6 +7,8 @@ import json
 from datetime import datetime, timedelta
 from pathlib import Path
 
+import pytest
+
 from scripts.tooling import browser_bootstrap
 
 
@@ -20,7 +22,9 @@ def test_get_cache_key_is_stable() -> None:
     assert first != different
 
 
-def test_save_and_load_cached_artifacts_round_trip(tmp_path: Path, monkeypatch) -> None:
+def test_save_and_load_cached_artifacts_round_trip(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     monkeypatch.setattr(browser_bootstrap, "_get_cache_dir", lambda: tmp_path)
     artifacts = {"endpoint": "https://example.com/api/events", "headers": {"accept": "json"}}
 
@@ -34,7 +38,7 @@ def test_save_and_load_cached_artifacts_round_trip(tmp_path: Path, monkeypatch) 
 
 
 def test_load_cached_artifacts_returns_none_for_expired_cache(
-    tmp_path: Path, monkeypatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(browser_bootstrap, "_get_cache_dir", lambda: tmp_path)
     cache_key = browser_bootstrap._get_cache_key("source-a", "example.com")
@@ -52,7 +56,9 @@ def test_load_cached_artifacts_returns_none_for_expired_cache(
 
 
 def test_load_cached_artifacts_handles_invalid_json(
-    tmp_path: Path, monkeypatch, capsys
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     monkeypatch.setattr(browser_bootstrap, "_get_cache_dir", lambda: tmp_path)
     cache_key = browser_bootstrap._get_cache_key("source-a", "example.com")
@@ -64,7 +70,7 @@ def test_load_cached_artifacts_handles_invalid_json(
     assert "Failed to load cached artifacts" in capsys.readouterr().out
 
 
-def test_bootstrap_json_api_uses_async_helper(monkeypatch) -> None:
+def test_bootstrap_json_api_uses_async_helper(monkeypatch: pytest.MonkeyPatch) -> None:
     captured: dict[str, object] = {}
 
     async def fake_bootstrap(url: str, previous_month_selector: str, source_name: str, **kwargs):
@@ -92,7 +98,9 @@ def test_bootstrap_json_api_uses_async_helper(monkeypatch) -> None:
     }
 
 
-def test_bootstrap_json_api_creates_event_loop_when_missing(monkeypatch) -> None:
+def test_bootstrap_json_api_creates_event_loop_when_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     created_loop = asyncio.new_event_loop()
 
     async def fake_bootstrap(url: str, previous_month_selector: str, source_name: str, **kwargs):
@@ -115,7 +123,9 @@ def test_bootstrap_json_api_creates_event_loop_when_missing(monkeypatch) -> None
     assert result["source_name"] == "source-b"
 
 
-def test_clear_bootstrap_cache_removes_single_cache_file(tmp_path: Path, monkeypatch) -> None:
+def test_clear_bootstrap_cache_removes_single_cache_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     monkeypatch.setattr(browser_bootstrap, "_get_cache_dir", lambda: tmp_path)
     browser_bootstrap._save_cached_artifacts(
         "source-a", "example.com", {"endpoint": "https://example.com/api/events"}
@@ -133,7 +143,9 @@ def test_clear_bootstrap_cache_removes_single_cache_file(tmp_path: Path, monkeyp
     assert remaining_files == expected_remaining
 
 
-def test_clear_bootstrap_cache_removes_all_cache_files(tmp_path: Path, monkeypatch) -> None:
+def test_clear_bootstrap_cache_removes_all_cache_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     monkeypatch.setattr(browser_bootstrap, "_get_cache_dir", lambda: tmp_path)
     browser_bootstrap._save_cached_artifacts(
         "source-a", "example.com", {"endpoint": "https://example.com/api/events"}
@@ -144,7 +156,9 @@ def test_clear_bootstrap_cache_removes_all_cache_files(tmp_path: Path, monkeypat
     assert list(tmp_path.glob("*.json")) == []
 
 
-def test_bootstrap_json_api_async_returns_cached_artifacts(monkeypatch) -> None:
+def test_bootstrap_json_api_async_returns_cached_artifacts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     cached = {"endpoint": "https://example.com/api/events", "created_at": datetime.now().isoformat()}
 
     def fail_if_called():
@@ -164,7 +178,9 @@ def test_bootstrap_json_api_async_returns_cached_artifacts(monkeypatch) -> None:
     assert result == cached
 
 
-def test_bootstrap_json_api_async_discovers_endpoint_and_caches_artifacts(monkeypatch) -> None:
+def test_bootstrap_json_api_async_discovers_endpoint_and_caches_artifacts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     captured_saved: dict[str, object] = {}
 
     class FakeRequest:
