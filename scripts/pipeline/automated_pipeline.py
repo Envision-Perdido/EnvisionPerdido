@@ -77,6 +77,9 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 CONFIDENCE_THRESHOLD = float(os.getenv("CONFIDENCE_THRESHOLD", "0.75"))
 
+# Re-export classify_events_batch for backward-compatibility with external callers
+classify_events_batch = classify_stage.classify_events_batch
+
 # ---------------------------------------------------------------------------
 # Backward-compatibility shims (kept for external callers / legacy tests)
 # ---------------------------------------------------------------------------

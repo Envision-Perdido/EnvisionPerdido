@@ -29,7 +29,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from scripts.tooling.env_loader import load_env, validate_env_config
 
 load_env()
-validate_env_config()
 
 # WordPress Configuration
 WORDPRESS_CONFIG = {
@@ -909,6 +908,8 @@ def setup_wordpress_credentials() -> tuple[str, str, str]:
 
 def main() -> None:
     """Main upload workflow."""
+    validate_env_config()
+
     print("\n" + "=" * 80)
     print("WORDPRESS CALENDAR UPLOADER")
     print("=" * 80)

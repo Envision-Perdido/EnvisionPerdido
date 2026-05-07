@@ -21,6 +21,8 @@ jobs:
         tests/unit/test_event_normalizer.py
         tests/unit/test_perdido_scraper.py
         tests/unit/test_wren_haven_scraper.py
+        tests/unit/test_env_loader.py
+        tests/unit/test_browser_bootstrap.py
     
     steps:
       - name: Checkout code
