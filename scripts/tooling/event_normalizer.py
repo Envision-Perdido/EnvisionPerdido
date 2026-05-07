@@ -135,10 +135,16 @@ def detect_paid_or_free(
 
     explicit_cost_has_price = bool(
         explicit_cost_text
-        and re.search(r"\$\d+(?:\.\d{2})?|\b\d+(?:\.\d{2})?\s*(?:dollar|usd)\b", explicit_cost_text, re.IGNORECASE)
+        and re.search(
+            r"\$\d+(?:\.\d{2})?|\b\d+(?:\.\d{2})?\s*(?:dollar|usd)\b",
+            explicit_cost_text,
+            re.IGNORECASE,
+        )
     )
 
-    paid_found = any(re.search(pattern, cleaned_text, re.IGNORECASE) for pattern in PAID_ADMISSION_PATTERNS)
+    paid_found = any(
+        re.search(pattern, cleaned_text, re.IGNORECASE) for pattern in PAID_ADMISSION_PATTERNS
+    )
 
     if explicit_cost_has_price:
         paid_found = True
