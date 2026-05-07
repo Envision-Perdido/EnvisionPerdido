@@ -21,9 +21,16 @@ from pathlib import Path
 import requests
 from requests.auth import HTTPBasicAuth
 
-# Add scripts directory to path and load environment
-sys.path.insert(0, str(Path(__file__).parent.parent))
-from scripts.tooling.env_loader import load_env
+# Add project root to path and load environment.
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+try:
+    from scripts.tooling.env_loader import load_env
+except ModuleNotFoundError:
+    # Backward-compatible fallback for environments still using legacy layout.
+    from scripts.env_loader import load_env
 
 load_env()
 
