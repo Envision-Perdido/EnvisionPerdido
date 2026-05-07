@@ -28,6 +28,7 @@ import joblib
 import numpy as np
 import pandas as pd
 from scripts.ml.training_support import compute_confidence, normalize_event_text_series
+from scripts.pipeline.external_handoff_export import export_handoff_bundle
 
 # Add scripts directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -810,8 +811,8 @@ def generate_review_html(community_events_df: pd.DataFrame, stats: dict) -> str:
 
         <h2>Next Steps</h2>
         <p>1. Review the events listed above, especially those marked for review.</p>
-        <p>2. Download the attached CSV file for detailed information.</p>
-        <p>3. Once approved, use the upload script to publish events to the calendar.</p>
+        <p>2. Download the attached handoff bundle for detailed source information.</p>
+        <p>3. Route the bundle through the external importer/editorial workflow before publish.</p>
 
         <p style="margin-top: 30px; color: #7f8c8d; font-size: 12px;">
             This is an automated email from the Community Event Classification System.
@@ -824,14 +825,14 @@ def generate_review_html(community_events_df: pd.DataFrame, stats: dict) -> str:
 
 
 def send_email_notification(
-    community_events_df: pd.DataFrame, all_events_df: pd.DataFrame, csv_path: Path
+    community_events_df: pd.DataFrame, all_events_df: pd.DataFrame, export_path: Path
 ) -> bool:
     """Send email notification with classified events.
 
     Args:
         community_events_df: DataFrame of community events.
         all_events_df: DataFrame of all events (for statistics).
-        csv_path: Path to CSV export file to attach.
+        export_path: Path to export artifact to attach.
 
     Returns:
         True if email sent successfully, False otherwise.
@@ -858,17 +859,17 @@ def send_email_notification(
     # Attach HTML
     msg.attach(MIMEText(html_content, "html"))
 
-    # Attach CSV file
+    # Attach export artifact
     try:
-        with open(csv_path, "rb") as f:
+        with open(export_path, "rb") as f:
             part = MIMEBase("application", "octet-stream")
             part.set_payload(f.read())
             encoders.encode_base64(part)
-            filename = csv_path.name
+            filename = export_path.name
             part.add_header("Content-Disposition", f'attachment; filename="{filename}"')
             msg.attach(part)
     except OSError as e:  # File access errors
-        log(f"Warning: Could not attach CSV file: {e}")
+        log(f"Warning: Could not attach export artifact: {e}")
 
     # Send email
     try:
@@ -890,48 +891,19 @@ def send_email_notification(
         return False
 
 
-def export_for_calendar(community_events_df: pd.DataFrame, format: str = "csv") -> Path | None:
-    """Export community events in format ready for calendar upload.
+def export_external_handoff(community_events_df: pd.DataFrame) -> Path:
+    """Export community events to the external handoff contract bundle."""
+    log("Exporting events to external handoff bundle...")
 
-    Uses automated keyword-based image assignment from classification.
-
-    Args:
-        community_events_df: DataFrame of community events.
-        format: Export format ('csv', 'json', 'ical'). Default: 'csv'.
-
-    Returns:
-        Path to exported file, or None on error.
-    """
-    log(f"Exporting events for calendar upload (format: {format})...")
-
-    # Use automated image assignments from classification
     df = community_events_df.copy()
 
-    # Log image assignment statistics
     image_urls = df.get("image_url", [None] * len(df))
     events_with_images = sum(1 for img in image_urls if pd.notna(img))
     log(f"Automated keyword-based image assignments: {events_with_images} events with images")
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-    if format == "csv":
-        output_path = OUTPUT_DIR / f"calendar_upload_{timestamp}.csv"
-        df.to_csv(output_path, index=False)
-        log(f"CSV export saved to {output_path}")
-        return output_path
-
-    elif format == "json":
-        output_path = OUTPUT_DIR / f"calendar_upload_{timestamp}.json"
-        df.to_json(output_path, orient="records", indent=2)
-        log(f"JSON export saved to {output_path}")
-        return output_path
-
-    elif format == "ical":
-        # TODO: Implement iCal export for calendar systems that accept .ics files
-        log("iCal export not yet implemented")
-        return None
-
-    return None
+    output_path = export_handoff_bundle(df, OUTPUT_DIR)
+    log(f"External handoff export saved to {output_path}")
+    return output_path
 
 
 def upload_to_wordpress(csv_path: Path) -> tuple[list | None, int]:
@@ -1276,10 +1248,10 @@ def main():
         log(f"Step 4 (Filtering) completed in {step_time:.1f}s")
         log(f"Found {len(community_events)} community events")
 
-        # Step 5: Export for calendar
+        # Step 5: Export external handoff bundle
         step_start = time.time()
-        log("\nStep 5: Exporting events for calendar...")
-        calendar_csv = export_for_calendar(community_events, format="csv")
+        log("\nStep 5: Exporting external event handoff bundle...")
+        handoff_bundle = export_external_handoff(community_events)
         step_time = time.time() - step_start
         log(f"Step 5 (Export) completed in {step_time:.1f}s")
 
@@ -1287,41 +1259,18 @@ def main():
         step_start = time.time()
         if EMAIL_CONFIG["sender_email"] != "your_email@example.com":
             log("\nStep 6: Sending email notification...")
-            send_email_notification(community_events, classified_df, calendar_csv)
+            send_email_notification(community_events, classified_df, handoff_bundle)
             step_time = time.time() - step_start
             log(f"Step 6 (Email) completed in {step_time:.1f}s")
         else:
             log("Email not configured. Skipping email notification.")
-            log(f"Review file manually at: {calendar_csv}")
+            log(f"Review handoff bundle manually at: {handoff_bundle}")
 
-        # Step 7: Auto-upload to WordPress (if enabled)
-        auto_upload = os.getenv("AUTO_UPLOAD", "true").lower() in {"true", "1", "yes"}
-
-        if auto_upload and len(community_events) > 0:
-            step_start = time.time()
-            log("\n" + "=" * 80)
-            log("Step 7: AUTO-UPLOAD ENABLED - Uploading to WordPress...")
-            log("=" * 80)
-
-            created_ids, published_count = upload_to_wordpress(calendar_csv)
-            step_time = time.time() - step_start
-            log(f"Step 7 (Upload) completed in {step_time:.1f}s")
-
-            if created_ids and published_count:
-                log(f"Successfully published {published_count} events to calendar")
-                metrics.add_uploaded(published_count)
-                send_upload_confirmation_email(community_events, created_ids, published_count)
-            elif created_ids is not None:
-                log("Upload completed but some events may not have published")
-                metrics.add_uploaded(len(created_ids))
-            else:
-                log("Upload failed - check WordPress credentials and connection")
-                metrics.add_error("WordPress upload failed")
-        else:
-            log("\n" + "=" * 80)
-            log("AUTO_UPLOAD disabled - manual upload required")
-            log(f"Use: python scripts/wordpress_uploader.py {calendar_csv}")
-            log("=" * 80)
+        log("\n" + "=" * 80)
+        log("Step 7: External handoff export complete")
+        log("Direct WordPress upload is intentionally skipped in this workflow.")
+        log(f"Use bundle: {handoff_bundle}")
+        log("=" * 80)
 
         # Final summary with total time
         total_time = time.time() - pipeline_start_time
