@@ -133,6 +133,7 @@ def _scrape_single_source(source: str, url: str | None) -> tuple[list[dict], str
                 return events, None
             except ImportError as e:
                 return [], f"wren_haven_scraper not available (Playwright not installed?): {e}"
+        return [], f"Unknown source: {source}"
     except Exception as e:
         error_msg = f"Error scraping {source}: {e}"
         return [], error_msg
