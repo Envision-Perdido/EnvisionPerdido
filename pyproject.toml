@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Automated community calendar scraping, classification, and WordPress publishing pipeline."
 requires-python = ">=3.13"
 dependencies = [
+    "Flask>=3.0.0",
     "requests",
     "beautifulsoup4",
     "lxml",
