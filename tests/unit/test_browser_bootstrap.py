@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -47,7 +47,7 @@ def test_load_cached_artifacts_returns_none_for_expired_cache(
         json.dumps(
             {
                 "endpoint": "https://example.com/api/events",
-                "created_at": (datetime.now() - timedelta(hours=30)).isoformat(),
+                "created_at": (datetime.now(UTC) - timedelta(hours=30)).isoformat(),
             }
         )
     )
@@ -159,7 +159,7 @@ def test_clear_bootstrap_cache_removes_all_cache_files(
 def test_bootstrap_json_api_async_returns_cached_artifacts(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    cached = {"endpoint": "https://example.com/api/events", "created_at": datetime.now().isoformat()}
+    cached = {"endpoint": "https://example.com/api/events", "created_at": datetime.now(UTC).isoformat()}
 
     def fail_if_called():
         raise AssertionError("Playwright should not be invoked when cache is valid")
