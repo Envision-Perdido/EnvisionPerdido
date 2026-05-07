@@ -103,6 +103,9 @@ def test_bootstrap_json_api_creates_event_loop_when_missing(
 ) -> None:
     created_loop = asyncio.new_event_loop()
 
+    def raise_runtime_error():
+        raise RuntimeError
+
     async def fake_bootstrap(url: str, previous_month_selector: str, source_name: str, **kwargs):
         return {
             "url": url,
@@ -112,7 +115,7 @@ def test_bootstrap_json_api_creates_event_loop_when_missing(
         }
 
     monkeypatch.setattr(browser_bootstrap, "bootstrap_json_api_async", fake_bootstrap)
-    monkeypatch.setattr(browser_bootstrap.asyncio, "get_event_loop", lambda: (_ for _ in ()).throw(RuntimeError))
+    monkeypatch.setattr(browser_bootstrap.asyncio, "get_event_loop", raise_runtime_error)
     monkeypatch.setattr(browser_bootstrap.asyncio, "new_event_loop", lambda: created_loop)
 
     try:
