@@ -88,13 +88,13 @@ $env:SITE_TIMEZONE = "America/Chicago"
 After setup, run one of the documented commands that imports `scripts/env_loader.py`, for example:
 
 ```bash
-docker compose run --rm app python scripts/health_check.py
+docker compose run --rm app python scripts/pipeline/health_check.py
 ```
 
 or, for a local venv workflow:
 
 ```bash
-python scripts/health_check.py
+python scripts/pipeline/health_check.py
 ```
 
 If variables are missing, the project prints a fail-fast validation message naming the missing keys.

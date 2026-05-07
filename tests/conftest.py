@@ -2,7 +2,7 @@
 
 import pytest
 
-from scripts.logger import reset_logger
+from scripts.tooling.logger import reset_logger
 
 
 @pytest.fixture(autouse=True)

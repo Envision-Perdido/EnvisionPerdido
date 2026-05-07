@@ -1,7 +1,17 @@
 #!/usr/bin/env python3
-"""Compatibility wrapper for moved scraper module."""
+"""Compatibility wrapper for moved scraper module.
 
-from __future__ import annotations
+DEPRECATED: Import directly from scripts.scrapers.wren_haven_scraper.
+This wrapper will be removed in a future release.
+"""
+import warnings
+
+warnings.warn(
+    "scripts.wren_haven_scraper is deprecated. "
+    "Use 'scripts.scrapers.wren_haven_scraper' directly.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 from datetime import datetime, timedelta
 from typing import Any

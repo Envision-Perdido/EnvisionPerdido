@@ -12,7 +12,7 @@ Use this skill when the task is to run the project's documented health monitorin
 Run from the repository root:
 
 ```bash
-docker compose run --rm app python scripts/health_check.py
+docker compose run --rm app python scripts/pipeline/health_check.py
 ```
 
 ## Preconditions

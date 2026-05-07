@@ -1,0 +1,11 @@
+{"timestamp": "2026-05-04T14:12:57.307073", "level": "INFO", "message": "================================================================================", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-04T14:12:57.307579", "level": "INFO", "message": "AUTOMATED COMMUNITY EVENT CLASSIFICATION PIPELINE", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-04T14:12:57.307789", "level": "INFO", "message": "================================================================================", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-04T14:12:57.308015", "level": "INFO", "message": "Starting event scraping (parallel mode)...", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-04T14:12:57.308353", "level": "INFO", "message": "Running 3 scraping tasks in parallel...", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-04T14:15:32.412457", "level": "INFO", "message": "================================================================================", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-04T14:15:32.412847", "level": "INFO", "message": "AUTOMATED COMMUNITY EVENT CLASSIFICATION PIPELINE", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-04T14:15:32.413085", "level": "INFO", "message": "================================================================================", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-04T14:15:32.413265", "level": "INFO", "message": "Starting event scraping (parallel mode)...", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-04T14:15:32.413481", "level": "INFO", "message": "Running 3 scraping tasks in parallel...", "logger": "EnvisionPerdido", "taskName": null}
+{"timestamp": "2026-05-04T14:15:33.377362", "level": "INFO", "message": "  [1/3] wren_haven completed: 0 events in 1.0s elapsed", "logger": "EnvisionPerdido", "taskName": null}
