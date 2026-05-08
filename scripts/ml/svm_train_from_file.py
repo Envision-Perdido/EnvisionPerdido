@@ -207,7 +207,7 @@ def main():
     )
     pos = int(df_l[args.label].astype(int).sum())
     neg = int(len(df_l) - pos)
-    print(f"Saved model → {args.model_path}")
+    print(f"Saved model -> {args.model_path}")
     print(f"Labeled rows: {len(df_l)} | Positives: {pos} | Negatives: {neg}")
 
 

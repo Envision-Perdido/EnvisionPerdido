@@ -433,7 +433,7 @@ def inspect_misclassifications(
         out = _ensure_dir(output_dir)
         false_positives.to_csv(out / "false_positives.csv", index=False)
         false_negatives.to_csv(out / "false_negatives.csv", index=False)
-        print(f"  Misclassification CSVs saved → {out}")
+        print(f"  Misclassification CSVs saved -> {out}")
 
     _print_misclassification_table(
         false_positives,

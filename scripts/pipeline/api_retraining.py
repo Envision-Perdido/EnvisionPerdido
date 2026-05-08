@@ -177,6 +177,7 @@ def _run_retrain_job(job_id: str, csv_input: Path) -> None:
             if existing_pythonpath
             else base_path
         )
+        env.setdefault("PYTHONIOENCODING", "utf-8")
 
         completed = subprocess.run(
             cmd,
